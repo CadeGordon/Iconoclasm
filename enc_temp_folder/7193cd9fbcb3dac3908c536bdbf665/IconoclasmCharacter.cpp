@@ -158,7 +158,7 @@ void AIconoclasmCharacter::Dash()
 		{
 			// Perform the dash
 			bIsDashing = true;
-			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed as needed
+			FVector DashVelocity = DashDirection * 1000.0f; // Adjust the dash speed as needed
 			GetCharacterMovement()->Velocity = DashVelocity;
 
 			// Decrement dash charges

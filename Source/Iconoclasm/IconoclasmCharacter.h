@@ -65,6 +65,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Weapon)
 	bool GetHasRifle();
 
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void DoubleJump();
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void Dash();
+
+	// Function to handle cooldown
+	void StartDashCooldown();
+
+	// Function to reset cooldown
+	void ResetDashCooldown();
+
+	// Function to handle end of dash
+	void EndDash();
+
+	// Function to reset jump count when the character lands
+	virtual void Landed(const FHitResult& Hit) override;
+
+	
+
 protected:
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
@@ -82,6 +102,31 @@ public:
 	USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
 	/** Returns FirstPersonCameraComponent subobject **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+
+protected:
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	int32 JumpCount;
+
+	// Variables for dash
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	int32 DashCharges;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	float DashCooldown;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	bool bCanDash;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	bool bIsDashing;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	bool bCanDashAgain; // New flag to allow immediate dash in a different direction
+
+	// Timer handle for cooldown
+	FTimerHandle DashCooldownTimerHandle;
+
 
 };
 
