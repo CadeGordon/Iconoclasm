@@ -43,9 +43,9 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	JumpCount = 0;
 	DashCharges = 3;
 	DashCooldown = 2.0f;
-	bCanDash = true;
-	bIsDashing = false;
-	bCanDashAgain = true;
+	CanDash = true;
+	IsDashing = false;
+	CanDashAgain = true;
 
 }
 
@@ -148,7 +148,7 @@ void AIconoclasmCharacter::DoubleJump()
 
 void AIconoclasmCharacter::Dash()
 {
-	if ((bCanDash || bCanDashAgain) && DashCharges > 0)
+	if ((CanDash || CanDashAgain) && DashCharges > 0 && GetCharacterMovement()->IsFalling())
 	{
 		// Get the direction the player is moving
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
@@ -157,7 +157,7 @@ void AIconoclasmCharacter::Dash()
 		if (!DashDirection.IsNearlyZero())
 		{
 			// Perform the dash
-			bIsDashing = true;
+			IsDashing = true;
 			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed as needed
 			GetCharacterMovement()->Velocity = DashVelocity;
 
@@ -169,41 +169,52 @@ void AIconoclasmCharacter::Dash()
 		}
 
 		// Set the new flag to allow immediate dash in a different direction
-		bCanDashAgain = true;
+		CanDashAgain = true;
+
+		if (DashCharges == 0)
+		{
+			DashCharges = 3;
+			CanDashAgain = false;
+		}
 	}
 }
 
 void AIconoclasmCharacter::StartDashCooldown()
 {
-	bCanDash = false;
-	bCanDashAgain = false;
+	CanDash = false;
+	CanDashAgain = false;
 	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
 }
 
 void AIconoclasmCharacter::ResetDashCooldown()
 {
-	bCanDash = true;
-	DashCharges++;
+	CanDash = true;
+	
+	if (DashCharges < 3) {
+		
+		DashCharges++;
 
-	// Reset cooldown timer
-	GetWorldTimerManager().ClearTimer(DashCooldownTimerHandle);
-
-	// Handle end of dash
-	EndDash();
+		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
+	}
 }
 
 void AIconoclasmCharacter::EndDash()
 {
-	bIsDashing = false;
+	IsDashing = false;
 }
 
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 
-	// Reset JumpCount and allow dashing and double jumping after landing
+	CanDashAgain = true;
 	JumpCount = 0;
-	bIsDashing = false;
-	bCanDashAgain = true;
+
+	// If there are no dash charges, start recharging them
+	if (DashCharges == 0)
+	{
+		// Start cooldown timer
+		StartDashCooldown();
+	}
 }
 

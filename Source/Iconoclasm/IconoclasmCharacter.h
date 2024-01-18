@@ -116,13 +116,13 @@ protected:
 	float DashCooldown;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bCanDash;
+	bool CanDash;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bIsDashing;
+	bool IsDashing;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bCanDashAgain; // New flag to allow immediate dash in a different direction
+	bool CanDashAgain; // New flag to allow immediate dash in a different direction
 
 	// Timer handle for cooldown
 	FTimerHandle DashCooldownTimerHandle;
