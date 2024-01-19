@@ -46,6 +46,7 @@ public:
 
 protected:
 	virtual void BeginPlay();
+	virtual void Tick(float DeltaTime) override;
 
 public:
 		
@@ -70,6 +71,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void Dash();
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void StartWallRun(const FVector& WallNormal);
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void StopWallRun();
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void CheckForWalls();
+
 
 	// Function to handle cooldown
 	void StartDashCooldown();
@@ -111,21 +122,29 @@ protected:
 	// Variables for dash
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	int32 DashCharges;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	float DashCooldown;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	bool CanDash;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	bool IsDashing;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	bool CanDashAgain; // New flag to allow immediate dash in a different direction
 
 	// Timer handle for cooldown
 	FTimerHandle DashCooldownTimerHandle;
+
+	//Varibales for wallrun
+	bool IsWallRunning;
+	float WallRunDuration;
+	float WallRunSpeed;
+	float WallDetectionRange;
+	float WallRunMaxAngle;
+
+	FVector WallRunDirection;
+
+
+	
 
 
 };

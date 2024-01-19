@@ -237,7 +237,7 @@ void AIconoclasmCharacter::CheckForWalls()
 	FCollisionQueryParams CollisionParams;
 	CollisionParams.AddIgnoredActor(this); // Ignore the character itself
 
-	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(50.0f), CollisionParams))
+	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 100.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(100.0f), CollisionParams))
 	{
 		// Check if the hit surface is a wall (you might need to adjust this condition)
 		if (FMath::Abs(HitResult.ImpactNormal.Z) < WallRunMaxAngle)
