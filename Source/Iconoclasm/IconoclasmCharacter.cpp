@@ -50,7 +50,7 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	CanDashAgain = true;
 	//Wallrunning variables
 	WallRunDuration = 10.0f;
-	WallRunSpeed = 1000.0f;
+	WallRunSpeed = 60.0f;
 	WallDetectionRange = 150.0f;
 	WallRunMaxAngle = 5.0f;
 
@@ -78,9 +78,16 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 
 	CheckForWalls();
 
-	if (IsWallRunning) {
-		FVector NewLocation = GetActorLocation() + (GetActorForwardVector() * WallRunSpeed * DeltaTime);
-		SetActorLocation(NewLocation);
+	if (IsWallRunning)
+	{
+		// Get the current velocity
+		FVector CurrentVelocity = GetVelocity();
+
+		// Calculate the desired location along the wall
+		FVector DesiredLocation = GetActorLocation() + CurrentVelocity.GetSafeNormal() * WallRunSpeed * DeltaTime;
+
+		// Update the character's location
+		SetActorLocation(DesiredLocation);
 	}
 }
 
@@ -205,9 +212,6 @@ void AIconoclasmCharacter::StartWallRun(const FVector& WallNormal)
 		IsWallRunning = true;
 		WallRunDirection = FVector::VectorPlaneProject(GetActorForwardVector(), WallNormal).GetSafeNormal();
 
-		// Set the character's movement mode to flying to prevent bouncing off the wall
-		GetCharacterMovement()->SetMovementMode(MOVE_Flying);
-
 		// Additional logic to handle wall running start, e.g., play animations or sound
 		UE_LOG(LogTemp, Warning, TEXT("Start Wall Run"));
 	}
@@ -218,9 +222,6 @@ void AIconoclasmCharacter::StopWallRun()
 	if (IsWallRunning)
 	{
 		IsWallRunning = false;
-
-		// Set the character's movement mode back to walking
-		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 
 		// Additional logic to handle wall running stop, e.g., reset variables or animations
 		UE_LOG(LogTemp, Warning, TEXT("Stop Wall Run"));
@@ -244,6 +245,14 @@ void AIconoclasmCharacter::CheckForWalls()
 		{
 			// Start wall running
 			StartWallRun(HitResult.ImpactNormal);
+
+			// Calculate the rotation to align with the wall normal
+			FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
+
+			// Launch the character with the wall run direction and rotation
+			FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
+			LaunchCharacter(LaunchVelocity, false, false);
+			AddActorLocalRotation(Rotation);
 		}
 		else
 		{
