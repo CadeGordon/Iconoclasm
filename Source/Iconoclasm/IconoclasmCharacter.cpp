@@ -238,27 +238,18 @@ void AIconoclasmCharacter::CheckForWalls()
 	FCollisionQueryParams CollisionParams;
 	CollisionParams.AddIgnoredActor(this); // Ignore the character itself
 
-	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(50.0f), CollisionParams))
+	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(60.0f), CollisionParams))
 	{
-		// Check if the hit surface is a wall (you might need to adjust this condition)
-		if (FMath::Abs(HitResult.ImpactNormal.Z) < WallRunMaxAngle)
-		{
-			// Start wall running
-			StartWallRun(HitResult.ImpactNormal);
+		// Start wall running regardless of the wall angle
+		StartWallRun(HitResult.ImpactNormal);
 
-			// Calculate the rotation to align with the wall normal
-			FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
+		// Calculate the rotation to align with the wall normal
+		FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
 
-			// Launch the character with the wall run direction and rotation
-			FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
-			LaunchCharacter(LaunchVelocity, false, false);
-			AddActorLocalRotation(Rotation);
-		}
-		else
-		{
-			// Stop wall running if the conditions are not met
-			StopWallRun();
-		}
+		// Launch the character with the wall run direction and rotation
+		FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
+		LaunchCharacter(LaunchVelocity, false, false);
+		AddActorLocalRotation(Rotation);
 	}
 	else
 	{
