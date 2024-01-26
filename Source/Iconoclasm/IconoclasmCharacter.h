@@ -81,6 +81,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void CheckForWalls();
 
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void StartSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void UpdateSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void StopSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void SlideJump();
+
+
 
 	// Function to handle cooldown
 	void StartDashCooldown();
@@ -142,6 +155,11 @@ protected:
 	float WallRunMaxAngle;
 
 	FVector WallRunDirection;
+
+	//Variables for Sliding
+	bool IsSliding;
+	float SlideSpeed;
+	float SlideJumpBoostStrenght;
 
 
 

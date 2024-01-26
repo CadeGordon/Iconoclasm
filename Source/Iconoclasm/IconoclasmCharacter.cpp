@@ -53,6 +53,10 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	WallRunSpeed = 60.0f;
 	WallDetectionRange = 150.0f;
 	WallRunMaxAngle = 5.0f;
+	//Slide Varibales
+	IsSliding = false;
+	SlideSpeed = 100.0f;
+	SlideJumpBoostStrenght = 500.0f;
 
 }
 
@@ -89,6 +93,12 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 		// Update the character's location
 		SetActorLocation(DesiredLocation);
 	}
+
+	if (IsSliding) {
+
+		UpdateSlide();
+
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////// Input
@@ -103,6 +113,7 @@ void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::DoubleJump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::SlideJump);
 
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::Move);
@@ -257,6 +268,64 @@ void AIconoclasmCharacter::CheckForWalls()
 		StopWallRun();
 	}
 
+}
+
+void AIconoclasmCharacter::StartSlide()
+{
+	if (!IsSliding && GetCharacterMovement()->IsMovingOnGround())
+	{
+		IsSliding = true;
+
+		// Set the character's velocity in the direction they are facing
+		FVector SlideDirection = GetActorForwardVector();
+		GetCharacterMovement()->Velocity = SlideDirection * SlideSpeed;
+
+	}
+
+}
+
+void AIconoclasmCharacter::UpdateSlide()
+{
+	// Update sliding behavior
+	// For example, lower the character to the ground
+	FVector NewLocation = GetActorLocation();
+	NewLocation.Z = 50.0f; // Adjust the height as needed
+
+	// Use LaunchCharacter to move the character while avoiding clipping
+	FVector SlideDirection = GetActorForwardVector();
+	FVector LaunchVelocity = SlideDirection * SlideSpeed;
+
+	// Check if the character is currently on the ground
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		// If on the ground, use AddMovementInput for smooth movement
+		AddMovementInput(SlideDirection, SlideSpeed);
+	}
+	else
+	{
+		// If sliding off a ledge, use LaunchCharacter
+		LaunchCharacter(LaunchVelocity, false, false);
+	}
+
+}
+
+void AIconoclasmCharacter::StopSlide()
+{
+	if (IsSliding) {
+		IsSliding = false;
+		GetCharacterMovement()->MaxWalkSpeed = 1600.0f;
+	}
+}
+
+void AIconoclasmCharacter::SlideJump()
+{
+	if (IsSliding)
+	{
+		// Perform a boost when jumping while sliding
+		FVector LaunchVelocity = GetActorForwardVector() * SlideJumpBoostStrenght;
+		LaunchCharacter(LaunchVelocity, false, false);
+		StopSlide(); // Stop sliding when jumping
+	}
 }
 
 
