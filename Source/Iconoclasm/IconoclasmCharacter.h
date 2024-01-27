@@ -46,6 +46,7 @@ public:
 
 protected:
 	virtual void BeginPlay();
+	virtual void Tick(float DeltaTime) override;
 
 public:
 		
@@ -70,6 +71,29 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void Dash();
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void StartWallRun(const FVector& WallNormal);
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void StopWallRun();
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void CheckForWalls();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void StartSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void UpdateSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void StopSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void SlideJump();
+
+
 
 	// Function to handle cooldown
 	void StartDashCooldown();
@@ -111,21 +135,35 @@ protected:
 	// Variables for dash
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	int32 DashCharges;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	float DashCooldown;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bCanDash;
-
+	bool CanDash;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bIsDashing;
-
+	bool IsDashing;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bCanDashAgain; // New flag to allow immediate dash in a different direction
+	bool CanDashAgain; // New flag to allow immediate dash in a different direction
 
 	// Timer handle for cooldown
 	FTimerHandle DashCooldownTimerHandle;
+
+	//Varibales for wallrun
+	bool IsWallRunning;
+	float WallRunDuration;
+	float WallRunSpeed;
+	float WallDetectionRange;
+	float WallRunMaxAngle;
+
+	FVector WallRunDirection;
+
+	//Variables for Sliding
+	bool IsSliding;
+	float SlideSpeed;
+	float SlideJumpBoostStrenght;
+
+
+
+	
 
 
 };

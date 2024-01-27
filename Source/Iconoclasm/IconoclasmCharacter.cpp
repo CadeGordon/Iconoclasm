@@ -40,12 +40,23 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	//Mesh1P->SetRelativeRotation(FRotator(0.9f, -19.19f, 5.2f));
 	Mesh1P->SetRelativeLocation(FVector(-30.f, 0.f, -150.f));
 
+	//double jump variables
 	JumpCount = 0;
+	//Dashing Variables
 	DashCharges = 3;
 	DashCooldown = 2.0f;
-	bCanDash = true;
-	bIsDashing = false;
-	bCanDashAgain = true;
+	CanDash = true;
+	IsDashing = false;
+	CanDashAgain = true;
+	//Wallrunning variables
+	WallRunDuration = 10.0f;
+	WallRunSpeed = 60.0f;
+	WallDetectionRange = 150.0f;
+	WallRunMaxAngle = 5.0f;
+	//Slide Varibales
+	IsSliding = false;
+	SlideSpeed = 100.0f;
+	SlideJumpBoostStrenght = 500.0f;
 
 }
 
@@ -65,6 +76,31 @@ void AIconoclasmCharacter::BeginPlay()
 
 }
 
+void AIconoclasmCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	CheckForWalls();
+
+	if (IsWallRunning)
+	{
+		// Get the current velocity
+		FVector CurrentVelocity = GetVelocity();
+
+		// Calculate the desired location along the wall
+		FVector DesiredLocation = GetActorLocation() + CurrentVelocity.GetSafeNormal() * WallRunSpeed * DeltaTime;
+
+		// Update the character's location
+		SetActorLocation(DesiredLocation);
+	}
+
+	if (IsSliding) {
+
+		UpdateSlide();
+
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////// Input
 
 void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -77,6 +113,7 @@ void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::DoubleJump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::SlideJump);
 
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::Move);
@@ -148,7 +185,7 @@ void AIconoclasmCharacter::DoubleJump()
 
 void AIconoclasmCharacter::Dash()
 {
-	if ((bCanDash || bCanDashAgain) && DashCharges > 0)
+	if ((CanDash || CanDashAgain) && DashCharges > 0 && GetCharacterMovement()->IsFalling())
 	{
 		// Get the direction the player is moving
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
@@ -157,7 +194,7 @@ void AIconoclasmCharacter::Dash()
 		if (!DashDirection.IsNearlyZero())
 		{
 			// Perform the dash
-			bIsDashing = true;
+			IsDashing = true;
 			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed as needed
 			GetCharacterMovement()->Velocity = DashVelocity;
 
@@ -169,41 +206,165 @@ void AIconoclasmCharacter::Dash()
 		}
 
 		// Set the new flag to allow immediate dash in a different direction
-		bCanDashAgain = true;
+		CanDashAgain = true;
+
+		if (DashCharges == 0)
+		{
+			DashCharges = 3;
+			CanDashAgain = false;
+		}
 	}
 }
 
+void AIconoclasmCharacter::StartWallRun(const FVector& WallNormal)
+{
+	if (!IsWallRunning)
+	{
+		IsWallRunning = true;
+		WallRunDirection = FVector::VectorPlaneProject(GetActorForwardVector(), WallNormal).GetSafeNormal();
+
+		// Additional logic to handle wall running start, e.g., play animations or sound
+		UE_LOG(LogTemp, Warning, TEXT("Start Wall Run"));
+	}
+}
+
+void AIconoclasmCharacter::StopWallRun()
+{
+	if (IsWallRunning)
+	{
+		IsWallRunning = false;
+
+		// Additional logic to handle wall running stop, e.g., reset variables or animations
+		UE_LOG(LogTemp, Warning, TEXT("Stop Wall Run"));
+	}
+}
+
+void AIconoclasmCharacter::CheckForWalls()
+{
+	FVector Start = GetActorLocation();
+	FVector ForwardVector = GetActorForwardVector();
+
+	// Use SphereTraceSingle instead of LineTraceSingle
+	FHitResult HitResult;
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(this); // Ignore the character itself
+
+	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(60.0f), CollisionParams))
+	{
+		// Start wall running regardless of the wall angle
+		StartWallRun(HitResult.ImpactNormal);
+
+		// Calculate the rotation to align with the wall normal
+		FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
+
+		// Launch the character with the wall run direction and rotation
+		FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
+		LaunchCharacter(LaunchVelocity, false, false);
+		AddActorLocalRotation(Rotation);
+	}
+	else
+	{
+		// Stop wall running if no wall is detected
+		StopWallRun();
+	}
+
+}
+
+void AIconoclasmCharacter::StartSlide()
+{
+	if (!IsSliding && GetCharacterMovement()->IsMovingOnGround())
+	{
+		IsSliding = true;
+
+		// Set the character's velocity in the direction they are facing
+		FVector SlideDirection = GetActorForwardVector();
+		GetCharacterMovement()->Velocity = SlideDirection * SlideSpeed;
+
+	}
+
+}
+
+void AIconoclasmCharacter::UpdateSlide()
+{
+	// Update sliding behavior
+	// For example, lower the character to the ground
+	FVector NewLocation = GetActorLocation();
+	NewLocation.Z = 50.0f; // Adjust the height as needed
+
+	// Use LaunchCharacter to move the character while avoiding clipping
+	FVector SlideDirection = GetActorForwardVector();
+	FVector LaunchVelocity = SlideDirection * SlideSpeed;
+
+	// Check if the character is currently on the ground
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		// If on the ground, use AddMovementInput for smooth movement
+		AddMovementInput(SlideDirection, SlideSpeed);
+	}
+	else
+	{
+		// If sliding off a ledge, use LaunchCharacter
+		LaunchCharacter(LaunchVelocity, false, false);
+	}
+
+}
+
+void AIconoclasmCharacter::StopSlide()
+{
+	if (IsSliding) {
+		IsSliding = false;
+		GetCharacterMovement()->MaxWalkSpeed = 1600.0f;
+	}
+}
+
+void AIconoclasmCharacter::SlideJump()
+{
+	if (IsSliding)
+	{
+		// Perform a boost when jumping while sliding
+		FVector LaunchVelocity = GetActorForwardVector() * SlideJumpBoostStrenght;
+		LaunchCharacter(LaunchVelocity, false, false);
+		StopSlide(); // Stop sliding when jumping
+	}
+}
+
+
 void AIconoclasmCharacter::StartDashCooldown()
 {
-	bCanDash = false;
-	bCanDashAgain = false;
+	CanDash = false;
+	CanDashAgain = false;
 	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
 }
 
 void AIconoclasmCharacter::ResetDashCooldown()
 {
-	bCanDash = true;
-	DashCharges++;
+	CanDash = true;
+	
+	if (DashCharges < 3) {
+		
+		DashCharges++;
 
-	// Reset cooldown timer
-	GetWorldTimerManager().ClearTimer(DashCooldownTimerHandle);
-
-	// Handle end of dash
-	EndDash();
+		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
+	}
 }
 
 void AIconoclasmCharacter::EndDash()
 {
-	bIsDashing = false;
+	IsDashing = false;
 }
 
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 
-	// Reset JumpCount and allow dashing and double jumping after landing
+	CanDashAgain = true;
 	JumpCount = 0;
-	bIsDashing = false;
-	bCanDashAgain = true;
+
+	// If there are no dash charges, start recharging them
+	if (DashCharges == 0)
+	{
+		// Start cooldown timer
+		StartDashCooldown();
+	}
 }
 
