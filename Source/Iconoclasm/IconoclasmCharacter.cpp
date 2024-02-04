@@ -11,6 +11,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Engine/LocalPlayer.h"
+#include "GameFramework/SpringArmComponent.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -55,7 +56,7 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	WallRunMaxAngle = 5.0f;
 	//Slide Varibales
 	IsSliding = false;
-	SlideSpeed = 100.0f;
+	SlideSpeed = 500.0f;
 	SlideJumpBoostStrenght = 500.0f;
 
 }
@@ -276,35 +277,36 @@ void AIconoclasmCharacter::StartSlide()
 	{
 		IsSliding = true;
 
-		// Set the character's velocity in the direction they are facing
-		FVector SlideDirection = GetActorForwardVector();
-		GetCharacterMovement()->Velocity = SlideDirection * SlideSpeed;
+		// Set the character's movement direction
+		SlideDirection = GetActorForwardVector();
 
+		// Additional logic for updating slide
+		UpdateSlide();
 	}
 
 }
 
 void AIconoclasmCharacter::UpdateSlide()
 {
-	// Update sliding behavior
-	// For example, lower the character to the ground
-	FVector NewLocation = GetActorLocation();
-	NewLocation.Z = 50.0f; // Adjust the height as needed
-
-	// Use LaunchCharacter to move the character while avoiding clipping
-	FVector SlideDirection = GetActorForwardVector();
-	FVector LaunchVelocity = SlideDirection * SlideSpeed;
-
-	// Check if the character is currently on the ground
-	if (GetCharacterMovement()->IsMovingOnGround())
+	if (IsSliding)
 	{
-		// If on the ground, use AddMovementInput for smooth movement
-		AddMovementInput(SlideDirection, SlideSpeed);
-	}
-	else
-	{
-		// If sliding off a ledge, use LaunchCharacter
-		LaunchCharacter(LaunchVelocity, false, false);
+		if (GetCharacterMovement()->IsMovingOnGround())
+		{
+			// If on the ground, use AddMovementInput for smooth movement
+			AddMovementInput(SlideDirection, SlideSpeed);
+
+			// Rotate the character based on the controller input
+			const FRotator ControlRotation = GetControlRotation();
+			const FRotator ControlYawRotation(0, ControlRotation.Yaw, 0);
+			SetActorRotation(ControlYawRotation);
+		}
+		else
+		{
+			// If sliding off a ledge, use LaunchCharacter
+			LaunchCharacter(SlideDirection * SlideSpeed, false, false);
+		}
+
+		// Additional logic for updating slide
 	}
 
 }
@@ -326,6 +328,22 @@ void AIconoclasmCharacter::SlideJump()
 		LaunchCharacter(LaunchVelocity, false, false);
 		StopSlide(); // Stop sliding when jumping
 	}
+}
+
+void AIconoclasmCharacter::SlideInput(float Value)
+{
+	//if (IsSliding)
+	//{
+	//	// Set the character's rotation based on the direction they started sliding
+	//	FVector SlideDirection = GetActorForwardVector();
+	//	FRotator SlideRotation = SlideDirection.Rotation();
+	//	SetActorRotation(SlideRotation);
+
+	//	// Clear the controller's rotation to prevent any additional influence
+	//	Controller->SetControlRotation(SlideRotation);
+
+	//	// Additional logic for adjusting slide behavior based on input if needed
+	//}
 }
 
 
