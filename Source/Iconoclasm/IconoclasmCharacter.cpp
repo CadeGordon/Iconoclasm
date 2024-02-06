@@ -56,8 +56,8 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	WallRunMaxAngle = 5.0f;
 	//Slide Varibales
 	IsSliding = false;
-	SlideSpeed = 500.0f;
-	SlideJumpBoostStrenght = 500.0f;
+	SlideSpeed = 2000.0f;
+	SlideJumpBoostStrength = 10000.0f;
 
 }
 
@@ -196,7 +196,7 @@ void AIconoclasmCharacter::Dash()
 		{
 			// Perform the dash
 			IsDashing = true;
-			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed as needed
+			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed 
 			GetCharacterMovement()->Velocity = DashVelocity;
 
 			// Decrement dash charges
@@ -206,7 +206,6 @@ void AIconoclasmCharacter::Dash()
 			StartDashCooldown();
 		}
 
-		// Set the new flag to allow immediate dash in a different direction
 		CanDashAgain = true;
 
 		if (DashCharges == 0)
@@ -224,8 +223,6 @@ void AIconoclasmCharacter::StartWallRun(const FVector& WallNormal)
 		IsWallRunning = true;
 		WallRunDirection = FVector::VectorPlaneProject(GetActorForwardVector(), WallNormal).GetSafeNormal();
 
-		// Additional logic to handle wall running start, e.g., play animations or sound
-		UE_LOG(LogTemp, Warning, TEXT("Start Wall Run"));
 	}
 }
 
@@ -235,8 +232,6 @@ void AIconoclasmCharacter::StopWallRun()
 	{
 		IsWallRunning = false;
 
-		// Additional logic to handle wall running stop, e.g., reset variables or animations
-		UE_LOG(LogTemp, Warning, TEXT("Stop Wall Run"));
 	}
 }
 
@@ -245,7 +240,7 @@ void AIconoclasmCharacter::CheckForWalls()
 	FVector Start = GetActorLocation();
 	FVector ForwardVector = GetActorForwardVector();
 
-	// Use SphereTraceSingle instead of LineTraceSingle
+	// Use SphereTraceSingle
 	FHitResult HitResult;
 	FCollisionQueryParams CollisionParams;
 	CollisionParams.AddIgnoredActor(this); // Ignore the character itself
@@ -280,7 +275,7 @@ void AIconoclasmCharacter::StartSlide()
 		// Set the character's movement direction
 		SlideDirection = GetActorForwardVector();
 
-		// Additional logic for updating slide
+		
 		UpdateSlide();
 	}
 
@@ -292,8 +287,12 @@ void AIconoclasmCharacter::UpdateSlide()
 	{
 		if (GetCharacterMovement()->IsMovingOnGround())
 		{
-			// If on the ground, use AddMovementInput for smooth movement
-			AddMovementInput(SlideDirection, SlideSpeed);
+			// Adjust the slide speed
+			SlideSpeed = 5000.0f; 
+
+			// Set the character's velocity directly for smooth movement on the ground
+			FVector SlideVelocity = SlideDirection * SlideSpeed;
+			GetCharacterMovement()->Velocity = SlideVelocity;
 
 			// Rotate the character based on the controller input
 			const FRotator ControlRotation = GetControlRotation();
@@ -302,8 +301,10 @@ void AIconoclasmCharacter::UpdateSlide()
 		}
 		else
 		{
-			// If sliding off a ledge, use LaunchCharacter
-			LaunchCharacter(SlideDirection * SlideSpeed, false, false);
+			//Can be used to launch player when sliding off a ledge not sure if want to use it
+			//// If sliding off a ledge, use LaunchCharacter with a set value
+			//FVector LaunchVelocity = SlideDirection * 100.0f; 
+			//LaunchCharacter(LaunchVelocity, false, false);
 		}
 
 		// Additional logic for updating slide
@@ -324,7 +325,7 @@ void AIconoclasmCharacter::SlideJump()
 	if (IsSliding)
 	{
 		// Perform a boost when jumping while sliding
-		FVector LaunchVelocity = GetActorForwardVector() * SlideJumpBoostStrenght;
+		FVector LaunchVelocity = FVector(0.0f, 0.0f, 1.0f) * SlideJumpBoostStrength; // Adjust the Z component for upward boost
 		LaunchCharacter(LaunchVelocity, false, false);
 		StopSlide(); // Stop sliding when jumping
 	}

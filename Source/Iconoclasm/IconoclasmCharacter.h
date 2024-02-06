@@ -163,7 +163,7 @@ protected:
 	bool IsSliding;
 	bool FirstSlideUpdate;
 	float SlideSpeed;
-	float SlideJumpBoostStrenght;
+	float SlideJumpBoostStrength;
 
 	FVector SlideDirection;
 
