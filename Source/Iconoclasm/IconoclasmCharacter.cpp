@@ -58,7 +58,7 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	IsSliding = false;
 	SlideSpeed = 2000.0f;
 	SlideJumpBoostStrength = 3500.0f;
-	GroundSlamStrength = 5000.0f;
+	GroundSlamStrength = 200000.0f;
 
 }
 
@@ -278,6 +278,13 @@ void AIconoclasmCharacter::StartSlide()
 
 		
 		UpdateSlide();
+
+		// Adjust the camera position or rotation here
+        if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+        {
+            // Move the camera down
+            FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, -50.0f)); // Adjust the Z value as needed
+        }
 	}
 
 }
@@ -318,6 +325,14 @@ void AIconoclasmCharacter::StopSlide()
 	if (IsSliding) {
 		IsSliding = false;
 		GetCharacterMovement()->MaxWalkSpeed = 1600.0f;
+
+		// Adjust the camera position or rotation here
+		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+		{
+			// Move the camera down
+			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f)); // Adjust the Z value as needed
+		}
+
 	}
 }
 
@@ -350,9 +365,14 @@ void AIconoclasmCharacter::SlideInput(float Value)
 
 void AIconoclasmCharacter::GroundSlam()
 {
+	// Cancel out the current velocity
+	FVector CurrentVelocity = GetCharacterMovement()->Velocity;
+	FVector CancelVelocity = FVector(-CurrentVelocity.X, -CurrentVelocity.Y, 0.0f);
+	GetCharacterMovement()->Velocity = CancelVelocity;
+
 	// Perform a slam by launching the character straight down
 	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength; // Adjust the Z component for downward velocity
-	LaunchCharacter(LaunchVelocity, false, false);
+	LaunchCharacter(LaunchVelocity, true, true); // Set bXYOverride to true to override XY movement
 }
 
 
