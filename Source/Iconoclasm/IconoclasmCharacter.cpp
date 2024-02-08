@@ -57,7 +57,8 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	//Slide Varibales
 	IsSliding = false;
 	SlideSpeed = 2000.0f;
-	SlideJumpBoostStrength = 10000.0f;
+	SlideJumpBoostStrength = 3500.0f;
+	GroundSlamStrength = 5000.0f;
 
 }
 
@@ -345,6 +346,13 @@ void AIconoclasmCharacter::SlideInput(float Value)
 
 	//	// Additional logic for adjusting slide behavior based on input if needed
 	//}
+}
+
+void AIconoclasmCharacter::GroundSlam()
+{
+	// Perform a slam by launching the character straight down
+	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength; // Adjust the Z component for downward velocity
+	LaunchCharacter(LaunchVelocity, false, false);
 }
 
 

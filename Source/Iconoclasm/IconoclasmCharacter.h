@@ -96,6 +96,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Slide")
 	void SlideInput(float Value);
 
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void GroundSlam();
+
+
+
 
 
 	// Function to handle cooldown
@@ -164,6 +169,7 @@ protected:
 	bool FirstSlideUpdate;
 	float SlideSpeed;
 	float SlideJumpBoostStrength;
+	float GroundSlamStrength;
 
 	FVector SlideDirection;
 
