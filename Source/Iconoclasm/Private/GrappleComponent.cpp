@@ -24,7 +24,7 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
     if (IsGrappleActive)
     {
-        PullCharacterToLocation(OwningCharacter->GetActorLocation());
+        PullCharacterToLocation(GrappleLocation);
     }
 }
 
@@ -51,14 +51,10 @@ void UGrappleComponent::FireGrapple()
     QueryParams.AddIgnoredActor(OwningCharacter);
     GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_Visibility, QueryParams);
 
-    // Draw debug line
-    DrawDebugLine(GetWorld(), ViewPointLocation, HitResult.bBlockingHit ? HitResult.ImpactPoint : EndPoint, FColor::Green, false, 0.0f, 0, 10.0f);
-
-
-    // If we hit something, pull the character to that location
+    // If we hit something, store the grapple location
     if (HitResult.bBlockingHit)
     {
-        PullCharacterToLocation(HitResult.ImpactPoint);
+        GrappleLocation = HitResult.ImpactPoint;
     }
 }
 
@@ -74,33 +70,16 @@ void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
         return;
     }
 
-    // Get the player's viewpoint
-    FVector ViewPointLocation;
-    FRotator ViewPointRotation;
-    OwningCharacter->GetActorEyesViewPoint(ViewPointLocation, ViewPointRotation);
+    // Calculate direction and force
+    FVector Direction = Location - OwningCharacter->GetActorLocation();
+    Direction.Normalize();
+    FVector Force = Direction * GrappleSpeed;
 
-    // Calculate the end point of the grapple
-    FVector EndPoint = ViewPointLocation + ViewPointRotation.Vector() * GrappleLength;
-
-    // Perform a line trace to detect hit point
-    FHitResult HitResult;
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(OwningCharacter);
-    GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_Visibility, QueryParams);
-
-    // If we hit something, pull the character to that location
-    if (HitResult.bBlockingHit)
+    // Apply the force to the character's movement component
+    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
+    if (CharacterMovement)
     {
-        FVector Direction = HitResult.ImpactPoint - OwningCharacter->GetActorLocation();
-        Direction.Normalize();
-        FVector Force = Direction * GrappleSpeed;
-
-        // Apply the force to the character's movement component
-        UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
-        if (CharacterMovement)
-        {
-            CharacterMovement->Launch(Force);
-        }
+        CharacterMovement->Launch(Force);
     }
 }
 
