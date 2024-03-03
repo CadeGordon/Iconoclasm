@@ -219,51 +219,51 @@ void AIconoclasmCharacter::Dash()
 
 void AIconoclasmCharacter::StartWallRun(const FVector& WallNormal)
 {
-	if (!IsWallRunning)
+	/*if (!IsWallRunning)
 	{
 		IsWallRunning = true;
 		WallRunDirection = FVector::VectorPlaneProject(GetActorForwardVector(), WallNormal).GetSafeNormal();
 
-	}
+	}*/
 }
 
 void AIconoclasmCharacter::StopWallRun()
 {
-	if (IsWallRunning)
+	/*if (IsWallRunning)
 	{
 		IsWallRunning = false;
 
-	}
+	}*/
 }
 
 void AIconoclasmCharacter::CheckForWalls()
 {
-	FVector Start = GetActorLocation();
-	FVector ForwardVector = GetActorForwardVector();
+	//FVector Start = GetActorLocation();
+	//FVector ForwardVector = GetActorForwardVector();
 
-	// Use SphereTraceSingle
-	FHitResult HitResult;
-	FCollisionQueryParams CollisionParams;
-	CollisionParams.AddIgnoredActor(this); // Ignore the character itself
+	//// Use SphereTraceSingle
+	//FHitResult HitResult;
+	//FCollisionQueryParams CollisionParams;
+	//CollisionParams.AddIgnoredActor(this); // Ignore the character itself
 
-	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(60.0f), CollisionParams))
-	{
-		// Start wall running regardless of the wall angle
-		StartWallRun(HitResult.ImpactNormal);
+	//if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(60.0f), CollisionParams))
+	//{
+	//	// Start wall running regardless of the wall angle
+	//	StartWallRun(HitResult.ImpactNormal);
 
-		// Calculate the rotation to align with the wall normal
-		FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
+	//	// Calculate the rotation to align with the wall normal
+	//	FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
 
-		// Launch the character with the wall run direction and rotation
-		FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
-		LaunchCharacter(LaunchVelocity, false, false);
-		AddActorLocalRotation(Rotation);
-	}
-	else
-	{
-		// Stop wall running if no wall is detected
-		StopWallRun();
-	}
+	//	// Launch the character with the wall run direction and rotation
+	//	FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
+	//	LaunchCharacter(LaunchVelocity, false, false);
+	//	AddActorLocalRotation(Rotation);
+	//}
+	//else
+	//{
+	//	// Stop wall running if no wall is detected
+	//	StopWallRun();
+	//}
 
 }
 

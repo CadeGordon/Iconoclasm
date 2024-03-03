@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/Character.h"
+#include "TimerManager.h"
 #include "GrappleComponent.generated.h"
 
 
@@ -34,12 +35,27 @@ public:
 private:
 	void PullCharacterToLocation(const FVector& Location);
 
+	void ResetGrappleCooldown();
+
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleLength = 1000.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleSpeed = 5000.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple")
+	float GrappleReleaseForce = 1000.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple")
+	float GrappleCooldownDuration = 3.0f;
+
+	bool HitWall;
+	bool GrappleOnCooldown = false;
+
+	FTimerHandle GrappleCooldownTimerHandle;
+
+
 
 private:
 	UPROPERTY()

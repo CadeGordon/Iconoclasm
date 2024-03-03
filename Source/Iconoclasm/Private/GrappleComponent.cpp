@@ -30,7 +30,7 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
 void UGrappleComponent::FireGrapple()
 {
-    if (!OwningCharacter)
+    if (GrappleOnCooldown || !OwningCharacter)
     {
         return;
     }
@@ -56,6 +56,9 @@ void UGrappleComponent::FireGrapple()
     {
         GrappleLocation = HitResult.ImpactPoint;
     }
+
+    GrappleOnCooldown = true;
+    GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
 }
 
 void UGrappleComponent::ReleaseGrapple()
@@ -70,8 +73,20 @@ void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
         return;
     }
 
+    FVector CharacterLocation = OwningCharacter->GetActorLocation();
+    float DistanceToLocationSquared = FVector::DistSquared(CharacterLocation, Location);
+    float DistanceThresholdSquared = 100.0f; // Adjust this threshold as needed
+
+    // Check if the character is close enough to the grapple location or if it has hit a wall
+    if (DistanceToLocationSquared <= DistanceThresholdSquared || HitWall)
+    {
+        // Release the grapple if the character is within the distance threshold or has hit a wall
+        ReleaseGrapple();
+        return;
+    }
+
     // Calculate direction and force
-    FVector Direction = Location - OwningCharacter->GetActorLocation();
+    FVector Direction = Location - CharacterLocation;
     Direction.Normalize();
     FVector Force = Direction * GrappleSpeed;
 
@@ -81,6 +96,11 @@ void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
     {
         CharacterMovement->Launch(Force);
     }
+}
+
+void UGrappleComponent::ResetGrappleCooldown()
+{
+    GrappleOnCooldown = false;
 }
 
 
