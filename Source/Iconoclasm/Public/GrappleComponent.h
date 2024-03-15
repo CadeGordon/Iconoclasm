@@ -32,10 +32,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReleaseGrapple();
 
+
 private:
 	void PullCharacterToLocation(const FVector& Location);
 
 	void ResetGrappleCooldown();
+
+	
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
@@ -50,10 +53,23 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleCooldownDuration = 3.0f;
 
+	float GrappleEndThreshold = 1000.0f;
+
+	float PullForce = 1000.0f;
+
 	bool HitWall;
 	bool GrappleOnCooldown = false;
 
 	FTimerHandle GrappleCooldownTimerHandle;
+
+	//variables for swining
+	FVector SwingStartLocation;
+	FVector SwingStartDirection;
+	FVector SwingAxis;
+	float SwingSpeed = 100.0f;
+
+
+	FString ObjectTag;
 
 
 

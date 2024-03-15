@@ -5,6 +5,10 @@
 #include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
+#include "Engine/StaticMeshActor.h"
 
 // Sets default values for this component's properties
 UGrappleComponent::UGrappleComponent()
@@ -14,6 +18,7 @@ UGrappleComponent::UGrappleComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 
     IsGrappleActive = false;
+    ObjectTag = "Grabbable";
 
 	// ...
 }
@@ -49,13 +54,15 @@ void UGrappleComponent::FireGrapple()
     FHitResult HitResult;
     FCollisionQueryParams QueryParams;
     QueryParams.AddIgnoredActor(OwningCharacter);
-    GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_Visibility, QueryParams);
+    GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_WorldDynamic, QueryParams);
 
     // If we hit something, store the grapple location
     if (HitResult.bBlockingHit)
     {
         GrappleLocation = HitResult.ImpactPoint;
     }
+
+    DrawDebugLine(GetWorld(), ViewPointLocation, GrappleLocation, FColor::Green, false, 5.0f, 0, 5.0f);
 
     GrappleOnCooldown = true;
     GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
@@ -66,6 +73,8 @@ void UGrappleComponent::ReleaseGrapple()
     IsGrappleActive = false;
 }
 
+
+
 void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
 {
     if (!OwningCharacter)
@@ -75,22 +84,18 @@ void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
 
     FVector CharacterLocation = OwningCharacter->GetActorLocation();
     float DistanceToLocationSquared = FVector::DistSquared(CharacterLocation, Location);
-    float DistanceThresholdSquared = 100.0f; // Adjust this threshold as needed
+    float DistanceThresholdSquared = GrappleEndThreshold * GrappleEndThreshold; // Adjust this threshold as needed
 
-    // Check if the character is close enough to the grapple location or if it has hit a wall
-    if (DistanceToLocationSquared <= DistanceThresholdSquared || HitWall)
+    if (DistanceToLocationSquared <= DistanceThresholdSquared)
     {
-        // Release the grapple if the character is within the distance threshold or has hit a wall
         ReleaseGrapple();
         return;
     }
 
-    // Calculate direction and force
     FVector Direction = Location - CharacterLocation;
     Direction.Normalize();
     FVector Force = Direction * GrappleSpeed;
 
-    // Apply the force to the character's movement component
     UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
     if (CharacterMovement)
     {
@@ -102,6 +107,8 @@ void UGrappleComponent::ResetGrappleCooldown()
 {
     GrappleOnCooldown = false;
 }
+
+
 
 
 // Called when the game starts
