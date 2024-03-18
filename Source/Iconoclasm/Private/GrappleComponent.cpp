@@ -3,6 +3,7 @@
 
 #include "GrappleComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -19,8 +20,20 @@ UGrappleComponent::UGrappleComponent()
 
     IsGrappleActive = false;
     ObjectTag = "Grabbable";
+   
+
+    
 
 	// ...
+}
+
+// Called when the game starts
+void UGrappleComponent::BeginPlay()
+{
+    Super::BeginPlay();
+
+    OwningCharacter = Cast<ACharacter>(GetOwner());
+
 }
 
 void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -31,6 +44,7 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
     {
         PullCharacterToLocation(GrappleLocation);
     }
+
 }
 
 void UGrappleComponent::FireGrapple()
@@ -41,6 +55,7 @@ void UGrappleComponent::FireGrapple()
     }
 
     IsGrappleActive = true;
+
 
     // Get the player's viewpoint
     FVector ViewPointLocation;
@@ -71,8 +86,8 @@ void UGrappleComponent::FireGrapple()
 void UGrappleComponent::ReleaseGrapple()
 {
     IsGrappleActive = false;
-}
 
+}
 
 
 void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
@@ -111,14 +126,7 @@ void UGrappleComponent::ResetGrappleCooldown()
 
 
 
-// Called when the game starts
-void UGrappleComponent::BeginPlay()
-{
-	Super::BeginPlay();
 
-    OwningCharacter = Cast<ACharacter>(GetOwner());
-	
-}
 
 
 

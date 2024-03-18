@@ -32,6 +32,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReleaseGrapple();
 
+	
+
 
 private:
 	void PullCharacterToLocation(const FVector& Location);
@@ -53,11 +55,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleCooldownDuration = 3.0f;
 
-	float GrappleEndThreshold = 1000.0f;
+	float GrappleEndThreshold = 100.0f;
 
-	float PullForce = 1000.0f;
+	float GrappleFOVChange;
 
-	bool HitWall;
+
 	bool GrappleOnCooldown = false;
 
 	FTimerHandle GrappleCooldownTimerHandle;
@@ -71,14 +73,21 @@ public:
 
 	FString ObjectTag;
 
+	UPROPERTY(BlueprintReadWrite)
+	bool IsGrappleActive;
 
 
 private:
 	UPROPERTY()
 	ACharacter* OwningCharacter;
 
-	bool IsGrappleActive;
+	
 	FVector GrappleLocation;
+
+	
+
+	
+
 
 		
 };
