@@ -3,6 +3,7 @@
 #include "IconoclasmCharacter.h"
 #include "IconoclasmProjectile.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -44,6 +45,8 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	//double jump variables
 	JumpCount = 0;
 	//Dashing Variables
+	GroundDash = 10000.0f;
+	AirDash = 4000.0f;
 	DashCharges = 3;
 	DashCooldown = 2.0f;
 	CanDash = true;
@@ -187,7 +190,7 @@ void AIconoclasmCharacter::DoubleJump()
 
 void AIconoclasmCharacter::Dash()
 {
-	if ((CanDash || CanDashAgain) && DashCharges > 0 && GetCharacterMovement()->IsFalling())
+	if ((CanDash || CanDashAgain) && DashCharges > 0)
 	{
 		// Get the direction the player is moving
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
@@ -197,7 +200,20 @@ void AIconoclasmCharacter::Dash()
 		{
 			// Perform the dash
 			IsDashing = true;
-			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed 
+			float DashSpeed = 0.0f;
+
+			if (GetCharacterMovement()->IsMovingOnGround())
+			{
+				// Dash on ground
+				DashSpeed = GroundDash;
+			}
+			else
+			{
+				// Dash in air
+				DashSpeed = AirDash;
+			}
+
+			FVector DashVelocity = DashDirection * DashSpeed;
 			GetCharacterMovement()->Velocity = DashVelocity;
 
 			// Decrement dash charges
@@ -347,21 +363,6 @@ void AIconoclasmCharacter::SlideJump()
 	}
 }
 
-void AIconoclasmCharacter::SlideInput(float Value)
-{
-	//if (IsSliding)
-	//{
-	//	// Set the character's rotation based on the direction they started sliding
-	//	FVector SlideDirection = GetActorForwardVector();
-	//	FRotator SlideRotation = SlideDirection.Rotation();
-	//	SetActorRotation(SlideRotation);
-
-	//	// Clear the controller's rotation to prevent any additional influence
-	//	Controller->SetControlRotation(SlideRotation);
-
-	//	// Additional logic for adjusting slide behavior based on input if needed
-	//}
-}
 
 void AIconoclasmCharacter::GroundSlam()
 {
@@ -373,6 +374,39 @@ void AIconoclasmCharacter::GroundSlam()
 	// Perform a slam by launching the character straight down
 	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength; // Adjust the Z component for downward velocity
 	LaunchCharacter(LaunchVelocity, true, true); // Set bXYOverride to true to override XY movement
+
+	// Create a collision sphere to detect nearby objects
+	TArray<AActor*> IgnoreActors;
+	IgnoreActors.Add(this); // Ignore the player character
+	TArray<FHitResult> HitResults;
+	FVector SphereLocation = GetActorLocation();
+	float SphereRadius = 1000.0f;
+
+	// Perform the collision sphere trace
+	bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(GetWorld(), SphereLocation, SphereLocation, SphereRadius, UEngineTypes::ConvertToTraceType(ECC_WorldDynamic), false, IgnoreActors, EDrawDebugTrace::None, HitResults, true);
+
+	// Apply upward force to objects within the collision sphere
+	if (bHitSomething)
+	{
+		for (const FHitResult& HitResult : HitResults)
+		{
+			// Check if the hit actor is simulating physics
+			UPrimitiveComponent* HitComponent = HitResult.GetComponent();
+			if (HitComponent && HitComponent->IsSimulatingPhysics())
+			{
+				// Apply upward impulse to the hit component
+				FVector UpwardImpulse = FVector(0.0f, 0.0f, 2000.0f);
+				HitComponent->AddImpulse(UpwardImpulse, NAME_None, true);
+			}
+		}
+	}
+
+	// Draw debug sphere for visualization
+	if (bHitSomething)
+	{
+		DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 12, FColor::Red, false, 1.0f, 0, 1.0f);
+	}
+	
 }
 
 

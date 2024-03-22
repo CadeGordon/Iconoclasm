@@ -43,8 +43,11 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
     if (IsGrappleActive)
     {
         PullCharacterToLocation(GrappleLocation);
+
+
     }
 
+    PullGrapple();
 }
 
 void UGrappleComponent::FireGrapple()
@@ -53,9 +56,6 @@ void UGrappleComponent::FireGrapple()
     {
         return;
     }
-
-    IsGrappleActive = true;
-
 
     // Get the player's viewpoint
     FVector ViewPointLocation;
@@ -69,12 +69,19 @@ void UGrappleComponent::FireGrapple()
     FHitResult HitResult;
     FCollisionQueryParams QueryParams;
     QueryParams.AddIgnoredActor(OwningCharacter);
-    GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_WorldDynamic, QueryParams);
-
-    // If we hit something, store the grapple location
-    if (HitResult.bBlockingHit)
+    if (GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_Visibility, QueryParams))
     {
+        // If we hit something, store the grapple location
         GrappleLocation = HitResult.ImpactPoint;
+        IsGrappleActive = true;
+
+        GrappleOnCooldown = true;
+        GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
+    }
+    else
+    {
+        // If the line trace does not hit anything, do not fire the grapple
+        IsGrappleActive = false;
     }
 
     DrawDebugLine(GetWorld(), ViewPointLocation, GrappleLocation, FColor::Green, false, 5.0f, 0, 5.0f);
@@ -87,6 +94,44 @@ void UGrappleComponent::ReleaseGrapple()
 {
     IsGrappleActive = false;
 
+}
+
+void UGrappleComponent::PullGrapple()
+{
+    if (!OwningCharacter)
+    {
+        return;
+    }
+
+    FVector CharacterLocation = OwningCharacter->GetActorLocation();
+
+    // Perform a sphere trace to detect pullable objects
+    TArray<FHitResult> HitResults;
+    FCollisionQueryParams QueryParams;
+    QueryParams.AddIgnoredActor(OwningCharacter);
+    GetWorld()->SweepMultiByChannel(HitResults, CharacterLocation, CharacterLocation, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(PullRadius), QueryParams);
+
+    // Iterate through each hit result and pull pullable objects towards the player's location
+    for (const FHitResult& HitResult : HitResults)
+    {
+        AActor* HitActor = HitResult.GetActor();
+        if (HitActor && HitActor->ActorHasTag("Pullable"))
+        {
+            FVector ObjectLocation = HitActor->GetActorLocation();
+            FVector Direction = CharacterLocation - ObjectLocation;
+            Direction.Normalize();
+
+            // Apply a force to pull the object towards the player's location
+            UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(HitActor->GetRootComponent());
+            if (PrimitiveComponent && HitActor != OwningCharacter) // Exclude the player character from being affected
+            {
+                float DistanceSquared = FVector::DistSquared(CharacterLocation, ObjectLocation);
+                float ForceMagnitude = PullForce * FMath::Clamp(1.0f - DistanceSquared / (PullRadius * PullRadius), 0.0f, 1.0f);
+                FVector Force = Direction * ForceMagnitude;
+                PrimitiveComponent->AddForce(Force, NAME_None, bUseVelocityChange);
+            }
+        }
+    }
 }
 
 

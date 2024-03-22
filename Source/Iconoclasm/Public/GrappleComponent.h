@@ -32,6 +32,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReleaseGrapple();
 
+	// Function to perform grapple pull
+	void PullGrapple();
+
+
 	
 
 
@@ -78,6 +82,16 @@ public:
 
 
 private:
+	// Pullable settings
+	UPROPERTY(EditAnywhere, Category = "Grapple")
+	float PullRadius = 1000.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple")
+	float PullForce = 1000.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple")
+	bool bUseVelocityChange = true;
+
 	UPROPERTY()
 	ACharacter* OwningCharacter;
 

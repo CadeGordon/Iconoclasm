@@ -94,9 +94,6 @@ public:
 	void SlideJump();
 
 	UFUNCTION(BlueprintCallable, Category = "Slide")
-	void SlideInput(float Value);
-
-	UFUNCTION(BlueprintCallable, Category = "Slide")
 	void GroundSlam();
 
 
@@ -151,6 +148,9 @@ protected:
 	bool IsDashing;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	bool CanDashAgain; // New flag to allow immediate dash in a different direction
+
+	float GroundDash;
+	float AirDash;
 
 	// Timer handle for cooldown
 	FTimerHandle DashCooldownTimerHandle;
