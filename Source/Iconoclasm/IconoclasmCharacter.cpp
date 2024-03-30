@@ -52,16 +52,12 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	CanDash = true;
 	IsDashing = false;
 	CanDashAgain = true;
-	//Wallrunning variables
-	WallRunDuration = 10.0f;
-	WallRunSpeed = 60.0f;
-	WallDetectionRange = 150.0f;
-	WallRunMaxAngle = 5.0f;
 	//Slide Varibales
 	IsSliding = false;
 	SlideSpeed = 2000.0f;
 	SlideJumpBoostStrength = 3500.0f;
 	GroundSlamStrength = 200000.0f;
+
 
 }
 
@@ -84,20 +80,6 @@ void AIconoclasmCharacter::BeginPlay()
 void AIconoclasmCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	CheckForWalls();
-
-	if (IsWallRunning)
-	{
-		// Get the current velocity
-		FVector CurrentVelocity = GetVelocity();
-
-		// Calculate the desired location along the wall
-		FVector DesiredLocation = GetActorLocation() + CurrentVelocity.GetSafeNormal() * WallRunSpeed * DeltaTime;
-
-		// Update the character's location
-		SetActorLocation(DesiredLocation);
-	}
 
 	if (IsSliding) {
 
@@ -231,56 +213,6 @@ void AIconoclasmCharacter::Dash()
 			CanDashAgain = false;
 		}
 	}
-}
-
-void AIconoclasmCharacter::StartWallRun(const FVector& WallNormal)
-{
-	/*if (!IsWallRunning)
-	{
-		IsWallRunning = true;
-		WallRunDirection = FVector::VectorPlaneProject(GetActorForwardVector(), WallNormal).GetSafeNormal();
-
-	}*/
-}
-
-void AIconoclasmCharacter::StopWallRun()
-{
-	/*if (IsWallRunning)
-	{
-		IsWallRunning = false;
-
-	}*/
-}
-
-void AIconoclasmCharacter::CheckForWalls()
-{
-	//FVector Start = GetActorLocation();
-	//FVector ForwardVector = GetActorForwardVector();
-
-	//// Use SphereTraceSingle
-	//FHitResult HitResult;
-	//FCollisionQueryParams CollisionParams;
-	//CollisionParams.AddIgnoredActor(this); // Ignore the character itself
-
-	//if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(60.0f), CollisionParams))
-	//{
-	//	// Start wall running regardless of the wall angle
-	//	StartWallRun(HitResult.ImpactNormal);
-
-	//	// Calculate the rotation to align with the wall normal
-	//	FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
-
-	//	// Launch the character with the wall run direction and rotation
-	//	FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
-	//	LaunchCharacter(LaunchVelocity, false, false);
-	//	AddActorLocalRotation(Rotation);
-	//}
-	//else
-	//{
-	//	// Stop wall running if no wall is detected
-	//	StopWallRun();
-	//}
-
 }
 
 void AIconoclasmCharacter::StartSlide()

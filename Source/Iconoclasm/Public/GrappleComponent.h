@@ -32,19 +32,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReleaseGrapple();
 
-	// Function to perform grapple pull
-	void PullGrapple();
-
-
-	
-
 
 private:
 	void PullCharacterToLocation(const FVector& Location);
 
 	void ResetGrappleCooldown();
-
-	
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
@@ -61,7 +53,7 @@ public:
 
 	float GrappleEndThreshold = 100.0f;
 
-	float GrappleFOVChange;
+	
 
 
 	bool GrappleOnCooldown = false;
@@ -82,12 +74,6 @@ public:
 
 
 private:
-	// Pullable settings
-	UPROPERTY(EditAnywhere, Category = "Grapple")
-	float PullRadius = 1000.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Grapple")
-	float PullForce = 1000.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	bool bUseVelocityChange = true;
@@ -98,6 +84,15 @@ private:
 	
 	FVector GrappleLocation;
 
+	// Variables to store original and target FOV
+	float OriginalFOV;
+	float TargetFOV;
+
+	float InterpSpeed;
+	float CurrentFOV;
+	float GrappleFOV;
+
+	
 	
 
 	

@@ -72,15 +72,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void Dash();
 
-	UFUNCTION(BlueprintCallable, Category = "Character")
-	void StartWallRun(const FVector& WallNormal);
-
-	UFUNCTION(BlueprintCallable, Category = "Character")
-	void StopWallRun();
-
-	UFUNCTION(BlueprintCallable, Category = "Character")
-	void CheckForWalls();
-
 	UFUNCTION(BlueprintCallable, Category = "Slide")
 	void StartSlide();
 
@@ -170,6 +161,7 @@ protected:
 	float SlideSpeed;
 	float SlideJumpBoostStrength;
 	float GroundSlamStrength;
+
 
 	FVector SlideDirection;
 

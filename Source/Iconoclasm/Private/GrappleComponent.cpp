@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/StaticMeshActor.h"
@@ -21,7 +22,11 @@ UGrappleComponent::UGrappleComponent()
     IsGrappleActive = false;
     ObjectTag = "Grabbable";
    
-
+    // Set default values for FOV and interpolation speed
+    OriginalFOV = 110.0f;
+    GrappleFOV = 120.0f;
+    InterpSpeed = 10.0f;
+    
     
 
 	// ...
@@ -34,6 +39,17 @@ void UGrappleComponent::BeginPlay()
 
     OwningCharacter = Cast<ACharacter>(GetOwner());
 
+    // Get the original FOV
+    if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+    {
+        if (UCameraComponent* CameraComponent = OwnerCharacter->FindComponentByClass<UCameraComponent>())
+        {
+            OriginalFOV = CameraComponent->FieldOfView;
+        }
+    }
+
+  
+
 }
 
 void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -43,11 +59,24 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
     if (IsGrappleActive)
     {
         PullCharacterToLocation(GrappleLocation);
-
-
+        
     }
 
-    PullGrapple();
+    // Interpolate FOV
+    if (CurrentFOV != TargetFOV)
+    {
+        CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, InterpSpeed);
+
+        // Apply FOV to camera component
+        if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+        {
+            if (UCameraComponent* CameraComponent = OwnerCharacter->FindComponentByClass<UCameraComponent>())
+            {
+                CameraComponent->SetFieldOfView(CurrentFOV);
+            }
+        }
+    }
+ 
 }
 
 void UGrappleComponent::FireGrapple()
@@ -88,50 +117,16 @@ void UGrappleComponent::FireGrapple()
 
     GrappleOnCooldown = true;
     GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
+
+    TargetFOV = GrappleFOV;
 }
 
 void UGrappleComponent::ReleaseGrapple()
 {
     IsGrappleActive = false;
 
-}
+    TargetFOV = OriginalFOV;
 
-void UGrappleComponent::PullGrapple()
-{
-    if (!OwningCharacter)
-    {
-        return;
-    }
-
-    FVector CharacterLocation = OwningCharacter->GetActorLocation();
-
-    // Perform a sphere trace to detect pullable objects
-    TArray<FHitResult> HitResults;
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(OwningCharacter);
-    GetWorld()->SweepMultiByChannel(HitResults, CharacterLocation, CharacterLocation, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(PullRadius), QueryParams);
-
-    // Iterate through each hit result and pull pullable objects towards the player's location
-    for (const FHitResult& HitResult : HitResults)
-    {
-        AActor* HitActor = HitResult.GetActor();
-        if (HitActor && HitActor->ActorHasTag("Pullable"))
-        {
-            FVector ObjectLocation = HitActor->GetActorLocation();
-            FVector Direction = CharacterLocation - ObjectLocation;
-            Direction.Normalize();
-
-            // Apply a force to pull the object towards the player's location
-            UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(HitActor->GetRootComponent());
-            if (PrimitiveComponent && HitActor != OwningCharacter) // Exclude the player character from being affected
-            {
-                float DistanceSquared = FVector::DistSquared(CharacterLocation, ObjectLocation);
-                float ForceMagnitude = PullForce * FMath::Clamp(1.0f - DistanceSquared / (PullRadius * PullRadius), 0.0f, 1.0f);
-                FVector Force = Direction * ForceMagnitude;
-                PrimitiveComponent->AddForce(Force, NAME_None, bUseVelocityChange);
-            }
-        }
-    }
 }
 
 
@@ -167,10 +162,6 @@ void UGrappleComponent::ResetGrappleCooldown()
 {
     GrappleOnCooldown = false;
 }
-
-
-
-
 
 
 
