@@ -32,6 +32,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReleaseGrapple();
 
+	void PullGrappleObject(AActor* ObjectToPull);
 
 private:
 	void PullCharacterToLocation(const FVector& Location);
@@ -40,21 +41,15 @@ private:
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
-	float GrappleLength = 1000.0f;
+	float GrappleLength = 5000.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleSpeed = 5000.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Grapple")
-	float GrappleReleaseForce = 1000.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleCooldownDuration = 3.0f;
 
 	float GrappleEndThreshold = 100.0f;
-
-	
-
 
 	bool GrappleOnCooldown = false;
 
@@ -91,6 +86,8 @@ private:
 	float InterpSpeed;
 	float CurrentFOV;
 	float GrappleFOV;
+
+	
 
 	
 	
