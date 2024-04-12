@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "WallRunComponent.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "IconoclasmCharacter.generated.h"
@@ -87,12 +88,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Slide")
 	void GroundSlam();
 
-	
-
-
-
-
-
 	// Function to handle cooldown
 	void StartDashCooldown();
 
@@ -164,38 +159,9 @@ protected:
 	float SlideJumpBoostStrength;
 	float GroundSlamStrength;
 
-	//slide FOV
-	float OriginalFOV;
-	float SlideFOV;
-	
-
-	UPROPERTY(EditAnywhere, Category = "Dash")
-	float DashFOV = 120.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Dash")
-	float DashFOVInterpSpeed = 10.0f;
-
-	
-
-	float CurrentFOV;        // The current FOV of the camera
-	float TargetFOV;         // The target FOV for the camera to interpolate towards
-	float InterpSpeed;       // Speed of interpolation
-	bool IsFOVInterpolating; // Whether FOV interpolation is ongoing
-
-
 	FVector SlideDirection;
 
-	private:
-		UCameraComponent* FirstPersonCameraFOV;
-
-
-		
-
-
-
-
-	
-
+	UWallRunComponent* WallRunComponent;
 
 };
 

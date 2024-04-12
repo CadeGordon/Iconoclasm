@@ -3,6 +3,7 @@
 #include "IconoclasmCharacter.h"
 #include "IconoclasmProjectile.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "WallRunComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
@@ -57,20 +58,14 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	SlideSpeed = 2000.0f;
 	SlideJumpBoostStrength = 3500.0f;
 	GroundSlamStrength = 200000.0f;
-	//Slide FOV Variabls
-	OriginalFOV = 110.0f;
-	SlideFOV = 120.0f;
-	InterpSpeed = 1.0f;
-	
-	TargetFOV = 120.0f;
-
-
 }
 
 void AIconoclasmCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
+
+	WallRunComponent = FindComponentByClass<UWallRunComponent>();
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -81,15 +76,9 @@ void AIconoclasmCharacter::BeginPlay()
 		}
 	}
 
-	// Initialize Current FOV to the default camera's FOV
-	if (UCameraComponent* CameraComponent = GetFirstPersonCameraComponent())
-	{
-		CurrentFOV = CameraComponent->FieldOfView;
-	}
+	
 
-	// Set Target FOV and InterpSpeed based on your preference
-	TargetFOV = CurrentFOV;
-	InterpSpeed = 5.0f; // Adjust the speed as needed
+	
 
 }
 
@@ -103,23 +92,6 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 
 	}
 
-	// Interpolate FOV if necessary
-	if (IsFOVInterpolating)
-	{
-		CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, InterpSpeed);
-
-		if (UCameraComponent* CameraComponent = GetFirstPersonCameraComponent())
-		{
-			CameraComponent->SetFieldOfView(CurrentFOV);
-		}
-
-		// Check if interpolation is close enough to stop
-		if (FMath::IsNearlyEqual(CurrentFOV, TargetFOV, 0.01f))
-		{
-			CurrentFOV = TargetFOV;
-			IsFOVInterpolating = false;
-		}
-	}
 }
 
 //////////////////////////////////////////////////////////////////////////// Input
@@ -211,8 +183,8 @@ void AIconoclasmCharacter::Dash()
 		// Get the direction the player is moving
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
 
-		// Check if the player is moving forward (positive X direction)
-		if (DashDirection.X > 0.0f)
+		// Check if the player is moving
+		if (!DashDirection.IsNearlyZero())
 		{
 			// Perform the dash
 			IsDashing = true;
@@ -225,7 +197,7 @@ void AIconoclasmCharacter::Dash()
 			}
 			else
 			{
-				// Dash in the air
+				// Dash in air
 				DashSpeed = AirDash;
 			}
 
@@ -237,13 +209,6 @@ void AIconoclasmCharacter::Dash()
 
 			// Start cooldown timer
 			StartDashCooldown();
-
-			// Change FOV only when dashing forward
-			if (UCameraComponent* CameraComponent = GetFirstPersonCameraComponent())
-			{
-				TargetFOV = DashFOV;  // Set your desired Dash FOV here
-				IsFOVInterpolating = true;
-			}
 		}
 
 		CanDashAgain = true;
@@ -385,9 +350,6 @@ void AIconoclasmCharacter::GroundSlam()
 	
 }
 
-
-
-
 void AIconoclasmCharacter::StartDashCooldown()
 {
 	CanDash = false;
@@ -411,12 +373,6 @@ void AIconoclasmCharacter::EndDash()
 {
 	IsDashing = false;
 
-	// Reset the FOV back to the original value and start interpolating
-	if (UCameraComponent* CameraComponent = GetFirstPersonCameraComponent())
-	{
-		TargetFOV = OriginalFOV; // Reset the target FOV to the original FOV
-		IsFOVInterpolating = true; // Start interpolating FOV back to normal
-	}
 }
 
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
