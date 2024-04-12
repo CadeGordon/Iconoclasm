@@ -135,9 +135,16 @@ bool UWallRunComponent::DetectWall(FVector& OutWallNormal, FVector& OutWallDirec
 	{
 		// Wall detected on the right side
 		OutWallNormal = HitResultRight.Normal;
-		OutWallDirection = FVector::CrossProduct(HitResultRight.Normal, FVector::UpVector).GetSafeNormal();
 
-		// Log debug message
+		// Calculate wall run direction
+		OutWallDirection = FVector::CrossProduct(OutWallNormal, FVector::UpVector).GetSafeNormal();
+
+		// Verify the direction: if it’s in the reverse direction of the forward vector, invert it
+		if (FVector::DotProduct(OutWallDirection, ForwardVector) < 0)
+		{
+			OutWallDirection *= -1;
+		}
+
 		UE_LOG(LogTemp, Warning, TEXT("Wall detected on the right side. Wall normal: %s"), *OutWallNormal.ToString());
 
 		return true;
@@ -146,9 +153,16 @@ bool UWallRunComponent::DetectWall(FVector& OutWallNormal, FVector& OutWallDirec
 	{
 		// Wall detected on the left side
 		OutWallNormal = HitResultLeft.Normal;
-		OutWallDirection = FVector::CrossProduct(HitResultLeft.Normal, FVector::UpVector).GetSafeNormal();
 
-		// Log debug message
+		// Calculate wall run direction
+		OutWallDirection = FVector::CrossProduct(OutWallNormal, FVector::UpVector).GetSafeNormal();
+
+		// Verify the direction: if it’s in the reverse direction of the forward vector, invert it
+		if (FVector::DotProduct(OutWallDirection, ForwardVector) < 0)
+		{
+			OutWallDirection *= -1;
+		}
+
 		UE_LOG(LogTemp, Warning, TEXT("Wall detected on the left side. Wall normal: %s"), *OutWallNormal.ToString());
 
 		return true;
