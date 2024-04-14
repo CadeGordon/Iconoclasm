@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
+
 #include "WallRunComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -14,8 +15,9 @@ UWallRunComponent::UWallRunComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
-	WallRunSpeed = 1600.0f;
+	WallRunSpeed = 10.0f;
 	WallRunDuration = 2.0f;
+	DescentRate = 200.0f;
 
 	// ...
 }
@@ -73,6 +75,9 @@ void UWallRunComponent::StartWallRun()
 		WallNormal = OutWallNormal;
 		WallRunDirection = OutWallRunDirection;
 
+		// Capture the player's initial velocity when the wall run starts
+		InitialVelocity = OwningCharacter->GetCharacterMovement()->Velocity;
+
 		// Set a timer to stop wall running after the specified duration
 		GetWorld()->GetTimerManager().SetTimer(WallRunTimerHandle, this, &UWallRunComponent::EndWallRun, WallRunDuration, false);
 
@@ -91,11 +96,21 @@ void UWallRunComponent::StopWallRun()
 
 void UWallRunComponent::WallRun()
 {
-	// Calculate wall run movement
+	// Calculate wall run movement using the initial speed
+	FVector HorizontalInitialVelocity = InitialVelocity.ProjectOnTo(WallRunDirection);
 	FVector WallRunVelocity = WallRunDirection * WallRunSpeed;
 
-	// Apply velocity to the character
-	OwningCharacter->LaunchCharacter(WallRunVelocity, false, false);
+	// Maintain the player's initial speed while wall running
+	FVector FinalWallRunVelocity = HorizontalInitialVelocity + WallRunVelocity;
+
+	// Calculate downward velocity
+	FVector DownwardVelocity = FVector(0.0f, 0.0f, -DescentRate);
+
+	// Combine wall run, downward velocities, and initial velocity
+	FinalWallRunVelocity += DownwardVelocity;
+
+	// Apply the final velocity to the character
+	OwningCharacter->LaunchCharacter(FinalWallRunVelocity, false, false);
 
 	// Draw debug line to visualize wall running (optional)
 	DrawDebugLine(GetWorld(), OwningCharacter->GetActorLocation(), OwningCharacter->GetActorLocation() + WallRunDirection * 100.0f, FColor::Green, false, 0.1f);
@@ -113,6 +128,8 @@ void UWallRunComponent::WallRun()
 		StopWallRun();
 	}
 }
+
+
 
 bool UWallRunComponent::DetectWall(FVector& OutWallNormal, FVector& OutWallDirection)
 {

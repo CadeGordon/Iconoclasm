@@ -165,6 +165,7 @@ void AIconoclasmCharacter::DoubleJump()
 		{
 			// First jump using the built-in Jump function
 			Jump();
+			
 		}
 		else
 		{

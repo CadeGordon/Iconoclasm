@@ -26,6 +26,7 @@ public:
 
 	void StartWallRun();
 
+	UFUNCTION(BlueprintCallable)
 	void StopWallRun();
 
 	void WallRun();
@@ -40,10 +41,14 @@ private:
 
 	FVector WallNormal;
 	FVector WallRunDirection;
+	FVector InitialVelocity;
 
 	float WallRunSpeed;
 	float WallRunDuration;
 
+	float DescentRate;
+
+	
 	bool IsWallRunning;
 
 	FTimerHandle WallRunTimerHandle;
