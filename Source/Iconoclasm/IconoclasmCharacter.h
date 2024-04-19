@@ -94,6 +94,7 @@ public:
 	// Function to reset cooldown
 	void ResetDashCooldown();
 
+	UFUNCTION(BlueprintCallable)
 	// Function to handle end of dash
 	void EndDash();
 

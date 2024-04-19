@@ -102,8 +102,6 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 
 	}
 
-	UpdateDashFOV(DeltaTime);
-
 	// Interpolate the current FOV towards the target FOV
 	if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
 	{
@@ -208,49 +206,54 @@ void AIconoclasmCharacter::Dash()
 {
 	if ((CanDash || CanDashAgain) && DashCharges > 0)
 	{
-		// Check if the player can dash
-		if ((CanDash || CanDashAgain) && DashCharges > 0)
+		// Get the direction the player is moving
+		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
+
+		// Check if the player is moving in any direction
+		if (!DashDirection.IsNearlyZero())
 		{
-			// If the player is currently wall running, stop the wall run first
-			if (WallRunComponent && WallRunComponent->IsWallRunning)
+			// Determine whether the player is dashing forward
+			bool IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f); // Use a small tolerance to account for floating point precision
+
+			// Perform the dash
+			IsDashing = true;
+			float DashSpeed = 0.0f;
+
+			if (GetCharacterMovement()->IsMovingOnGround())
 			{
-				WallRunComponent->StopWallRun();
+				// Dash on ground
+				DashSpeed = GroundDash;
+			}
+			else
+			{
+				// Dash in air
+				DashSpeed = AirDash;
 			}
 
-			// Proceed with the dash
-			FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
+			FVector DashVelocity = DashDirection * DashSpeed;
+			GetCharacterMovement()->Velocity = DashVelocity;
 
-			// Check if the player is moving in any direction
-			if (!DashDirection.IsNearlyZero())
+			// Decrement dash charges
+			DashCharges--;
+
+			// If the player is dashing forward, change the FOV to DashFOV
+			if (IsDashingForward)
 			{
-				// Determine dash speed based on whether the player is on the ground or in the air
-				float DashSpeed = (GetCharacterMovement()->IsMovingOnGround()) ? GroundDash : AirDash;
-
-				// Calculate dash velocity
-				FVector DashVelocity = DashDirection * DashSpeed;
-
-				// Stop the current movement and set the new dash velocity
-				GetCharacterMovement()->StopMovementImmediately();
-				GetCharacterMovement()->Velocity = DashVelocity;
-
-				// Set the target FOV to the dashing FOV
 				TargetFOV = DashFOV;
-
-				// Decrement dash charges and start cooldown timer
-				DashCharges--;
-				StartDashCooldown();
-
-				// Reset dash charges if they've been used up
-				if (DashCharges == 0)
-				{
-					DashCharges = 3;
-					CanDashAgain = false;
-				}
 			}
 
-			// Allow the player to dash again
-			CanDashAgain = true;
+			// Start cooldown timer
+			StartDashCooldown();
 		}
+
+		CanDashAgain = true;
+
+		if (DashCharges == 0)
+		{
+			DashCharges = 3;
+			CanDashAgain = false;
+		}
+
 	}
 }
 
@@ -277,7 +280,7 @@ void AIconoclasmCharacter::EndDash()
 {
 	IsDashing = false;
 	
-
+	TargetFOV = OriginalFOV;
 }
 
 void AIconoclasmCharacter::StartSlide()
