@@ -67,6 +67,16 @@ void AIconoclasmCharacter::BeginPlay()
 
 	WallRunComponent = FindComponentByClass<UWallRunComponent>();
 
+	// Initialize FOV values
+	if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+	{
+		// Store the original FOV from the camera
+		OriginalFOV = FirstPersonCamera->FieldOfView;
+		CurrentFOV = OriginalFOV;  // Set current FOV to the original FOV
+		TargetFOV = OriginalFOV;
+	}
+
+
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
@@ -90,6 +100,15 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 
 		UpdateSlide();
 
+	}
+
+	UpdateDashFOV(DeltaTime);
+
+	// Interpolate the current FOV towards the target FOV
+	if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+	{
+		CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, InterpSpeed);
+		FirstPersonCamera->SetFieldOfView(CurrentFOV);
 	}
 
 }
@@ -159,6 +178,14 @@ bool AIconoclasmCharacter::GetHasRifle()
 
 void AIconoclasmCharacter::DoubleJump()
 {
+
+	// Check if the player is wall running
+	if (WallRunComponent && WallRunComponent->IsWallRunning)
+	{
+		// Stop wall running
+		WallRunComponent->StopWallRun();
+	}
+
 	if (JumpCount < 2)
 	{
 		if (JumpCount == 0)
@@ -181,45 +208,76 @@ void AIconoclasmCharacter::Dash()
 {
 	if ((CanDash || CanDashAgain) && DashCharges > 0)
 	{
-		// Get the direction the player is moving
-		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
-
-		// Check if the player is moving
-		if (!DashDirection.IsNearlyZero())
+		// Check if the player can dash
+		if ((CanDash || CanDashAgain) && DashCharges > 0)
 		{
-			// Perform the dash
-			IsDashing = true;
-			float DashSpeed = 0.0f;
-
-			if (GetCharacterMovement()->IsMovingOnGround())
+			// If the player is currently wall running, stop the wall run first
+			if (WallRunComponent && WallRunComponent->IsWallRunning)
 			{
-				// Dash on ground
-				DashSpeed = GroundDash;
-			}
-			else
-			{
-				// Dash in air
-				DashSpeed = AirDash;
+				WallRunComponent->StopWallRun();
 			}
 
-			FVector DashVelocity = DashDirection * DashSpeed;
-			GetCharacterMovement()->Velocity = DashVelocity;
+			// Proceed with the dash
+			FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
 
-			// Decrement dash charges
-			DashCharges--;
+			// Check if the player is moving in any direction
+			if (!DashDirection.IsNearlyZero())
+			{
+				// Determine dash speed based on whether the player is on the ground or in the air
+				float DashSpeed = (GetCharacterMovement()->IsMovingOnGround()) ? GroundDash : AirDash;
 
-			// Start cooldown timer
-			StartDashCooldown();
-		}
+				// Calculate dash velocity
+				FVector DashVelocity = DashDirection * DashSpeed;
 
-		CanDashAgain = true;
+				// Stop the current movement and set the new dash velocity
+				GetCharacterMovement()->StopMovementImmediately();
+				GetCharacterMovement()->Velocity = DashVelocity;
 
-		if (DashCharges == 0)
-		{
-			DashCharges = 3;
-			CanDashAgain = false;
+				// Set the target FOV to the dashing FOV
+				TargetFOV = DashFOV;
+
+				// Decrement dash charges and start cooldown timer
+				DashCharges--;
+				StartDashCooldown();
+
+				// Reset dash charges if they've been used up
+				if (DashCharges == 0)
+				{
+					DashCharges = 3;
+					CanDashAgain = false;
+				}
+			}
+
+			// Allow the player to dash again
+			CanDashAgain = true;
 		}
 	}
+}
+
+void AIconoclasmCharacter::StartDashCooldown()
+{
+	CanDash = false;
+	CanDashAgain = false;
+	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
+}
+
+void AIconoclasmCharacter::ResetDashCooldown()
+{
+	CanDash = true;
+
+	if (DashCharges < 3) {
+
+		DashCharges++;
+
+		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
+	}
+}
+
+void AIconoclasmCharacter::EndDash()
+{
+	IsDashing = false;
+	
+
 }
 
 void AIconoclasmCharacter::StartSlide()
@@ -233,7 +291,7 @@ void AIconoclasmCharacter::StartSlide()
 
 		
 		UpdateSlide();
-		
+		TargetFOV = SlideFOV;
 
 		// Adjust the camera position or rotation here
         if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
@@ -281,6 +339,7 @@ void AIconoclasmCharacter::StopSlide()
 	if (IsSliding) {
 		IsSliding = false;
 		GetCharacterMovement()->MaxWalkSpeed = 1600.0f;
+		TargetFOV = OriginalFOV;
 
 		// Adjust the camera position or rotation here
 		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
@@ -351,30 +410,9 @@ void AIconoclasmCharacter::GroundSlam()
 	
 }
 
-void AIconoclasmCharacter::StartDashCooldown()
-{
-	CanDash = false;
-	CanDashAgain = false;
-	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
-}
 
-void AIconoclasmCharacter::ResetDashCooldown()
-{
-	CanDash = true;
-	
-	if (DashCharges < 3) {
-		
-		DashCharges++;
 
-		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
-	}
-}
 
-void AIconoclasmCharacter::EndDash()
-{
-	IsDashing = false;
-
-}
 
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 {

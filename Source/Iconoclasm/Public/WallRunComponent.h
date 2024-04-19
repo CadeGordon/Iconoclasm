@@ -30,7 +30,11 @@ public:
 	void StopWallRun();
 
 	void WallRun();
-		
+
+	bool IsWallRunning;
+
+	void ResetWallRunCooldown();
+
 private:
 	bool DetectWall(FVector& OutWallNormal, FVector& OutWallDirection);
 
@@ -48,8 +52,14 @@ private:
 
 	float DescentRate;
 
-	
-	bool IsWallRunning;
+	// Cooldown duration in seconds
+	float WallRunCooldownDuration = 0.5f;
+
+	// Timer handle for the cooldown
+	FTimerHandle WallRunCooldownTimerHandle;
+
+	// Boolean flag to track if the cooldown is active
+	bool WallRunCooldownActive = false;
 
 	FTimerHandle WallRunTimerHandle;
 

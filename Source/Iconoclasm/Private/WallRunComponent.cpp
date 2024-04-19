@@ -16,7 +16,7 @@ UWallRunComponent::UWallRunComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 
 	WallRunSpeed = 10.0f;
-	WallRunDuration = 2.0f;
+	
 	DescentRate = 200.0f;
 
 	// ...
@@ -38,6 +38,13 @@ void UWallRunComponent::BeginPlay()
 void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Constantly check if the character can start wall running
+	if (WallRunCooldownActive)
+	{
+		// Do not allow wall running if cooldown is active
+		return;
+	}
 
 	// Constantly check if the character can start wall running
 	FVector OutWallNormal, OutWallRunDirection;
@@ -92,6 +99,10 @@ void UWallRunComponent::StopWallRun()
 	// Clear timer handle and reset movement mode
 	GetWorld()->GetTimerManager().ClearTimer(WallRunTimerHandle);
 	OwningCharacter->GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+
+	// Set the cooldown timer
+	WallRunCooldownActive = true;
+	GetWorld()->GetTimerManager().SetTimer(WallRunCooldownTimerHandle, this, &UWallRunComponent::ResetWallRunCooldown, WallRunCooldownDuration, false);
 }
 
 void UWallRunComponent::WallRun()
@@ -130,6 +141,11 @@ void UWallRunComponent::WallRun()
 }
 
 
+
+void UWallRunComponent::ResetWallRunCooldown()
+{
+	WallRunCooldownActive = false;
+}
 
 bool UWallRunComponent::DetectWall(FVector& OutWallNormal, FVector& OutWallDirection)
 {

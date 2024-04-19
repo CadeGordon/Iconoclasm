@@ -143,21 +143,25 @@ protected:
 	// Timer handle for cooldown
 	FTimerHandle DashCooldownTimerHandle;
 
-	//Varibales for wallrun
-	bool IsWallRunning;
-	float WallRunDuration;
-	float WallRunSpeed;
-	float WallDetectionRange;
-	float WallRunMaxAngle;
-
-	FVector WallRunDirection;
-
 	//Variables for Sliding
 	bool IsSliding;
 	bool FirstSlideUpdate;
 	float SlideSpeed;
 	float SlideJumpBoostStrength;
 	float GroundSlamStrength;
+
+	//Slide FOV Variables
+	float CurrentFOV; // Current field of view
+	float TargetFOV; // Target field of view
+	float InterpSpeed = 10.0f; // Interpolation speed
+	float OriginalFOV = 110.0f; // Original FOV value
+	float SlideFOV = 120.0f; // Adjusted FOV value when sliding
+
+	//Dash FOV Variables
+	float DashFOV = 120.0f;
+	float DashInterp = 5.0f;
+	
+
 
 	FVector SlideDirection;
 

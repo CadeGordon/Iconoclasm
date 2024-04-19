@@ -32,8 +32,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReleaseGrapple();
 
-	void PullGrappleObject(AActor* ObjectToPull);
-
 private:
 	void PullCharacterToLocation(const FVector& Location);
 
@@ -44,7 +42,9 @@ public:
 	float GrappleLength = 5000.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Grapple")
-	float GrappleSpeed = 5000.0f;
+	float GrappleSpeed = 8000.0f;
+
+	float GrappleSwingSpeed;
 
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleCooldownDuration = 3.0f;
@@ -61,8 +61,6 @@ public:
 	FVector SwingAxis;
 	float SwingSpeed = 100.0f;
 
-
-	FString ObjectTag;
 
 	UPROPERTY(BlueprintReadWrite)
 	bool IsGrappleActive;
@@ -86,6 +84,7 @@ private:
 	float InterpSpeed;
 	float CurrentFOV;
 	float GrappleFOV;
+
 
 	
 

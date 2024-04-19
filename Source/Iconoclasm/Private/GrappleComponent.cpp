@@ -21,10 +21,14 @@ UGrappleComponent::UGrappleComponent()
 
     IsGrappleActive = false;
     
+
+
     // Set default values for FOV and interpolation speed
     OriginalFOV = 110.0f;
     GrappleFOV = 120.0f;
     InterpSpeed = 5.0f;
+
+
 
     CurrentFOV = OriginalFOV;
     TargetFOV = OriginalFOV;
@@ -51,10 +55,6 @@ void UGrappleComponent::BeginPlay()
             TargetFOV = OriginalFOV; // Initialize TargetFOV to OriginalFOV
         }
     }
-
-    
-  
-
 }
 
 void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -114,8 +114,6 @@ void UGrappleComponent::FireGrapple()
 
         // Set target FOV for when grapple is active
         TargetFOV = GrappleFOV;
-
-       
     }
     else
     {
@@ -124,9 +122,6 @@ void UGrappleComponent::FireGrapple()
     }
 
     DrawDebugLine(GetWorld(), ViewPointLocation, GrappleLocation, FColor::Green, false, 5.0f, 0, 5.0f);
-
-    GrappleOnCooldown = true;
-    GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
     
 }
 
