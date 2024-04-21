@@ -60,8 +60,7 @@ public:
 	FVector SwingStartDirection;
 	FVector SwingAxis;
 	float SwingSpeed = 100.0f;
-
-
+	
 	UPROPERTY(BlueprintReadWrite)
 	bool IsGrappleActive;
 
@@ -84,6 +83,8 @@ private:
 	float InterpSpeed;
 	float CurrentFOV;
 	float GrappleFOV;
+
+	
 
 
 	

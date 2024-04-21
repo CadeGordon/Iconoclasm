@@ -161,7 +161,6 @@ protected:
 	//Dash FOV Variables
 	float DashFOV = 120.0f;
 	float DashInterp = 5.0f;
-	
 
 
 	FVector SlideDirection;
