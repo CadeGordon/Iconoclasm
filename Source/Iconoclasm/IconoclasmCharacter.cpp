@@ -3,6 +3,8 @@
 #include "IconoclasmCharacter.h"
 #include "IconoclasmProjectile.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "WallRunComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -11,6 +13,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Engine/LocalPlayer.h"
+#include "GameFramework/SpringArmComponent.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -43,27 +46,36 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	//double jump variables
 	JumpCount = 0;
 	//Dashing Variables
+	GroundDash = 10000.0f;
+	AirDash = 4000.0f;
 	DashCharges = 3;
 	DashCooldown = 2.0f;
 	CanDash = true;
 	IsDashing = false;
 	CanDashAgain = true;
-	//Wallrunning variables
-	WallRunDuration = 10.0f;
-	WallRunSpeed = 60.0f;
-	WallDetectionRange = 150.0f;
-	WallRunMaxAngle = 5.0f;
 	//Slide Varibales
 	IsSliding = false;
-	SlideSpeed = 100.0f;
-	SlideJumpBoostStrenght = 500.0f;
-
+	SlideSpeed = 2000.0f;
+	SlideJumpBoostStrength = 3500.0f;
+	GroundSlamStrength = 200000.0f;
 }
 
 void AIconoclasmCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
+
+	WallRunComponent = FindComponentByClass<UWallRunComponent>();
+
+	// Initialize FOV values
+	if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+	{
+		// Store the original FOV from the camera
+		OriginalFOV = FirstPersonCamera->FieldOfView;
+		CurrentFOV = OriginalFOV;  // Set current FOV to the original FOV
+		TargetFOV = OriginalFOV;
+	}
+
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -74,31 +86,29 @@ void AIconoclasmCharacter::BeginPlay()
 		}
 	}
 
+	
+
+	
+
 }
 
 void AIconoclasmCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	CheckForWalls();
-
-	if (IsWallRunning)
-	{
-		// Get the current velocity
-		FVector CurrentVelocity = GetVelocity();
-
-		// Calculate the desired location along the wall
-		FVector DesiredLocation = GetActorLocation() + CurrentVelocity.GetSafeNormal() * WallRunSpeed * DeltaTime;
-
-		// Update the character's location
-		SetActorLocation(DesiredLocation);
-	}
-
 	if (IsSliding) {
 
 		UpdateSlide();
 
 	}
+
+	// Interpolate the current FOV towards the target FOV
+	if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+	{
+		CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, InterpSpeed);
+		FirstPersonCamera->SetFieldOfView(CurrentFOV);
+	}
+
 }
 
 //////////////////////////////////////////////////////////////////////////// Input
@@ -166,12 +176,21 @@ bool AIconoclasmCharacter::GetHasRifle()
 
 void AIconoclasmCharacter::DoubleJump()
 {
+
+	// Check if the player is wall running
+	if (WallRunComponent && WallRunComponent->IsWallRunning)
+	{
+		// Stop wall running
+		WallRunComponent->StopWallRun();
+	}
+
 	if (JumpCount < 2)
 	{
 		if (JumpCount == 0)
 		{
 			// First jump using the built-in Jump function
 			Jump();
+			
 		}
 		else
 		{
@@ -185,27 +204,48 @@ void AIconoclasmCharacter::DoubleJump()
 
 void AIconoclasmCharacter::Dash()
 {
-	if ((CanDash || CanDashAgain) && DashCharges > 0 && GetCharacterMovement()->IsFalling())
+	if ((CanDash || CanDashAgain) && DashCharges > 0)
 	{
 		// Get the direction the player is moving
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
 
-		// Check if the player is moving
+		// Check if the player is moving in any direction
 		if (!DashDirection.IsNearlyZero())
 		{
+			// Determine whether the player is dashing forward
+			bool IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f); // Use a small tolerance to account for floating point precision
+
 			// Perform the dash
 			IsDashing = true;
-			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed as needed
+			float DashSpeed = 0.0f;
+
+			if (GetCharacterMovement()->IsMovingOnGround())
+			{
+				// Dash on ground
+				DashSpeed = GroundDash;
+			}
+			else
+			{
+				// Dash in air
+				DashSpeed = AirDash;
+			}
+
+			FVector DashVelocity = DashDirection * DashSpeed;
 			GetCharacterMovement()->Velocity = DashVelocity;
 
 			// Decrement dash charges
 			DashCharges--;
 
+			// If the player is dashing forward, change the FOV to DashFOV
+			if (IsDashingForward)
+			{
+				TargetFOV = DashFOV;
+			}
+
 			// Start cooldown timer
 			StartDashCooldown();
 		}
 
-		// Set the new flag to allow immediate dash in a different direction
 		CanDashAgain = true;
 
 		if (DashCharges == 0)
@@ -213,121 +253,9 @@ void AIconoclasmCharacter::Dash()
 			DashCharges = 3;
 			CanDashAgain = false;
 		}
+
 	}
 }
-
-void AIconoclasmCharacter::StartWallRun(const FVector& WallNormal)
-{
-	if (!IsWallRunning)
-	{
-		IsWallRunning = true;
-		WallRunDirection = FVector::VectorPlaneProject(GetActorForwardVector(), WallNormal).GetSafeNormal();
-
-		// Additional logic to handle wall running start, e.g., play animations or sound
-		UE_LOG(LogTemp, Warning, TEXT("Start Wall Run"));
-	}
-}
-
-void AIconoclasmCharacter::StopWallRun()
-{
-	if (IsWallRunning)
-	{
-		IsWallRunning = false;
-
-		// Additional logic to handle wall running stop, e.g., reset variables or animations
-		UE_LOG(LogTemp, Warning, TEXT("Stop Wall Run"));
-	}
-}
-
-void AIconoclasmCharacter::CheckForWalls()
-{
-	FVector Start = GetActorLocation();
-	FVector ForwardVector = GetActorForwardVector();
-
-	// Use SphereTraceSingle instead of LineTraceSingle
-	FHitResult HitResult;
-	FCollisionQueryParams CollisionParams;
-	CollisionParams.AddIgnoredActor(this); // Ignore the character itself
-
-	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(60.0f), CollisionParams))
-	{
-		// Start wall running regardless of the wall angle
-		StartWallRun(HitResult.ImpactNormal);
-
-		// Calculate the rotation to align with the wall normal
-		FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
-
-		// Launch the character with the wall run direction and rotation
-		FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
-		LaunchCharacter(LaunchVelocity, false, false);
-		AddActorLocalRotation(Rotation);
-	}
-	else
-	{
-		// Stop wall running if no wall is detected
-		StopWallRun();
-	}
-
-}
-
-void AIconoclasmCharacter::StartSlide()
-{
-	if (!IsSliding && GetCharacterMovement()->IsMovingOnGround())
-	{
-		IsSliding = true;
-
-		// Set the character's velocity in the direction they are facing
-		FVector SlideDirection = GetActorForwardVector();
-		GetCharacterMovement()->Velocity = SlideDirection * SlideSpeed;
-
-	}
-
-}
-
-void AIconoclasmCharacter::UpdateSlide()
-{
-	// Update sliding behavior
-	// For example, lower the character to the ground
-	FVector NewLocation = GetActorLocation();
-	NewLocation.Z = 50.0f; // Adjust the height as needed
-
-	// Use LaunchCharacter to move the character while avoiding clipping
-	FVector SlideDirection = GetActorForwardVector();
-	FVector LaunchVelocity = SlideDirection * SlideSpeed;
-
-	// Check if the character is currently on the ground
-	if (GetCharacterMovement()->IsMovingOnGround())
-	{
-		// If on the ground, use AddMovementInput for smooth movement
-		AddMovementInput(SlideDirection, SlideSpeed);
-	}
-	else
-	{
-		// If sliding off a ledge, use LaunchCharacter
-		LaunchCharacter(LaunchVelocity, false, false);
-	}
-
-}
-
-void AIconoclasmCharacter::StopSlide()
-{
-	if (IsSliding) {
-		IsSliding = false;
-		GetCharacterMovement()->MaxWalkSpeed = 1600.0f;
-	}
-}
-
-void AIconoclasmCharacter::SlideJump()
-{
-	if (IsSliding)
-	{
-		// Perform a boost when jumping while sliding
-		FVector LaunchVelocity = GetActorForwardVector() * SlideJumpBoostStrenght;
-		LaunchCharacter(LaunchVelocity, false, false);
-		StopSlide(); // Stop sliding when jumping
-	}
-}
-
 
 void AIconoclasmCharacter::StartDashCooldown()
 {
@@ -339,9 +267,9 @@ void AIconoclasmCharacter::StartDashCooldown()
 void AIconoclasmCharacter::ResetDashCooldown()
 {
 	CanDash = true;
-	
+
 	if (DashCharges < 3) {
-		
+
 		DashCharges++;
 
 		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
@@ -351,7 +279,143 @@ void AIconoclasmCharacter::ResetDashCooldown()
 void AIconoclasmCharacter::EndDash()
 {
 	IsDashing = false;
+	
+	TargetFOV = OriginalFOV;
 }
+
+void AIconoclasmCharacter::StartSlide()
+{
+	if (!IsSliding && GetCharacterMovement()->IsMovingOnGround())
+	{
+		IsSliding = true;
+
+		// Set the character's movement direction
+		SlideDirection = GetActorForwardVector();
+
+		
+		UpdateSlide();
+		TargetFOV = SlideFOV;
+
+		// Adjust the camera position or rotation here
+        if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+        {
+            // Move the camera down
+            FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, -50.0f)); // Adjust the Z value as needed
+        }
+	}
+
+}
+
+void AIconoclasmCharacter::UpdateSlide()
+{
+	if (IsSliding)
+	{
+		if (GetCharacterMovement()->IsMovingOnGround())
+		{
+			// Adjust the slide speed
+			SlideSpeed = 5000.0f; 
+
+			// Set the character's velocity directly for smooth movement on the ground
+			FVector SlideVelocity = SlideDirection * SlideSpeed;
+			GetCharacterMovement()->Velocity = SlideVelocity;
+
+			// Rotate the character based on the controller input
+			const FRotator ControlRotation = GetControlRotation();
+			const FRotator ControlYawRotation(0, ControlRotation.Yaw, 0);
+			SetActorRotation(ControlYawRotation);
+		}
+		else
+		{
+			//Can be used to launch player when sliding off a ledge not sure if want to use it
+			//// If sliding off a ledge, use LaunchCharacter with a set value
+			//FVector LaunchVelocity = SlideDirection * 100.0f; 
+			//LaunchCharacter(LaunchVelocity, false, false);
+		}
+
+		// Additional logic for updating slide
+	}
+
+}
+
+void AIconoclasmCharacter::StopSlide()
+{
+	if (IsSliding) {
+		IsSliding = false;
+		GetCharacterMovement()->MaxWalkSpeed = 1600.0f;
+		TargetFOV = OriginalFOV;
+
+		// Adjust the camera position or rotation here
+		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+		{
+			// Move the camera down
+			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f)); // Adjust the Z value as needed
+		}
+
+		
+
+	}
+}
+
+void AIconoclasmCharacter::SlideJump()
+{
+	if (IsSliding)
+	{
+		// Perform a boost when jumping while sliding
+		FVector LaunchVelocity = FVector(0.0f, 0.0f, 1.0f) * SlideJumpBoostStrength; // Adjust the Z component for upward boost
+		LaunchCharacter(LaunchVelocity, false, false);
+		StopSlide(); // Stop sliding when jumping
+	}
+}
+
+
+void AIconoclasmCharacter::GroundSlam()
+{
+	// Cancel out the current velocity
+	FVector CurrentVelocity = GetCharacterMovement()->Velocity;
+	FVector CancelVelocity = FVector(-CurrentVelocity.X, -CurrentVelocity.Y, 0.0f);
+	GetCharacterMovement()->Velocity = CancelVelocity;
+
+	// Perform a slam by launching the character straight down
+	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength; // Adjust the Z component for downward velocity
+	LaunchCharacter(LaunchVelocity, true, true); // Set bXYOverride to true to override XY movement
+
+	// Create a collision sphere to detect nearby objects
+	TArray<AActor*> IgnoreActors;
+	IgnoreActors.Add(this); // Ignore the player character
+	TArray<FHitResult> HitResults;
+	FVector SphereLocation = GetActorLocation();
+	float SphereRadius = 1000.0f;
+
+	// Perform the collision sphere trace
+	bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(GetWorld(), SphereLocation, SphereLocation, SphereRadius, UEngineTypes::ConvertToTraceType(ECC_WorldDynamic), false, IgnoreActors, EDrawDebugTrace::None, HitResults, true);
+
+	// Apply upward force to objects within the collision sphere
+	if (bHitSomething)
+	{
+		for (const FHitResult& HitResult : HitResults)
+		{
+			// Check if the hit actor is simulating physics
+			UPrimitiveComponent* HitComponent = HitResult.GetComponent();
+			if (HitComponent && HitComponent->IsSimulatingPhysics())
+			{
+				// Apply upward impulse to the hit component
+				FVector UpwardImpulse = FVector(0.0f, 0.0f, 2000.0f);
+				HitComponent->AddImpulse(UpwardImpulse, NAME_None, true);
+			}
+		}
+	}
+
+	// Draw debug sphere for visualization
+	if (bHitSomething)
+	{
+		DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 12, FColor::Red, false, 1.0f, 0, 1.0f);
+	}
+	
+}
+
+
+
+
 
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 {

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "WallRunComponent.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "IconoclasmCharacter.generated.h"
@@ -72,15 +73,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void Dash();
 
-	UFUNCTION(BlueprintCallable, Category = "Character")
-	void StartWallRun(const FVector& WallNormal);
-
-	UFUNCTION(BlueprintCallable, Category = "Character")
-	void StopWallRun();
-
-	UFUNCTION(BlueprintCallable, Category = "Character")
-	void CheckForWalls();
-
 	UFUNCTION(BlueprintCallable, Category = "Slide")
 	void StartSlide();
 
@@ -93,7 +85,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Slide")
 	void SlideJump();
 
-
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void GroundSlam();
 
 	// Function to handle cooldown
 	void StartDashCooldown();
@@ -101,6 +94,7 @@ public:
 	// Function to reset cooldown
 	void ResetDashCooldown();
 
+	UFUNCTION(BlueprintCallable)
 	// Function to handle end of dash
 	void EndDash();
 
@@ -144,27 +138,34 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	bool CanDashAgain; // New flag to allow immediate dash in a different direction
 
+	float GroundDash;
+	float AirDash;
+
 	// Timer handle for cooldown
 	FTimerHandle DashCooldownTimerHandle;
 
-	//Varibales for wallrun
-	bool IsWallRunning;
-	float WallRunDuration;
-	float WallRunSpeed;
-	float WallDetectionRange;
-	float WallRunMaxAngle;
-
-	FVector WallRunDirection;
-
 	//Variables for Sliding
 	bool IsSliding;
+	bool FirstSlideUpdate;
 	float SlideSpeed;
-	float SlideJumpBoostStrenght;
+	float SlideJumpBoostStrength;
+	float GroundSlamStrength;
+
+	//Slide FOV Variables
+	float CurrentFOV; // Current field of view
+	float TargetFOV; // Target field of view
+	float InterpSpeed = 10.0f; // Interpolation speed
+	float OriginalFOV = 110.0f; // Original FOV value
+	float SlideFOV = 120.0f; // Adjusted FOV value when sliding
+
+	//Dash FOV Variables
+	float DashFOV = 120.0f;
+	float DashInterp = 5.0f;
 
 
+	FVector SlideDirection;
 
-	
-
+	UWallRunComponent* WallRunComponent;
 
 };
 
