@@ -15,6 +15,7 @@ class ICONOCLASM_API UGrappleComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:	
+
 	// Sets default values for this component's properties
 	UGrappleComponent();
 
@@ -46,7 +47,7 @@ public:
 
 	float GrappleSwingSpeed;
 
-	UPROPERTY(EditAnywhere, Category = "Grapple")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple")
 	float GrappleCooldownDuration = 3.0f;
 
 	float GrappleEndThreshold = 100.0f;
