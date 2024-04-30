@@ -213,7 +213,7 @@ void AIconoclasmCharacter::Dash()
 		if (!DashDirection.IsNearlyZero())
 		{
 			// Determine whether the player is dashing forward
-			bool IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f); // Use a small tolerance to account for floating point precision
+			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f); // Use a small tolerance to account for floating point precision
 
 			// Perform the dash
 			IsDashing = true;
@@ -236,11 +236,11 @@ void AIconoclasmCharacter::Dash()
 			// Decrement dash charges
 			DashCharges--;
 
-			// If the player is dashing forward, change the FOV to DashFOV
-			if (IsDashingForward)
-			{
-				TargetFOV = DashFOV;
-			}
+			//// If the player is dashing forward, change the FOV to DashFOV
+			//if (IsDashingForward)
+			//{
+			//	TargetFOV = DashFOV;
+			//}
 
 			// Start cooldown timer
 			StartDashCooldown();
@@ -280,7 +280,7 @@ void AIconoclasmCharacter::EndDash()
 {
 	IsDashing = false;
 	
-	TargetFOV = OriginalFOV;
+	/*TargetFOV = OriginalFOV;*/
 }
 
 void AIconoclasmCharacter::StartSlide()

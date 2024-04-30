@@ -137,6 +137,8 @@ protected:
 	bool IsDashing;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	bool CanDashAgain; // New flag to allow immediate dash in a different direction
+	UPROPERTY(BlueprintReadOnly)
+	bool IsDashingForward;
 
 	float GroundDash;
 	float AirDash;
