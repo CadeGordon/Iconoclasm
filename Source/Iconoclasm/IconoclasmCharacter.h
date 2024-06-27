@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "WallRunComponent.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "IconoclasmCharacter.generated.h"
@@ -46,6 +47,7 @@ public:
 
 protected:
 	virtual void BeginPlay();
+	virtual void Tick(float DeltaTime) override;
 
 public:
 		
@@ -71,12 +73,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void Dash();
 
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void StartSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void UpdateSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void StopSlide();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void SlideJump();
+
+	UFUNCTION(BlueprintCallable, Category = "Slide")
+	void GroundSlam();
+
 	// Function to handle cooldown
 	void StartDashCooldown();
 
 	// Function to reset cooldown
 	void ResetDashCooldown();
 
+	UFUNCTION(BlueprintCallable)
 	// Function to handle end of dash
 	void EndDash();
 
@@ -111,22 +129,45 @@ protected:
 	// Variables for dash
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	int32 DashCharges;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	float DashCooldown;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bCanDash;
-
+	bool CanDash;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bIsDashing;
-
+	bool IsDashing;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
-	bool bCanDashAgain; // New flag to allow immediate dash in a different direction
+	bool CanDashAgain; // New flag to allow immediate dash in a different direction
+	UPROPERTY(BlueprintReadOnly)
+	bool IsDashingForward;
+
+	float GroundDash;
+	float AirDash;
 
 	// Timer handle for cooldown
 	FTimerHandle DashCooldownTimerHandle;
 
+	//Variables for Sliding
+	bool IsSliding;
+	bool FirstSlideUpdate;
+	float SlideSpeed;
+	float SlideJumpBoostStrength;
+	float GroundSlamStrength;
+
+	//Slide FOV Variables
+	float CurrentFOV; // Current field of view
+	float TargetFOV; // Target field of view
+	float InterpSpeed = 10.0f; // Interpolation speed
+	float OriginalFOV = 110.0f; // Original FOV value
+	float SlideFOV = 120.0f; // Adjusted FOV value when sliding
+
+	//Dash FOV Variables
+	float DashFOV = 120.0f;
+	float DashInterp = 5.0f;
+
+
+	FVector SlideDirection;
+
+	UWallRunComponent* WallRunComponent;
 
 };
 

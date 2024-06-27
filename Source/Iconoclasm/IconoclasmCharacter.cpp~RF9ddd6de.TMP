@@ -1,0 +1,303 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "IconoclasmCharacter.h"
+#include "IconoclasmProjectile.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputActionValue.h"
+#include "Engine/LocalPlayer.h"
+
+DEFINE_LOG_CATEGORY(LogTemplateCharacter);
+
+//////////////////////////////////////////////////////////////////////////
+// AIconoclasmCharacter
+
+AIconoclasmCharacter::AIconoclasmCharacter()
+{
+	// Character doesnt have a rifle at start
+	bHasRifle = false;
+	
+	// Set size for collision capsule
+	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
+		
+	// Create a CameraComponent	
+	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
+	FirstPersonCameraComponent->SetupAttachment(GetCapsuleComponent());
+	FirstPersonCameraComponent->SetRelativeLocation(FVector(-10.f, 0.f, 60.f)); // Position the camera
+	FirstPersonCameraComponent->bUsePawnControlRotation = true;
+
+	// Create a mesh component that will be used when being viewed from a '1st person' view (when controlling this pawn)
+	Mesh1P = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("CharacterMesh1P"));
+	Mesh1P->SetOnlyOwnerSee(true);
+	Mesh1P->SetupAttachment(FirstPersonCameraComponent);
+	Mesh1P->bCastDynamicShadow = false;
+	Mesh1P->CastShadow = false;
+	//Mesh1P->SetRelativeRotation(FRotator(0.9f, -19.19f, 5.2f));
+	Mesh1P->SetRelativeLocation(FVector(-30.f, 0.f, -150.f));
+
+	//double jump variables
+	JumpCount = 0;
+	//Dashing Variables
+	DashCharges = 3;
+	DashCooldown = 2.0f;
+	CanDash = true;
+	IsDashing = false;
+	CanDashAgain = true;
+	//Wallrunning variables
+	WallRunDuration = 10.0f;
+	WallRunSpeed = 100.0f;
+	WallDetectionRange = 150.0f;
+	WallRunMaxAngle = 5.0f;
+
+}
+
+void AIconoclasmCharacter::BeginPlay()
+{
+	// Call the base class  
+	Super::BeginPlay();
+
+	// Add Input Mapping Context
+	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+		}
+	}
+
+}
+
+void AIconoclasmCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	CheckForWalls();
+
+	if (IsWallRunning) {
+		FVector NewLocation = GetActorLocation() + (GetActorForwardVector() * WallRunSpeed * DeltaTime);
+		SetActorLocation(NewLocation);
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////// Input
+
+void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	// Set up action bindings
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		// Jumping
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::DoubleJump);
+
+		// Moving
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::Move);
+
+		// Looking
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::Look);
+	}
+	else
+	{
+		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input Component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
+	}
+}
+
+
+void AIconoclasmCharacter::Move(const FInputActionValue& Value)
+{
+	// input is a Vector2D
+	FVector2D MovementVector = Value.Get<FVector2D>();
+
+	if (Controller != nullptr)
+	{
+		// add movement 
+		AddMovementInput(GetActorForwardVector(), MovementVector.Y);
+		AddMovementInput(GetActorRightVector(), MovementVector.X);
+	}
+}
+
+void AIconoclasmCharacter::Look(const FInputActionValue& Value)
+{
+	// input is a Vector2D
+	FVector2D LookAxisVector = Value.Get<FVector2D>();
+
+	if (Controller != nullptr)
+	{
+		// add yaw and pitch input to controller
+		AddControllerYawInput(LookAxisVector.X);
+		AddControllerPitchInput(LookAxisVector.Y);
+	}
+}
+
+void AIconoclasmCharacter::SetHasRifle(bool bNewHasRifle)
+{
+	bHasRifle = bNewHasRifle;
+}
+
+bool AIconoclasmCharacter::GetHasRifle()
+{
+	return bHasRifle;
+}
+
+void AIconoclasmCharacter::DoubleJump()
+{
+	if (JumpCount < 2)
+	{
+		if (JumpCount == 0)
+		{
+			// First jump using the built-in Jump function
+			Jump();
+		}
+		else
+		{
+			// Second jump - manually set the velocity
+			LaunchCharacter(FVector(0, 0, 1400.0f), false, true);
+		}
+
+		JumpCount++;
+	}
+}
+
+void AIconoclasmCharacter::Dash()
+{
+	if ((CanDash || CanDashAgain) && DashCharges > 0 && GetCharacterMovement()->IsFalling())
+	{
+		// Get the direction the player is moving
+		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
+
+		// Check if the player is moving
+		if (!DashDirection.IsNearlyZero())
+		{
+			// Perform the dash
+			IsDashing = true;
+			FVector DashVelocity = DashDirection * 4000.0f; // Adjust the dash speed as needed
+			GetCharacterMovement()->Velocity = DashVelocity;
+
+			// Decrement dash charges
+			DashCharges--;
+
+			// Start cooldown timer
+			StartDashCooldown();
+		}
+
+		// Set the new flag to allow immediate dash in a different direction
+		CanDashAgain = true;
+
+		if (DashCharges == 0)
+		{
+			DashCharges = 3;
+			CanDashAgain = false;
+		}
+	}
+}
+
+void AIconoclasmCharacter::StartWallRun(const FVector& WallNormal)
+{
+	if (!IsWallRunning)
+	{
+		IsWallRunning = true;
+		WallRunDirection = FVector::VectorPlaneProject(GetActorForwardVector(), WallNormal).GetSafeNormal();
+
+		// Additional logic to handle wall running start, e.g., play animations or sound
+		UE_LOG(LogTemp, Warning, TEXT("Start Wall Run"));
+	}
+}
+
+void AIconoclasmCharacter::StopWallRun()
+{
+	if (IsWallRunning)
+	{
+		IsWallRunning = false;
+
+		// Additional logic to handle wall running stop, e.g., reset variables or animations
+		UE_LOG(LogTemp, Warning, TEXT("Stop Wall Run"));
+	}
+}
+
+void AIconoclasmCharacter::CheckForWalls()
+{
+	FVector Start = GetActorLocation();
+	FVector ForwardVector = GetActorForwardVector();
+
+	// Use SphereTraceSingle instead of LineTraceSingle
+	FHitResult HitResult;
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(this); // Ignore the character itself
+
+	if (GetWorld()->SweepSingleByChannel(HitResult, Start, Start + ForwardVector * 50.0f, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(50.0f), CollisionParams))
+	{
+		// Check if the hit surface is a wall (you might need to adjust this condition)
+		if (FMath::Abs(HitResult.ImpactNormal.Z) < WallRunMaxAngle)
+		{
+			// Start wall running
+			StartWallRun(HitResult.ImpactNormal);
+
+			// Calculate the rotation to align with the wall normal
+			FRotator Rotation = FRotationMatrix::MakeFromX(HitResult.ImpactNormal).Rotator();
+
+			// Launch the character with the wall run direction and rotation
+			FVector LaunchVelocity = WallRunDirection * WallRunSpeed;
+			LaunchCharacter(LaunchVelocity, false, false);
+			AddActorLocalRotation(Rotation);
+		}
+		else
+		{
+			// Stop wall running if the conditions are not met
+			StopWallRun();
+		}
+	}
+	else
+	{
+		// Stop wall running if no wall is detected
+		StopWallRun();
+	}
+
+}
+
+
+void AIconoclasmCharacter::StartDashCooldown()
+{
+	CanDash = false;
+	CanDashAgain = false;
+	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
+}
+
+void AIconoclasmCharacter::ResetDashCooldown()
+{
+	CanDash = true;
+	
+	if (DashCharges < 3) {
+		
+		DashCharges++;
+
+		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
+	}
+}
+
+void AIconoclasmCharacter::EndDash()
+{
+	IsDashing = false;
+}
+
+void AIconoclasmCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+
+	CanDashAgain = true;
+	JumpCount = 0;
+
+	// If there are no dash charges, start recharging them
+	if (DashCharges == 0)
+	{
+		// Start cooldown timer
+		StartDashCooldown();
+	}
+}
+
