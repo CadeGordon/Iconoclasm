@@ -18,6 +18,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category=Projectile)
 	TSubclassOf<class AIconoclasmProjectile> ProjectileClass;
 
+	/** Projectile class to spawn */
+	UPROPERTY(EditDefaultsOnly, Category=Projectile)
+	TSubclassOf<class AGrenadeLauncherHealProjectile> HealProjectileClass;
+
+
 	/** Sound to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
 	USoundBase* FireSound;
@@ -38,8 +43,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	class UInputAction* FireAction;
 
+	/** Fire Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
+	class UInputAction* AltFireAction;
+
 	/** Sets default values for this component's properties */
 	UTP_WeaponComponent();
+
+protected:
+	virtual void BeginPlay() override;
 
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
@@ -48,6 +60,14 @@ public:
 	/** Make the weapon Fire a Projectile */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void Fire();
+
+	void AltFire();
+
+	UFUNCTION(BlueprintCallable)
+	void PerformHitscan(FVector& ImpactLocation);
+
+	UFUNCTION(BlueprintCallable)
+	void ApplyExplosionEffect(const FVector& ImpactLocation, float Radius, float Strength);
 
 protected:
 	/** Ends gameplay for this component. */

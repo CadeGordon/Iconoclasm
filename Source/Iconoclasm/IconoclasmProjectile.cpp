@@ -3,6 +3,11 @@
 #include "IconoclasmProjectile.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
+#include "PhysicsEngine/RadialForceComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
 
 AIconoclasmProjectile::AIconoclasmProjectile() 
 {
@@ -33,11 +38,65 @@ AIconoclasmProjectile::AIconoclasmProjectile()
 
 void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	// Only add impulse and destroy projectile if we hit a physics
-	if ((OtherActor != nullptr) && (OtherActor != this) && (OtherComp != nullptr) && OtherComp->IsSimulatingPhysics())
-	{
-		OtherComp->AddImpulseAtLocation(GetVelocity() * 100.0f, GetActorLocation());
+    if ((OtherActor != nullptr) && (OtherActor != this))
+    {
+        // Destroy the projectile
+        Destroy();
 
-		Destroy();
-	}
+        // Create a radial force component
+        FVector ImpactLocation = GetActorLocation();
+        float ExplosionRadius = 300.0f; // Set the radius for the explosion
+        float ExplosionStrength = 2000.0f; // Set the strength of the explosion
+
+        // Draw debug sphere to visualize the radius
+        DrawDebugSphere(GetWorld(), ImpactLocation, ExplosionRadius, 32, FColor::Red, false, 2.0f);
+
+        // Create and configure the radial force component
+        URadialForceComponent* RadialForce = NewObject<URadialForceComponent>(this);
+        RadialForce->SetupAttachment(RootComponent);
+        RadialForce->Radius = ExplosionRadius;
+        RadialForce->ImpulseStrength = ExplosionStrength;
+        RadialForce->bImpulseVelChange = true;
+        RadialForce->AddCollisionChannelToAffect(ECC_Pawn); // Ensure it affects characters
+        RadialForce->RegisterComponent(); // Register the component to properly initialize it
+        RadialForce->FireImpulse(); // Apply the radial impulse
+
+        // Apply force to any player within the radius
+        TArray<AActor*> OverlappingActors;
+        UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
+
+        for (AActor* Actor : OverlappingActors)
+        {
+            if (ACharacter* Character = Cast<ACharacter>(Actor))
+            {
+                if (FVector::Dist(Character->GetActorLocation(), ImpactLocation) <= ExplosionRadius)
+                {
+                    FVector LaunchDirection = (Character->GetActorLocation() - ImpactLocation).GetSafeNormal();
+                    Character->LaunchCharacter(LaunchDirection * ExplosionStrength, true, true);
+                }
+            }
+        }
+    }
+}
+
+void AIconoclasmProjectile::AltOnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+    if ((OtherActor != nullptr) && (OtherActor != this))
+    {
+        // Destroy the projectile
+        Destroy();
+
+        // Create the healing area
+        FVector ImpactLocation = GetActorLocation();
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.Owner = this;
+        SpawnParams.Instigator = GetInstigator();
+
+
+        // Draw debug sphere to visualize the healing area
+        DrawDebugSphere(GetWorld(), ImpactLocation, 300.0f, 32, FColor::Green, false, 10.0f);
+
+        // Log a debug message to see if it hit something
+        UE_LOG(LogTemp, Warning, TEXT("Projectile hit: %s"), *OtherActor->GetName());
+    }
 }
