@@ -16,6 +16,7 @@ UTP_WeaponComponent::UTP_WeaponComponent()
 {
 	// Default offset from the character location for projectiles to spawn
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
+	CurrentWeaponMode = EWeaponMode::Mode1;
 }
 
 void UTP_WeaponComponent::BeginPlay()
@@ -32,24 +33,16 @@ void UTP_WeaponComponent::Fire()
 		return;
 	}
 
-	FVector ImpactLocation;
-	PerformHitscan(ImpactLocation);
-	ApplyExplosionEffect(ImpactLocation, 300.0f, 2000.0f); // Example radius and strength
-
-	// Play fire sound
-	if (FireSound != nullptr)
+	switch (CurrentWeaponMode)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
-	}
-
-	// Play fire animation
-	if (FireAnimation != nullptr)
-	{
-		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
-		if (AnimInstance != nullptr)
-		{
-			AnimInstance->Montage_Play(FireAnimation, 1.f);
-		}
+	case EWeaponMode::Mode1:
+		LifeBloodMode();
+		break;
+	case EWeaponMode::Mode2:
+		FireMode2();
+		break;
+	default:
+		break;
 	}
 }
 
@@ -60,25 +53,23 @@ void UTP_WeaponComponent::AltFire()
 		return;
 	}
 
-	FVector ImpactLocation;
-	PerformHitscan(ImpactLocation);
-	ApplyExplosionEffect(ImpactLocation, 500.0f, 3000.0f); // Different radius and strength for alt fire
-
-	// Play fire sound
-	if (FireSound != nullptr)
+	switch (CurrentWeaponMode)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	case EWeaponMode::Mode1:
+		AltlifeBloodMode();
+		break;
+	case EWeaponMode::Mode2:
+		AltFireMode2();
+		break;
+	default:
+		break;
 	}
+}
 
-	// Play fire animation
-	if (FireAnimation != nullptr)
-	{
-		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
-		if (AnimInstance != nullptr)
-		{
-			AnimInstance->Montage_Play(FireAnimation, 1.f);
-		}
-	}
+void UTP_WeaponComponent::SwitchFireMode()
+{
+	// Cycle through the weapon modes
+	CurrentWeaponMode = static_cast<EWeaponMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(EWeaponMode::Mode2) + 1));
 }
 
 void UTP_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
@@ -129,6 +120,12 @@ void UTP_WeaponComponent::ApplyExplosionEffect(const FVector& ImpactLocation, fl
 
 }
 
+void UTP_WeaponComponent::HealingSphere(const FVector& ImpactLocation, float Radius)
+{
+	// Draw the debug sphere to visualize the radius
+	DrawDebugSphere(GetWorld(), ImpactLocation, Radius, 32, FColor::Green, false, 5.0f);
+}
+
 void UTP_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacter)
 {
 	Character = TargetCharacter;
@@ -160,6 +157,7 @@ void UTP_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacter)
 			// Fire
 			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::Fire);
 			EnhancedInputComponent->BindAction(AltFireAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::AltFire);
+			EnhancedInputComponent->BindAction(SwitchFireModeAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::SwitchFireMode);
 		}
 	}
 }
@@ -176,6 +174,104 @@ void UTP_WeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
 			Subsystem->RemoveMappingContext(FireMappingContext);
+		}
+	}
+}
+
+void UTP_WeaponComponent::LifeBloodMode()
+{
+	FVector ImpactLocation;
+	PerformHitscan(ImpactLocation);
+	ApplyExplosionEffect(ImpactLocation, 300.0f, 2000.0f); // Example radius and strength
+
+	// Play fire sound
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+
+	// Play fire animation
+	if (FireAnimation != nullptr)
+	{
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
+		}
+	}
+}
+
+void UTP_WeaponComponent::AltlifeBloodMode()
+{
+	FVector ImpactLocation;
+	PerformHitscan(ImpactLocation);
+	HealingSphere(ImpactLocation, 300); // Different radius and strength for alt fire
+
+	// Play fire sound
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+
+	// Play fire animation
+	if (FireAnimation != nullptr)
+	{
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
+		}
+	}
+}
+
+void UTP_WeaponComponent::FireMode2()
+{
+	FVector ImpactLocation;
+	PerformHitscan(ImpactLocation);
+	// Custom behavior for Mode2 Fire
+
+	// Example: Just a radius effect
+	HealingSphere(ImpactLocation, 1000.0f);
+
+	// Play fire sound
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+
+	// Play fire animation
+	if (FireAnimation != nullptr)
+	{
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
+		}
+	}
+}
+
+void UTP_WeaponComponent::AltFireMode2()
+{
+	FVector ImpactLocation;
+	PerformHitscan(ImpactLocation);
+	// Custom behavior for Mode2 AltFire
+
+	// Example: Just a radius effect
+	HealingSphere(ImpactLocation, 3000.0f);
+
+	// Play fire sound
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+
+	// Play fire animation
+	if (FireAnimation != nullptr)
+	{
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
 		}
 	}
 }

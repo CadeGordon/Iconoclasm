@@ -8,6 +8,13 @@
 
 class AIconoclasmCharacter;
 
+UENUM(BlueprintType)
+enum class EWeaponMode : uint8
+{
+	Mode1 UMETA(DisplayName = "LifeBlood"),
+	Mode2 UMETA(DisplayName = "AltMode"),
+};
+
 UCLASS(Blueprintable, BlueprintType, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class ICONOCLASM_API UTP_WeaponComponent : public USkeletalMeshComponent
 {
@@ -47,6 +54,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	class UInputAction* AltFireAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* SwitchFireModeAction;
+
 	/** Sets default values for this component's properties */
 	UTP_WeaponComponent();
 
@@ -63,11 +73,16 @@ protected:
 
 	void AltFire();
 
+	void SwitchFireMode();
+
 	UFUNCTION(BlueprintCallable)
 	void PerformHitscan(FVector& ImpactLocation);
 
 	UFUNCTION(BlueprintCallable)
 	void ApplyExplosionEffect(const FVector& ImpactLocation, float Radius, float Strength);
+
+	UFUNCTION(BlueprintCallable)
+	void HealingSphere(const FVector& ImpactLocation, float Radius);
 
 protected:
 	/** Ends gameplay for this component. */
@@ -77,4 +92,13 @@ protected:
 private:
 	/** The Character holding this weapon*/
 	AIconoclasmCharacter* Character;
+
+	
+
+	EWeaponMode CurrentWeaponMode;
+
+	void LifeBloodMode();
+	void AltlifeBloodMode();
+	void FireMode2();
+	void AltFireMode2();
 };
