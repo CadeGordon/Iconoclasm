@@ -39,7 +39,7 @@ void UTP_WeaponComponent::Fire()
 		LifeBloodMode();
 		break;
 	case EWeaponMode::Mode2:
-		FireMode2();
+		ImpulseMode();
 		break;
 	default:
 		break;
@@ -59,7 +59,7 @@ void UTP_WeaponComponent::AltFire()
 		AltlifeBloodMode();
 		break;
 	case EWeaponMode::Mode2:
-		AltFireMode2();
+		AltImpulseMode();
 		break;
 	default:
 		break;
@@ -124,6 +124,97 @@ void UTP_WeaponComponent::HealingSphere(const FVector& ImpactLocation, float Rad
 {
 	// Draw the debug sphere to visualize the radius
 	DrawDebugSphere(GetWorld(), ImpactLocation, Radius, 32, FColor::Green, false, 5.0f);
+}
+
+void UTP_WeaponComponent::ImpulseEffect(const FVector& ImpactLocation, float Radius, float Strength)
+{
+	// Draw debug sphere to visualize the radius
+	DrawDebugSphere(GetWorld(), ImpactLocation, Radius, 32, FColor::Blue, false, 2.0f);
+
+	// Get all actors within the radius
+	TArray<AActor*> OverlappingActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), OverlappingActors);
+
+	// Iterate over each actor to apply the impulse
+	for (AActor* Actor : OverlappingActors)
+	{
+		// Skip the player character
+		if (Actor != Character && FVector::Dist(Actor->GetActorLocation(), ImpactLocation) <= Radius)
+		{
+			// Get the primitive component to apply the impulse
+			UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+			if (PrimComp && PrimComp->IsSimulatingPhysics())
+			{
+				// Calculate the impulse direction and apply it
+				FVector ImpulseDirection = (Actor->GetActorLocation() - ImpactLocation).GetSafeNormal();
+				PrimComp->AddImpulse(ImpulseDirection * Strength);
+
+				// Debugging: Log information about the actor and impulse
+				UE_LOG(LogTemp, Warning, TEXT("Applying impulse to %s"), *Actor->GetName());
+				UE_LOG(LogTemp, Warning, TEXT("Impulse Direction: %s"), *ImpulseDirection.ToString());
+				UE_LOG(LogTemp, Warning, TEXT("Impulse Strength: %f"), Strength);
+			}
+			else
+			{
+				// Debugging: Log if the primitive component is null or not simulating physics
+				if (!PrimComp)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("No primitive component found on %s"), *Actor->GetName());
+				}
+				else if (!PrimComp->IsSimulatingPhysics())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Primitive component is not simulating physics on %s"), *Actor->GetName());
+				}
+			}
+		}
+	}
+}
+
+void UTP_WeaponComponent::AntiGravity(const FVector& ImpactLocation, float Radius)
+{
+	// Draw debug sphere to visualize the radius
+	DrawDebugSphere(GetWorld(), ImpactLocation, Radius, 32, FColor::Blue, false, 2.0f);
+
+	// Get all actors within the radius
+	TArray<AActor*> OverlappingActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), OverlappingActors);
+
+	// Iterate over each actor to apply the anti-gravity effect
+	for (AActor* Actor : OverlappingActors)
+	{
+		// Skip the player character
+		if (Actor != Character && FVector::Dist(Actor->GetActorLocation(), ImpactLocation) <= Radius)
+		{
+			// Get the primitive component to disable gravity
+			UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+			if (PrimComp && PrimComp->IsSimulatingPhysics())
+			{
+				PrimComp->SetEnableGravity(false);
+
+				// Re-enable gravity after 5 seconds
+				FTimerHandle TimerHandle;
+				GetWorld()->GetTimerManager().SetTimer(TimerHandle, [PrimComp]()
+					{
+						PrimComp->SetEnableGravity(true);
+					}, 5.0f, false);
+
+				// Debugging: Log information about the actor
+				UE_LOG(LogTemp, Warning, TEXT("Disabling gravity for %s"), *Actor->GetName());
+			}
+			else
+			{
+				// Debugging: Log if the primitive component is null or not simulating physics
+				if (!PrimComp)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("No primitive component found on %s"), *Actor->GetName());
+				}
+				else if (!PrimComp->IsSimulatingPhysics())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Primitive component is not simulating physics on %s"), *Actor->GetName());
+				}
+			}
+		}
+	}
 }
 
 void UTP_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacter)
@@ -224,14 +315,11 @@ void UTP_WeaponComponent::AltlifeBloodMode()
 	}
 }
 
-void UTP_WeaponComponent::FireMode2()
+void UTP_WeaponComponent::ImpulseMode()
 {
 	FVector ImpactLocation;
 	PerformHitscan(ImpactLocation);
-	// Custom behavior for Mode2 Fire
-
-	// Example: Just a radius effect
-	HealingSphere(ImpactLocation, 1000.0f);
+	ImpulseEffect(ImpactLocation, 300.0f, 500000.0f); // Radius and strength
 
 	// Play fire sound
 	if (FireSound != nullptr)
@@ -250,14 +338,13 @@ void UTP_WeaponComponent::FireMode2()
 	}
 }
 
-void UTP_WeaponComponent::AltFireMode2()
+void UTP_WeaponComponent::AltImpulseMode()
 {
 	FVector ImpactLocation;
 	PerformHitscan(ImpactLocation);
-	// Custom behavior for Mode2 AltFire
 
-	// Example: Just a radius effect
-	HealingSphere(ImpactLocation, 3000.0f);
+	// Apply anti-gravity effect
+	AntiGravity(ImpactLocation, 500.0f); // Example radius
 
 	// Play fire sound
 	if (FireSound != nullptr)

@@ -84,6 +84,10 @@ protected:
 	UFUNCTION(BlueprintCallable)
 	void HealingSphere(const FVector& ImpactLocation, float Radius);
 
+	void ImpulseEffect(const FVector& ImpactLocation, float Radius, float Strength);
+
+	void AntiGravity(const FVector& ImpactLocation, float Radius);
+
 protected:
 	/** Ends gameplay for this component. */
 	UFUNCTION()
@@ -99,6 +103,6 @@ private:
 
 	void LifeBloodMode();
 	void AltlifeBloodMode();
-	void FireMode2();
-	void AltFireMode2();
+	void ImpulseMode();
+	void AltImpulseMode();
 };
