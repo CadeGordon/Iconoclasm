@@ -89,6 +89,9 @@ private:
 	FTimerHandle TimerHandle_AltGunslingerFire;
 	int32 HitscanCount;
 
+	FTimerHandle TimerHandle_AltHellfire;
+	float HellfireDuration;
+
 	void GunslingerMode();
 	void AltGunslingerMode();
 	void HellfireMode();

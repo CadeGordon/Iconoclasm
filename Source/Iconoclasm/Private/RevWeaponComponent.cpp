@@ -250,5 +250,59 @@ void URevWeaponComponent::HellfireMode()
 
 void URevWeaponComponent::AltHellfireMode()
 {
+	HellfireDuration = 5.0f; // Duration in seconds
+
+	auto HellfireEffect = [this]()
+		{
+			if (Character == nullptr || Character->GetController() == nullptr)
+			{
+				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfire);
+				return;
+			}
+
+			// Determine the location a few feet away from the player
+			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+			if (PlayerController)
+			{
+				FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+				FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+				FVector ForwardVector = CameraRotation.Vector();
+				FVector EndLocation = StartLocation + (ForwardVector * 300.0f); // Adjust the distance as needed
+
+				// Draw debug cylinder to visualize the effect
+				FVector CylinderEndLocation = EndLocation + (ForwardVector * 500.0f); // Adjust the length of the cylinder as needed
+				DrawDebugCylinder(GetWorld(), EndLocation, CylinderEndLocation, 200.0f, 32, FColor::Orange, false, 0.1f);
+
+				// Apply the effect
+				TArray<FHitResult> HitResults;
+				FCollisionShape CollisionShape;
+				CollisionShape.SetCapsule(200.0f, 500.0f); // Adjust the radius and half-height as needed
+
+				FQuat RotationQuat = FRotationMatrix::MakeFromX(ForwardVector).ToQuat();
+
+				bool bHit = GetWorld()->SweepMultiByChannel(HitResults, EndLocation, CylinderEndLocation, RotationQuat, ECC_Visibility, CollisionShape);
+				if (bHit)
+				{
+					for (FHitResult& Hit : HitResults)
+					{
+						if (AActor* HitActor = Hit.GetActor())
+						{
+							// Apply damage or any other effect to the hit actors
+							// For example: UGameplayStatics::ApplyDamage(HitActor, DamageAmount, PlayerController, this, DamageTypeClass);
+						}
+					}
+				}
+			}
+
+			// Reduce the duration and clear the timer if the duration is over
+			HellfireDuration -= 0.1f;
+			if (HellfireDuration <= 0.0f)
+			{
+				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfire);
+			}
+		};
+
+	// Set the timer to call the lambda function every 0.1 seconds
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltHellfire, HellfireEffect, 0.1f, true);
 }
 
