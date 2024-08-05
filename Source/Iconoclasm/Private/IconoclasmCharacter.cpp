@@ -177,13 +177,6 @@ bool AIconoclasmCharacter::GetHasRifle()
 void AIconoclasmCharacter::DoubleJump()
 {
 
-	// Check if the player is wall running
-	if (WallRunComponent && WallRunComponent->IsWallRunning)
-	{
-		// Stop wall running
-		WallRunComponent->StopWallRun();
-	}
-
 	if (JumpCount < 2)
 	{
 		if (JumpCount == 0)

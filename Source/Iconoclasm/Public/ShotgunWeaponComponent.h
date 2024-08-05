@@ -77,10 +77,12 @@ protected:
 	UFUNCTION(BlueprintCallable)
 	void PerformHitscan(FVector& ImpactLocation);
 
+	void PerformTeleportHitscan(FVector& ImpactLocation, FHitResult& OutHit);
+
 	UFUNCTION(BlueprintCallable)
-	void PerformPumpHitscan(FVector& ImpactLocation, FVector& StartLocation, FVector& EndLocation);
+	void PerformPumpHitscan(FVector& StartLocation, FVector& EndLocation, int32 MaxRicochets);
 
-
+	void TeleportPlayer(FVector TeleportLocation);
 
 protected:
 	/** Ends gameplay for this component. */
@@ -96,14 +98,23 @@ private:
 	FTimerHandle FireCooldownTimerHandle;
 	int32 HitscanCount;
 
-	FTimerHandle TimerHandle_AltHellfire;
-	float HellfireDuration;
+	
+	
 
 	bool CanFire;
 
-	void PumpActionMode();
-	void AltPumpActionMode();
+	void TimeWarpMode();
+	void AltTimeWarpMode();
 	void SemiAutoMode();
 	void AltSemiAutoMode();
+	
+
+	struct FPlayerStae
+	{
+		FVector Location;
+		FRotator Rotation;
+	};
+
+
 	
 };
