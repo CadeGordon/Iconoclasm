@@ -6,6 +6,7 @@
 #include "WallRunComponent.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "TP_WeaponComponent.h"
 #include "IconoclasmCharacter.generated.h"
 
 class UInputComponent;
@@ -41,6 +42,16 @@ class AIconoclasmCharacter : public ACharacter
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	UInputAction* MoveAction;
+	
+	/** Move Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
+	UInputAction* SwitchAction;
+	
+	/** Move Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
+	UInputAction* CycleWeaponAction;
+	
+	
 	
 public:
 	AIconoclasmCharacter();
@@ -100,6 +111,13 @@ public:
 
 	// Function to reset jump count when the character lands
 	virtual void Landed(const FHitResult& Hit) override;
+
+	void EquipWeapon(UTP_WeaponComponent* Weapon);
+	void AddWeaponToInventory(UTP_WeaponComponent* Weapon);
+	void CycleWeapon();
+	bool HasWeaponEquipped() const;
+
+	
 
 	
 
@@ -168,6 +186,11 @@ protected:
 	FVector SlideDirection;
 
 	UWallRunComponent* WallRunComponent;
+
+	UPROPERTY()
+	TArray<UTP_WeaponComponent*> WeaponInventory;
+
+	int32 CurrentWeaponIndex;
 
 };
 

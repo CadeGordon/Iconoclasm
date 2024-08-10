@@ -25,7 +25,6 @@ void UTP_WeaponComponent::BeginPlay()
 	Character = Cast<AIconoclasmCharacter>(GetOwner());
 }
 
-
 void UTP_WeaponComponent::Fire()
 {
 	if (Character == nullptr || Character->GetController() == nullptr)
@@ -217,6 +216,41 @@ void UTP_WeaponComponent::AntiGravity(const FVector& ImpactLocation, float Radiu
 	}
 }
 
+void UTP_WeaponComponent::DetachFromCharacter()
+{
+	if (Character)
+	{
+		// Reset rifle state
+		Character->SetHasRifle(false);
+
+		// Clear action bindings
+		if (APlayerController* PlayerController = Cast<APlayerController>(Character->GetController()))
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			{
+				Subsystem->RemoveMappingContext(FireMappingContext);
+			}
+
+			if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerController->InputComponent))
+			{
+				EnhancedInputComponent->ClearActionBindings();
+			}
+		}
+
+		// Detach weapon
+		DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+
+		// Hide the weapon and disable physics and collision
+		SetVisibility(false, true);
+		SetSimulatePhysics(false);
+		SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		// Clear reference
+		Character = nullptr;
+	}
+}
+
+
 void UTP_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacter)
 {
 	Character = TargetCharacter;
@@ -230,6 +264,10 @@ void UTP_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacter)
 	// Attach the weapon to the First Person Character
 	FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
 	AttachToComponent(Character->GetMesh1P(), AttachmentRules, FName(TEXT("GripPoint")));
+
+	// Show the weapon and re-enable physics and collision
+	SetVisibility(true, true);
+	SetSimulatePhysics(false);
 	
 	// switch bHasRifle so the animation blueprint can switch to another animation set
 	Character->SetHasRifle(true);

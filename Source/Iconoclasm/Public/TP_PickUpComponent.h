@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/SphereComponent.h"
 #include "IconoclasmCharacter.h"
+#include "TP_WeaponComponent.h"
 #include "TP_PickUpComponent.generated.h"
 
 // Declaration of the delegate that will be called when someone picks this up
@@ -31,4 +32,8 @@ protected:
 	/** Code for when something overlaps this component */
 	UFUNCTION()
 	void OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	// Weapon component reference
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+	UTP_WeaponComponent* WeaponComponent;
 };

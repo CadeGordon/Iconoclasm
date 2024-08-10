@@ -14,6 +14,7 @@
 #include "InputActionValue.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "TP_WeaponComponent.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -130,6 +131,9 @@ void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::Look);
+
+
+		EnhancedInputComponent->BindAction(CycleWeaponAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::CycleWeapon);
 	}
 	else
 	{
@@ -406,10 +410,6 @@ void AIconoclasmCharacter::GroundSlam()
 	
 }
 
-
-
-
-
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
@@ -424,4 +424,70 @@ void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 		StartDashCooldown();
 	}
 }
+
+void AIconoclasmCharacter::EquipWeapon(UTP_WeaponComponent* Weapon)
+{
+	if (Weapon)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Trying to equip weapon: %s"), *Weapon->GetName());
+
+		// Check if weapon is already in the inventory
+		if (!WeaponInventory.Contains(Weapon))
+		{
+			// Add the weapon to the inventory
+			int32 NewWeaponIndex = WeaponInventory.Add(Weapon);
+			UE_LOG(LogTemp, Warning, TEXT("Weapon %s added to inventory at index %d"), *Weapon->GetName(), NewWeaponIndex);
+
+			// If no weapon is currently equipped, equip this one
+			if (WeaponInventory.Num() == 1)
+			{
+				CurrentWeaponIndex = NewWeaponIndex;
+				Weapon->AttachWeapon(this);
+				UE_LOG(LogTemp, Warning, TEXT("Equipped weapon: %s"), *Weapon->GetName());
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Weapon %s is already in inventory!"), *Weapon->GetName());
+		}
+	}
+}
+
+void AIconoclasmCharacter::AddWeaponToInventory(UTP_WeaponComponent* Weapon)
+{
+	if (Weapon)
+	{
+		WeaponInventory.Add(Weapon);
+	}
+}
+
+void AIconoclasmCharacter::CycleWeapon()
+{
+	if (WeaponInventory.Num() > 1)
+	{
+		// Detach the currently equipped weapon
+		UTP_WeaponComponent* CurrentWeapon = WeaponInventory[CurrentWeaponIndex];
+		CurrentWeapon->DetachFromCharacter();
+		UE_LOG(LogTemp, Warning, TEXT("Detached weapon: %s"), *CurrentWeapon->GetName());
+
+		// Move to the next weapon in the inventory
+		CurrentWeaponIndex = (CurrentWeaponIndex + 1) % WeaponInventory.Num();
+
+		// Equip the new weapon
+		UTP_WeaponComponent* NewWeapon = WeaponInventory[CurrentWeaponIndex];
+		NewWeapon->AttachWeapon(this);
+		UE_LOG(LogTemp, Warning, TEXT("Switched to weapon: %s"), *NewWeapon->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No other weapon to cycle to!"));
+	}
+}
+
+bool AIconoclasmCharacter::HasWeaponEquipped() const
+{
+	return WeaponInventory.Num() > 0 && WeaponInventory.IsValidIndex(CurrentWeaponIndex);
+}
+
+
 

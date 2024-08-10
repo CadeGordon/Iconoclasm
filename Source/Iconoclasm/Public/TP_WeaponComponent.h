@@ -60,23 +60,23 @@ public:
 	/** Sets default values for this component's properties */
 	UTP_WeaponComponent();
 
-protected:
+public:
 	virtual void BeginPlay() override;
 
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
-	void AttachWeapon(AIconoclasmCharacter* TargetCharacter);
+	virtual void AttachWeapon(AIconoclasmCharacter* TargetCharacter);
 
 	/** Make the weapon Fire a Projectile */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
-	void Fire();
+	virtual void Fire();
 
-	void AltFire();
+	virtual void AltFire();
 
-	void SwitchFireMode();
+	virtual void SwitchFireMode();
 
 	UFUNCTION(BlueprintCallable)
-	void PerformHitscan(FVector& ImpactLocation);
+	virtual void PerformHitscan(FVector& ImpactLocation);
 
 	UFUNCTION(BlueprintCallable)
 	void ApplyExplosionEffect(const FVector& ImpactLocation, float Radius, float Strength);
@@ -87,6 +87,8 @@ protected:
 	void ImpulseEffect(const FVector& ImpactLocation, float Radius, float Strength);
 
 	void AntiGravity(const FVector& ImpactLocation, float Radius);
+
+	virtual void DetachFromCharacter();
 
 protected:
 	/** Ends gameplay for this component. */
