@@ -64,14 +64,14 @@ private:
 	FTimerHandle FireCooldownTimerHandle;
 	int32 HitscanCount;
 
-
-
-
 	bool CanFire;
 
 	void TimeWarpMode();
+
 	void AltTimeWarpMode();
+
 	void DefconMode();
+
 	void AltDefconMode();
 
 

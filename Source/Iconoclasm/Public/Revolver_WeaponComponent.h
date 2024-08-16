@@ -26,8 +26,11 @@ public:
 	/** Sets default values for this component's properties */
 	URevolver_WeaponComponent();
 
+	
 	virtual void Fire() override;
+	
 	virtual void AltFire() override;
+	
 	virtual void SwitchFireMode() override;
 
 	virtual void AttachWeapon(AIconoclasmCharacter* TargetCharacter) override;
@@ -52,9 +55,13 @@ private:
 	FTimerHandle TimerHandle_AltHellfire;
 	float HellfireDuration;
 
+	UFUNCTION(BlueprintCallable)
 	void GunslingerMode();
+	UFUNCTION(BlueprintCallable)
 	void AltGunslingerMode();
+	UFUNCTION(BlueprintCallable)
 	void HellfireMode();
+	UFUNCTION(BlueprintCallable)
 	void AltHellfireMode();
 
 

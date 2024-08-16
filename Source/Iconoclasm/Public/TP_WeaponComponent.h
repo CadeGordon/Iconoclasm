@@ -67,12 +67,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual void AttachWeapon(AIconoclasmCharacter* TargetCharacter);
 
-	/** Make the weapon Fire a Projectile */
-	UFUNCTION(BlueprintCallable, Category="Weapon")
+	UFUNCTION(BlueprintCallable)
 	virtual void Fire();
-
+	UFUNCTION(BlueprintCallable)
 	virtual void AltFire();
-
+	UFUNCTION(BlueprintCallable)
 	virtual void SwitchFireMode();
 
 	UFUNCTION(BlueprintCallable)
