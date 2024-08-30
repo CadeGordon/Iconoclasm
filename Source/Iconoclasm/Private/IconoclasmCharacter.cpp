@@ -16,6 +16,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "TP_WeaponComponent.h"
 
+
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
@@ -76,7 +77,6 @@ void AIconoclasmCharacter::BeginPlay()
 		CurrentFOV = OriginalFOV;  // Set current FOV to the original FOV
 		TargetFOV = OriginalFOV;
 	}
-
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -247,7 +247,7 @@ void AIconoclasmCharacter::Dash()
 
 		if (DashCharges == 0)
 		{
-			DashCharges = 3;
+			//DashCharges = 3;
 			CanDashAgain = false;
 		}
 

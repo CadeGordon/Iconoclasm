@@ -50,6 +50,10 @@ class AIconoclasmCharacter : public ACharacter
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	UInputAction* CycleWeaponAction;
+
+	TSubclassOf<class UDashChargesWidget> DashChargesWidgetClass;
+
+	UDashChargesWidget* DashChargesWidget;
 	
 	
 	

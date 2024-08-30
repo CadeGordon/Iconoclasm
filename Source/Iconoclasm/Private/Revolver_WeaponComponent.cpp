@@ -11,12 +11,17 @@
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "Components/SphereComponent.h"
+
 
 URevolver_WeaponComponent::URevolver_WeaponComponent()
 {
 	// Default offset from the character location for projectiles to spawn
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
 	CurrentWeaponMode = ERevolverMode::RevolverMode1;
+
 }
 
 void URevolver_WeaponComponent::Fire()
@@ -203,6 +208,21 @@ void URevolver_WeaponComponent::GunslingerMode()
 			AnimInstance->Montage_Play(FireAnimation, 1.f);
 		}
 	}
+
+	if (GunslingerParticle && Character)
+	{
+		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+		FRotator CameraRotation = Character->GetControlRotation();
+
+		// Spawn the Niagara system
+		NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), GunslingerParticle, MuzzleLocation);
+
+		if (NiagaraComp)
+		{
+			// Set the initial direction of the Niagara component
+			NiagaraComp->SetWorldRotation(CameraRotation);
+		}
+	}
 }
 
 void URevolver_WeaponComponent::AltGunslingerMode()
@@ -233,6 +253,21 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 				if (AnimInstance != nullptr)
 				{
 					AnimInstance->Montage_Play(FireAnimation, 1.f);
+				}
+			}
+
+			if (AltGunslingerParticle && Character)
+			{
+				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+				FRotator CameraRotation = Character->GetControlRotation();
+
+				// Spawn the Niagara system
+				NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AltGunslingerParticle, MuzzleLocation);
+
+				if (NiagaraComp)
+				{
+					// Set the initial direction of the Niagara component
+					NiagaraComp->SetWorldRotation(CameraRotation);
 				}
 			}
 
@@ -274,6 +309,21 @@ void URevolver_WeaponComponent::HellfireMode()
 				}
 			}
 
+			if (HellfireParticle && Character)
+			{
+				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+				FRotator CameraRotation = Character->GetControlRotation();
+
+				// Spawn the Niagara system
+				NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), HellfireParticle, MuzzleLocation);
+
+				if (NiagaraComp)
+				{
+					// Set the initial direction of the Niagara component
+					NiagaraComp->SetWorldRotation(CameraRotation);
+				}
+			}
+
 			HitscanCount--;
 		};
 
@@ -285,12 +335,39 @@ void URevolver_WeaponComponent::AltHellfireMode()
 {
 	HellfireDuration = 5.0f; // Duration in seconds
 
+	// Spawn the Niagara effect only once at the beginning
+	if (AltHellfireParticle && Character)
+	{
+		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+		FRotator CameraRotation = Character->GetControlRotation();
+
+		// Spawn the Niagara system
+		NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AltHellfireParticle, MuzzleLocation);
+
+		if (NiagaraComp)
+		{
+			// Set the initial direction of the Niagara component
+			NiagaraComp->SetWorldRotation(CameraRotation);
+		}
+	}
+
 	auto HellfireEffect = [this]()
 		{
 			if (Character == nullptr || Character->GetController() == nullptr)
 			{
 				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfire);
 				return;
+			}
+
+			// Update Niagara effect direction to follow the camera
+			if (NiagaraComp)
+			{
+				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+				FRotator CameraRotation = Character->GetControlRotation();
+
+				// Update the location and rotation of the Niagara component
+				NiagaraComp->SetWorldLocation(MuzzleLocation);
+				NiagaraComp->SetWorldRotation(CameraRotation);
 			}
 
 			// Determine the location a few feet away from the player
@@ -332,9 +409,17 @@ void URevolver_WeaponComponent::AltHellfireMode()
 			if (HellfireDuration <= 0.0f)
 			{
 				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfire);
+				if (NiagaraComp)
+				{
+					NiagaraComp->Deactivate();
+				}
 			}
 		};
 
 	// Set the timer to call the lambda function every 0.1 seconds
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltHellfire, HellfireEffect, 0.1f, true);
 }
+
+
+
+

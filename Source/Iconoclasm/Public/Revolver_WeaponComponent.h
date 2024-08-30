@@ -4,6 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "TP_WeaponComponent.h"
+#include "Particles/ParticleSystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraSystem.h"
+#include "NiagaraComponent.h"
 #include "Revolver_WeaponComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -39,6 +43,21 @@ public:
 
 	virtual void PerformHitscan(FVector& ImpactLocation) override;
 
+	// Fire mode particle systems
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* GunslingerParticle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* AltGunslingerParticle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* HellfireParticle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* AltHellfireParticle;
+
+	UNiagaraComponent* NiagaraComp;
+
 protected:
 	/** Ends gameplay for this component. */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -63,6 +82,4 @@ private:
 	void HellfireMode();
 	UFUNCTION(BlueprintCallable)
 	void AltHellfireMode();
-
-
 };
