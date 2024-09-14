@@ -50,12 +50,6 @@ class AIconoclasmCharacter : public ACharacter
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	UInputAction* CycleWeaponAction;
-
-	TSubclassOf<class UDashChargesWidget> DashChargesWidgetClass;
-
-	UDashChargesWidget* DashChargesWidget;
-	
-	
 	
 public:
 	AIconoclasmCharacter();
@@ -116,9 +110,13 @@ public:
 	// Function to reset jump count when the character lands
 	virtual void Landed(const FHitResult& Hit) override;
 
+	UFUNCTION(BlueprintCallable)
 	void EquipWeapon(UTP_WeaponComponent* Weapon);
+	UFUNCTION(BlueprintCallable)
 	void AddWeaponToInventory(UTP_WeaponComponent* Weapon);
+	UFUNCTION(BlueprintCallable)
 	void CycleWeapon();
+	UFUNCTION(BlueprintCallable)
 	bool HasWeaponEquipped() const;
 
 	
