@@ -27,7 +27,4 @@ private:
 
     void MoveToPlayer();
     void AttackPlayer();
-    void Wander();
-    void CheckPlayerProximity();
-	
 };

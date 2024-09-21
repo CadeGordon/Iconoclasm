@@ -11,15 +11,17 @@ AGruntEnemyCharacter::AGruntEnemyCharacter()
 	PrimaryActorTick.bCanEverTick = true;
 
 	AIControllerClass = AGruntAIController::StaticClass();
+	// Ensure the AI controller is assigned when the character is spawned
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
 }
 
-// Called when the game starts or when spawned
-void AGruntEnemyCharacter::BeginPlay()
-{
-	Super::BeginPlay();
-	
-}
+//// Called when the game starts or when spawned
+//void AGruntEnemyCharacter::BeginPlay()
+//{
+//	Super::BeginPlay();
+//	
+//}
 
 // Called every frame
 void AGruntEnemyCharacter::Tick(float DeltaTime)

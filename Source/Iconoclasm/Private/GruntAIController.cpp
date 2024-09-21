@@ -11,22 +11,11 @@ void AGruntAIController::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    if (!IsPlayerInRange)
+    // Ensure the controller has a pawn
+    if (GetPawn() && PlayerPawn)
     {
-        Wander();              // Wander around randomly
-        CheckPlayerProximity(); // Check if the player is close
-    }
-    else
-    {
-        MoveToPlayer(); // Move toward the player if in range
-    }
-
-    // Draw debug sphere for the detection radius
-    if (PlayerPawn)
-    {
-        FVector Center = GetPawn()->GetActorLocation();
-        float DetectionRadius = 500.0f; // Same as in CheckPlayerProximity
-        DrawDebugSphere(GetWorld(), Center, DetectionRadius, 12, FColor::Green, false, -1, 0, 2.0f);
+        // Always move the AI towards the player
+        MoveToPlayer();
     }
 }
 
@@ -34,12 +23,14 @@ void AGruntAIController::BeginPlay()
 {
     Super::BeginPlay();
 
-    // Get a reference to the player
+    // Get the player pawn
     PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-    IsPlayerInRange = false;
 
-    // Initialize the wander location
-    WanderLocation = FVector::ZeroVector;
+    // Start moving to the player if possessing a pawn
+    if (GetPawn())
+    {
+        MoveToPlayer();
+    }
 }
 
 void AGruntAIController::MoveToPlayer()
@@ -64,34 +55,5 @@ void AGruntAIController::AttackPlayer()
     GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player hit"));
 }
 
-void AGruntAIController::Wander()
-{
-    // If the AI has reached its wander location, generate a new one
-    if (FVector::Dist(GetPawn()->GetActorLocation(), WanderLocation) < 100.0f)
-    {
-        float WanderRadius = 1000.0f;
-        FVector RandomPoint = FMath::VRand() * WanderRadius;
-        WanderLocation = GetPawn()->GetActorLocation() + RandomPoint;
 
-        // Debugging: Print the new wander location
-        UE_LOG(LogTemp, Warning, TEXT("New Wander Location: %s"), *WanderLocation.ToString());
 
-        // Move to the new random location
-        MoveToLocation(WanderLocation);
-    }
-}
-
-void AGruntAIController::CheckPlayerProximity()
-{
-    if (PlayerPawn)
-    {
-        float DistanceToPlayer = FVector::Dist(PlayerPawn->GetActorLocation(), GetPawn()->GetActorLocation());
-        float DetectionRadius = 500.0f;
-
-        // Check if the player is within detection range
-        if (DistanceToPlayer <= DetectionRadius)
-        {
-            IsPlayerInRange = true;
-        }
-    }
-}
