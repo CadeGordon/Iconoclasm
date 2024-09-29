@@ -24,6 +24,7 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Spawner")
     TArray<TSubclassOf<AGruntEnemyCharacter>> EnemyTypes; // Reference to the enemy class to spawn
 
+
     UPROPERTY(EditAnywhere, Category = "Spawner")
     int32 NumberOfEnemies = 3; // Number of enemies to spawn
 
