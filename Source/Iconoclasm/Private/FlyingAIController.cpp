@@ -11,30 +11,51 @@
 
 AFlyingAIController::AFlyingAIController()
 {
-	
+    // Initialize variables
+    PlayerChaseDistance = 1500.0f;  // Distance to start chasing the player
+    StopChasingDistance = 1000.0f;   // Distance to stop chasing and switch to random flying
+    FlySpeed = 600.0f;              // Speed of flying
+    ChangeDirectionInterval = 1.5f; // How often to change direction when flying randomly
+    TimeSinceLastDirectionChange = 0.0f;
+    bIsChasingPlayer = false;
 }
 
 void AFlyingAIController::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
 
-    // Update the timer for changing directions
     TimeSinceLastDirectionChange += DeltaTime;
+    TimeSinceLastShot += DeltaTime;
 
-    // Change direction every few seconds
     if (TimeSinceLastDirectionChange >= ChangeDirectionInterval)
     {
         ChangeFlyDirection();
         TimeSinceLastDirectionChange = 0.0f;
     }
 
-    // Fly around
-    FlyAround();
-
-    // Optionally, attack the player if nearby
-    if (PlayerPawn && FVector::Dist(GetPawn()->GetActorLocation(), PlayerPawn->GetActorLocation()) <= 500.0f)
+    if (PlayerPawn)
     {
-        AttackPlayer();
+        // Calculate distance to the player
+        float DistanceToPlayer = FVector::Dist(PlayerPawn->GetActorLocation(), GetPawn()->GetActorLocation());
+
+        if (DistanceToPlayer <= ShootRange && TimeSinceLastShot >= TimeBetweenShots)
+        {
+            ShootProjectile(); // Fire projectile if within range and cooldown has passed
+            TimeSinceLastShot = 0.0f;
+        }
+
+        if (DistanceToPlayer > StopChasingDistance)
+        {
+            MoveToPlayer();  // Move towards the player if out of range
+        }
+        else
+        {
+            FlyAround();  // Fly around if close to the player
+        }
+    }
+    else
+    {
+        FlyAround(); // Default flying behavior
     }
 }
 
@@ -71,10 +92,29 @@ void AFlyingAIController::ChangeFlyDirection()
     UE_LOG(LogTemp, Warning, TEXT("Changing fly direction to: %s"), *RandomFlyDirection.ToString());
 }
 
+void AFlyingAIController::MoveToPlayer()
+{
+    if (PlayerPawn && GetPawn())
+    {
+        FVector DirectionToPlayer = (PlayerPawn->GetActorLocation() - GetPawn()->GetActorLocation()).GetSafeNormal();
+        FVector NewLocation = GetPawn()->GetActorLocation() + (DirectionToPlayer * FlySpeed * GetWorld()->DeltaTimeSeconds);
+        GetPawn()->SetActorLocation(NewLocation);
+    }
+}
+
 void AFlyingAIController::AttackPlayer()
 {
     // Implement logic for attacking the player
     GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player hit by flying enemy"));
+}
+
+void AFlyingAIController::ShootProjectile()
+{
+    AFlyingEnemyCharacter* FlyingEnemy = Cast<AFlyingEnemyCharacter>(GetPawn());
+    if (FlyingEnemy)
+    {
+        FlyingEnemy->ShootAtPlayer(PlayerPawn);  // Call the character to handle shooting
+    }
 }
 
 

@@ -8,6 +8,9 @@
 #include "Engine/World.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "GameFramework/Controller.h"
+#include "IconoclasmProjectile.h"
+#include "Kismet/GameplayStatics.h"
+#include "Components/SphereComponent.h"
 
 // Sets default values
 AFlyingEnemyCharacter::AFlyingEnemyCharacter()
@@ -23,6 +26,14 @@ AFlyingEnemyCharacter::AFlyingEnemyCharacter()
 
 	// Ensure the AI controller is assigned when the character is spawned
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	// Create and set up the sphere collider for the projectile muzzle
+	MuzzleSphere = CreateDefaultSubobject<USphereComponent>(TEXT("MuzzleSphere"));
+	MuzzleSphere->SetupAttachment(RootComponent);
+
+	// You can set the size of the sphere if needed
+	MuzzleSphere->SetSphereRadius(10.0f);
+	MuzzleSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); // Only used for positioning
 }
 
 // Called when the game starts or when spawned
@@ -61,7 +72,29 @@ void AFlyingEnemyCharacter::InitializeFlyingSettings()
     SetCanBeDamaged(true);
 
     // Ensure gravity isn't affecting the flying enemy (this is important for flying characters)
-    GetMesh()->SetEnableGravity(false);
+    //GetMesh()->SetEnableGravity(false);
+}
+
+void AFlyingEnemyCharacter::ShootAtPlayer(APawn* Target)
+{
+    if (ProjectileClass && Target)
+    {
+        FVector MuzzlePosition = MuzzleSphere->GetComponentLocation();
+        FRotator MuzzleRotation = (Target->GetActorLocation() - MuzzlePosition).Rotation();
+
+        // Spawn the projectile
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.Owner = this;
+        SpawnParams.Instigator = GetInstigator();
+
+        AIconoclasmProjectile* Projectile = GetWorld()->SpawnActor<AIconoclasmProjectile>(ProjectileClass, MuzzlePosition, MuzzleRotation, SpawnParams);
+
+        if (Projectile)
+        {
+            FVector LaunchDirection = MuzzleRotation.Vector();
+            Projectile->FireInDirection(LaunchDirection);  // Adjust if your projectile has a custom fire method
+        }
+    }
 }
 
 

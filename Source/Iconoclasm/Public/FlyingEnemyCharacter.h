@@ -21,6 +21,14 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	/** Projectile class to spawn */
+	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
+	TSubclassOf<class AIconoclasmProjectile> ProjectileClass;
+
+	/** Sphere collider acting as the muzzle location */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	class USphereComponent* MuzzleSphere;
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -38,5 +46,8 @@ public:
 
 	// Function to handle movement mode or any setup needed for flying
 	void InitializeFlyingSettings();
+
+	/** Function to shoot a projectile at the player */
+	void ShootAtPlayer(APawn* Target);
 
 };

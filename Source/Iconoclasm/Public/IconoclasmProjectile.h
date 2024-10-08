@@ -37,5 +37,8 @@ public:
 	USphereComponent* GetCollisionComp() const { return CollisionComp; }
 	/** Returns ProjectileMovement subobject **/
 	UProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
+
+	/** Function to initialize the projectile's velocity in the shoot direction */
+	void FireInDirection(const FVector& ShootDirection);
 };
 

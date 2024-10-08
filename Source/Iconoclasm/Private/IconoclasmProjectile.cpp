@@ -100,3 +100,9 @@ void AIconoclasmProjectile::AltOnHit(UPrimitiveComponent* HitComp, AActor* Other
         UE_LOG(LogTemp, Warning, TEXT("Projectile hit: %s"), *OtherActor->GetName());
     }
 }
+
+void AIconoclasmProjectile::FireInDirection(const FVector& ShootDirection)
+{
+    // Set the velocity of the projectile
+    ProjectileMovement->Velocity = ShootDirection * ProjectileMovement->InitialSpeed;
+}
