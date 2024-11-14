@@ -8,6 +8,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "AIController.h"
 #include "IconoclasmCharacter.h"
+#include "FlyingEnemyCharacter.h"
+#include "FlyingAIController.h"
 
 // Sets default values
 AEnemySpawner::AEnemySpawner()
@@ -79,18 +81,31 @@ void AEnemySpawner::SpawnEnemies()
             FActorSpawnParameters SpawnParams;
             SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-            // Spawn the enemy at the specified location
-            AGruntEnemyCharacter* SpawnedEnemy = GetWorld()->SpawnActor<AGruntEnemyCharacter>(EnemyTypes[i], SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+            // Spawn the enemy
+            AActor* SpawnedEnemy = GetWorld()->SpawnActor<AActor>(EnemyTypes[i], SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 
             if (SpawnedEnemy)
             {
                 UE_LOG(LogTemp, Warning, TEXT("Successfully spawned: %s"), *SpawnedEnemy->GetName());
 
-                AGruntAIController* AIController = GetWorld()->SpawnActor<AGruntAIController>(AGruntAIController::StaticClass());
-                if (AIController)
+                // Possess the enemy with the correct AI controller
+                if (SpawnedEnemy->IsA(AGruntEnemyCharacter::StaticClass()))
                 {
-                    AIController->Possess(SpawnedEnemy);
-                    UE_LOG(LogTemp, Warning, TEXT("AIController successfully possessed: %s"), *SpawnedEnemy->GetName());
+                    AGruntAIController* AIController = GetWorld()->SpawnActor<AGruntAIController>(AGruntAIController::StaticClass());
+                    if (AIController)
+                    {
+                        AIController->Possess(Cast<AGruntEnemyCharacter>(SpawnedEnemy));
+                        UE_LOG(LogTemp, Warning, TEXT("Grunt AIController possessed: %s"), *SpawnedEnemy->GetName());
+                    }
+                }
+                else if (SpawnedEnemy->IsA(AFlyingEnemyCharacter::StaticClass()))
+                {
+                    AFlyingAIController* FlyingAIController = GetWorld()->SpawnActor<AFlyingAIController>(AFlyingAIController::StaticClass());
+                    if (FlyingAIController)
+                    {
+                        FlyingAIController->Possess(Cast<AFlyingEnemyCharacter>(SpawnedEnemy));
+                        UE_LOG(LogTemp, Warning, TEXT("Flying AIController possessed: %s"), *SpawnedEnemy->GetName());
+                    }
                 }
             }
             else

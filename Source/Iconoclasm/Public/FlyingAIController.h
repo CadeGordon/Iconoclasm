@@ -49,7 +49,7 @@ private:
 	float HoverSpeed = 300.0f;          // Speed at which the enemy hovers around the player
 
 	/** Shooting range for the enemy to fire projectiles at the player */
-	float ShootRange = 1000.0f;
+	float ShootRange = 10000.0f;
 
 	/** Time between shots */
 	float TimeBetweenShots = 2.0f;
@@ -67,6 +67,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "AI")
 	float ChangeDirectionInterval = 3.0f; // Time interval between direction changes
 
+	/** Avoidance radius to prevent clustering with nearby enemies */
+	//float AvoidanceRadius = 300.0f;
+
 	float TimeSinceLastDirectionChange;
 
 	void FlyAround();
@@ -79,6 +82,9 @@ private:
 
 	/** Shoots a projectile at the player */
 	void ShootProjectile();
+
+	/** Generate an avoidance vector to steer away from nearby enemies */
+	FVector AvoidNearbyEnemies();
 
 	// Function to make the enemy hover or circle around the player
 	//void HoverAroundPlayer(const FVector& PlayerLocation, const FVector& EnemyLocation, float DeltaTime);

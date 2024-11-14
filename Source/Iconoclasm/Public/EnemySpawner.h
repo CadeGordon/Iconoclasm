@@ -7,6 +7,7 @@
 #include "EnemySpawner.generated.h"
 
 class AGruntEnemyCharacter;
+class AFlyingEnemyCharacter;
 
 UCLASS()
 class ICONOCLASM_API AEnemySpawner : public AActor
@@ -22,7 +23,7 @@ protected:
 	virtual void BeginPlay() override;
 
     UPROPERTY(EditAnywhere, Category = "Spawner")
-    TArray<TSubclassOf<AGruntEnemyCharacter>> EnemyTypes; // Reference to the enemy class to spawn
+    TArray<TSubclassOf<AActor>> EnemyTypes; // Reference to the enemy class to spawn
 
 
     UPROPERTY(EditAnywhere, Category = "Spawner")
