@@ -93,14 +93,29 @@ void ARaphaelAIController::Tick(float DeltaTime)
     FVector BossLocation = ControlledPawn->GetActorLocation();
     FVector PlayerLocation = PlayerCharacter->GetActorLocation();
 
+    // Ignore the vertical (Z) difference to lock pitch rotation
+    PlayerLocation.Z = BossLocation.Z;
+
     // Calculate the direction towards the player
     FVector DirectionToPlayer = (PlayerLocation - BossLocation).GetSafeNormal();
 
     // Calculate the rotation to face the player
     FRotator LookAtRotation = FRotationMatrix::MakeFromX(DirectionToPlayer).Rotator();
 
+    // Lock rotation to yaw only
+    FRotator LockedRotation = FRotator(0.0f, LookAtRotation.Yaw, 0.0f);
+
     // Set the rotation of the boss to face the player
-    ControlledPawn->SetActorRotation(LookAtRotation);
+    ControlledPawn->SetActorRotation(LockedRotation);
+
+    if (!IsAbilityActive)
+    {
+        // Select a random ability
+        int32 RandomIndex = FMath::RandRange(0, 4); // Adjust based on number of abilities
+        EAbilityType SelectedAbility = static_cast<EAbilityType>(RandomIndex);
+
+        PerformAbility(SelectedAbility);
+    }
 }
 
 void ARaphaelAIController::SpawnBeamColliderAtLocation(FVector Location)
@@ -220,16 +235,21 @@ void ARaphaelAIController::ExecuteThrow()
 
     if (!PlayerCharacter || !BossCharacter) return;
 
-    // Get boss location and player location for the trace
+    // Get the boss location
     FVector BossLocation = BossCharacter->GetActorLocation();
+
+    // Get player location and adjust the target to be near the ground
     FVector PlayerLocation = PlayerCharacter->GetActorLocation();
 
-    // Calculate the direction for the line trace (from boss to player)
+    // Offset the target location to hit the ground near the player
+    PlayerLocation.Z -= 100.0f; // Target below the player's feet, adjust this value as needed
+
+    // Calculate the direction for the line trace (from boss to the adjusted target)
     FVector TraceDirection = (PlayerLocation - BossLocation).GetSafeNormal();
 
     // Define the start and end points for the trace
     FVector TraceStart = BossLocation + FVector(0, 0, 50.0f); // Start slightly above the boss
-    FVector TraceEnd = TraceStart + (TraceDirection * 5000.0f); // Trace for a long distance
+    FVector TraceEnd = PlayerLocation; // End at the adjusted player location
 
     // Setup for line trace
     FHitResult HitResult;
@@ -247,24 +267,65 @@ void ARaphaelAIController::ExecuteThrow()
         // Optionally, draw a debug line to visualize the hitscan
         DrawDebugLine(GetWorld(), TraceStart, HitResult.Location, FColor::Red, false, 2.0f, 0, 5.0f);
 
-       // UE_LOG(LogTemp, Warning, TEXT("Throw hit: %s"), *HitResult.Actor->GetName());
+        // UE_LOG(LogTemp, Warning, TEXT("Throw hit: %s"), *HitResult.Actor->GetName());
     }
     else
     {
-        // If no hit, trace to the max distance
+        // If no hit, trace to the adjusted ground near the player
+        SpawnExplosionAtLocation(TraceEnd);
+
+        // Visualize the trace path
         DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 2.0f, 0, 5.0f);
-        UE_LOG(LogTemp, Warning, TEXT("Throw missed, no hit."));
+        UE_LOG(LogTemp, Warning, TEXT("Throw missed, exploding at target ground."));
     }
 }
 
 void ARaphaelAIController::SpawnExplosionAtLocation(FVector Location)
 {
-    // Here we spawn an explosion effect (you can add your own explosion particle system or logic)
+    // Spawn the explosion particle effect
     UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionEffect, Location);
 
-    // Optionally, apply damage or effects to nearby actors
-    TArray<AActor*> IgnoredActors;
-    //UGameplayStatics::ApplyRadialDamage(GetWorld(), ExplosionDamage, Location, ExplosionRadius, DamageTypeClass, IgnoredActors, this, GetOwner()->GetInstigatorController(), true);
+    // Apply radial knockback to nearby actors
+    TArray<AActor*> OverlappingActors;
+    float KnockbackForce = 1500.0f; // Adjust force as needed
+    float LaunchHeight = 1000.0f;  // Adjust height as needed
+
+    // Define the radius for the knockback
+    float KnockbackRadius = 500.0f;
+
+    // Collect actors within the explosion radius
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
+
+    for (AActor* Actor : OverlappingActors)
+    {
+        if (Actor)
+        {
+            FVector DistanceVector = Actor->GetActorLocation() - Location;
+
+            // Only affect actors within the radius
+            if (DistanceVector.Size() <= KnockbackRadius)
+            {
+                // Apply radial impulse for physics-enabled actors
+                if (UPrimitiveComponent* PrimitiveComponent = Actor->FindComponentByClass<UPrimitiveComponent>())
+                {
+                    PrimitiveComponent->AddRadialImpulse(
+                        Location,
+                        KnockbackRadius,
+                        KnockbackForce,
+                        ERadialImpulseFalloff::RIF_Linear,
+                        true
+                    );
+                }
+
+                // Launch the player character upward
+                if (ACharacter* OverlappingCharacter = Cast<ACharacter>(Actor))
+                {
+                    FVector LaunchVelocity = FVector(0.0f, 0.0f, LaunchHeight);
+                    OverlappingCharacter->LaunchCharacter(LaunchVelocity, true, true);
+                }
+            }
+        }
+    }
 
     UE_LOG(LogTemp, Warning, TEXT("Explosion spawned at location: %s"), *Location.ToString());
 }
@@ -348,8 +409,9 @@ void ARaphaelAIController::SpawnHeavenRainTrace()
             RandomRadius * FMath::Sin(FMath::DegreesToRadians(RandomAngle)),
             0.0f);
 
-        FVector TraceStart = BossLocation + Offset;
-        FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, 10000.0f); // Trace downward
+        // Set TraceStart higher above the ground (e.g., 5000 units up)
+        FVector TraceStart = BossLocation + Offset + FVector(0.0f, 0.0f, 5000.0f); // Adjust this height as needed
+        FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, 7000.0f); // Trace downwards
 
         // Perform the line trace
         FHitResult Hit;
@@ -358,15 +420,29 @@ void ARaphaelAIController::SpawnHeavenRainTrace()
 
         bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
 
-        // Draw debug line (optional)
-        DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Blue, false, 2.0f, 0, 2.0f);
+        // Draw debug cylinder to visualize the trace area
+        float CylinderRadius = 100.0f;  // Adjust this for the thickness of the cylinder
+        float CylinderHeight = (TraceStart - TraceEnd).Size(); // Height of the cylinder matches the trace length
 
-        // Apply effects if the trace hits something
+        DrawDebugCylinder(GetWorld(),
+            TraceStart,                  // Start location
+            TraceEnd,                    // End location
+            CylinderRadius,              // Radius of the cylinder
+            32,                          // Number of segments (higher = smoother cylinder)
+            FColor::Blue,                // Color
+            false,                       // Persistent lines (false = temporary)
+            2.0f,                        // Lifetime
+            0,                           // Depth priority
+            2.0f);                       // Thickness of the cylinder lines
+
+        // If the trace hits something, draw a debug sphere at the hit location
         if (bHit)
         {
-            // Handle what happens on hit here
-            // e.g., apply damage, spawn effects, etc.
-            //UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain hit %s"), *Hit.Actor->GetName());
+            DrawDebugSphere(GetWorld(), Hit.Location, 50.0f, 12, FColor::Red, false, 2.0f);
+            if (AActor* HitActor = Hit.GetActor())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain hit %s"), *HitActor->GetName());
+            }
         }
 
         // Increment the trace count
@@ -398,6 +474,53 @@ void ARaphaelAIController::EndHeavenRain()
 
     UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain ability ended."));
 }
+
+void ARaphaelAIController::PerformAbility(EAbilityType AbilityType)
+{
+    IsAbilityActive = true;
+
+
+
+    switch (AbilityType)
+    {
+    case EAbilityType::JacobsLadder:
+        SummonBeamOnPlayer();
+        GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, JacobLadderDuration, false);
+        break;
+
+    case EAbilityType::BurstShoot:
+        StartBurst();
+        GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, BurstDuration, false);
+        break;
+
+    case EAbilityType::ThrowAbility:
+        StartThrowAbility();
+        GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, ThrowDuration, false);
+        break;
+
+    case EAbilityType::JudgementGaze:
+        StartJudgementGaze();
+        GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, GazeDuration, false);
+        break;
+
+    case EAbilityType::HeavenRain:
+        StartHeavenRain();
+        GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, RainDuration, false);
+        break;
+
+    default:
+        IsAbilityActive = false;
+        break;
+    }
+}
+
+void ARaphaelAIController::ResetAbility()
+{
+    IsAbilityActive = false;
+    UE_LOG(LogTemp, Warning, TEXT("Ability Reset!"));
+}
+
+
 
 
 

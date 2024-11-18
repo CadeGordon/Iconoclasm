@@ -7,6 +7,17 @@
 #include "RaphaelAIController.generated.h"
 
 
+// Enum to define the possible abilities
+UENUM(BlueprintType)
+enum class EAbilityType : uint8
+{
+    JacobsLadder,
+    BurstShoot,
+    ThrowAbility,
+    HeavenRain,
+    JudgementGaze
+};
+
 class AActor;
 class ARaphaelBossCharacter;
 
@@ -45,6 +56,8 @@ private:
     // Function to trigger the next beam after the delay
     void StartBeamSummonWithDelay();
 
+    
+
     // Number of line traces per Heaven's Rain move
     int32 HeavenRainTraceCount = 20;
 
@@ -59,6 +72,8 @@ private:
 
     // Counter to track the number of traces spawned in the current Heaven's Rain ability
     int32 CurrentRainTraceCount = 0;
+
+    FVector LastKnownPlayerLocation;
 
 
     // Reference to the player character
@@ -166,6 +181,26 @@ private:
     // Function to reset after Heaven's Rain is complete
     void EndHeavenRain();
 
-   
+    void PerformAbility(EAbilityType AbilityType);
 
+    void ResetAbility();
+
+    // You can define durations like this (or set them per ability if necessary)
+    float AbilityDuration = 5.0f;  // Set a default duration for each ability
+
+    bool IsAbilityActive = false;
+
+    FTimerHandle AbilityTimerHandle;
+
+    // Declare an array to hold the available abilities
+    TArray<EAbilityType> AvailableAbilities;
+
+    
+
+    // Ability timers
+    float JacobLadderDuration = 5.0f;
+    float BurstDuration = 4.0f;
+    float ThrowDuration = 6.0f;
+    float GazeDuration = 7.0f;
+    float RainDuration = 8.0f;
 };
