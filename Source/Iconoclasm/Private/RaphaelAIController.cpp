@@ -35,6 +35,15 @@ ARaphaelAIController::ARaphaelAIController()
 
     // Attach the JudgementGazeCollider to the JudgementGazeSpawnPoint
     JudgementGazeCollider->SetupAttachment(JudgementGazeSpawnPoint);
+
+    // Initialize ActivationTrigger
+    ActivationTrigger = CreateDefaultSubobject<USphereComponent>(TEXT("ActivationTrigger"));
+    ActivationTrigger->InitSphereRadius(1000.0f); // Adjust radius as needed
+    ActivationTrigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    ActivationTrigger->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
+    ActivationTrigger->SetupAttachment(GetRootComponent());
+
+    
 }
 
 void ARaphaelAIController::SummonBeamOnPlayer()
@@ -61,18 +70,10 @@ void ARaphaelAIController::BeginPlay()
     // Enable ticking for the AI controller
     PrimaryActorTick.bCanEverTick = true;
 
-    // Start the first burst
-    StartBurst();
-
-    // Start the beam summon with delay
-    StartBeamSummonWithDelay();
-
-    // Set up a timer to trigger the throw ability every 10 seconds (for example)
-    GetWorld()->GetTimerManager().SetTimer(ThrowChargeTimerHandle, this, &ARaphaelAIController::StartThrowAbility, 10.0f, true);
-
-    StartJudgementGaze();
-
-    StartHeavenRain();
+    if (ActivationTrigger)
+    {
+        ActivationTrigger->OnComponentBeginOverlap.AddDynamic(this, &ARaphaelAIController::OnPlayerEnterTrigger);
+    }
     
 }
 
@@ -82,40 +83,41 @@ void ARaphaelAIController::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    // Get reference to the player character
+    if (!bIsActivated)
+        return; // Skip behavior if not activated
+
+    // Continue with existing behavior
     ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
     if (!PlayerCharacter) return;
 
     APawn* ControlledPawn = GetPawn();
     if (!ControlledPawn) return;
 
-    // Get the current location of the boss and player
+    // Lock rotation to face the player
     FVector BossLocation = ControlledPawn->GetActorLocation();
     FVector PlayerLocation = PlayerCharacter->GetActorLocation();
-
-    // Ignore the vertical (Z) difference to lock pitch rotation
     PlayerLocation.Z = BossLocation.Z;
 
-    // Calculate the direction towards the player
     FVector DirectionToPlayer = (PlayerLocation - BossLocation).GetSafeNormal();
-
-    // Calculate the rotation to face the player
     FRotator LookAtRotation = FRotationMatrix::MakeFromX(DirectionToPlayer).Rotator();
-
-    // Lock rotation to yaw only
-    FRotator LockedRotation = FRotator(0.0f, LookAtRotation.Yaw, 0.0f);
-
-    // Set the rotation of the boss to face the player
-    ControlledPawn->SetActorRotation(LockedRotation);
+    ControlledPawn->SetActorRotation(FRotator(0.0f, LookAtRotation.Yaw, 0.0f));
 
     if (!IsAbilityActive)
     {
-        // Select a random ability
-        int32 RandomIndex = FMath::RandRange(0, 4); // Adjust based on number of abilities
+        int32 RandomIndex = FMath::RandRange(0, 4);
         EAbilityType SelectedAbility = static_cast<EAbilityType>(RandomIndex);
-
         PerformAbility(SelectedAbility);
     }
+
+    // Optionally draw a debug sphere for visualization
+    if (ActivationTrigger)
+    {
+        FVector SphereLocation = ActivationTrigger->GetComponentLocation();
+        float SphereRadius = ActivationTrigger->GetScaledSphereRadius();
+
+        DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 32, FColor::Blue, false, -1.0f, 0, 2.0f);
+    }
+
 }
 
 void ARaphaelAIController::SpawnBeamColliderAtLocation(FVector Location)
@@ -518,6 +520,34 @@ void ARaphaelAIController::ResetAbility()
 {
     IsAbilityActive = false;
     UE_LOG(LogTemp, Warning, TEXT("Ability Reset!"));
+}
+
+void ARaphaelAIController::OnPlayerEnterTrigger(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+
+    if (OtherActor == PlayerCharacter && !bIsActivated)
+    {
+        bIsActivated = true;
+
+        // Start a timer for activation delay
+        GetWorld()->GetTimerManager().SetTimer(DelayTimerHandle, this, &ARaphaelAIController::PerformAbility, ActivationDelay, false);
+
+        // Optional: Trigger animation or dialogue here
+        UE_LOG(LogTemp, Warning, TEXT("Player entered trigger zone. Performing ability after delay..."));
+    }
+}
+
+void ARaphaelAIController::ActivateBoss()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Boss activated. Starting behavior."));
+
+    // Enable AI behavior
+    StartBurst();
+    StartBeamSummonWithDelay();
+    StartJudgementGaze();
+    StartHeavenRain();
+    GetWorld()->GetTimerManager().SetTimer(ThrowChargeTimerHandle, this, &ARaphaelAIController::StartThrowAbility, 10.0f, true);
 }
 
 

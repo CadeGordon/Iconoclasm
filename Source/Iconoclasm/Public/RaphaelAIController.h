@@ -195,7 +195,16 @@ private:
     // Declare an array to hold the available abilities
     TArray<EAbilityType> AvailableAbilities;
 
-    
+    bool bIsActivated = false; // Tracks if the boss is active
+    float ActivationDelay = 3.0f; // Delay in seconds before the boss activates
+    USphereComponent* ActivationTrigger; // Collision sphere for activation
+
+    UFUNCTION()
+    void OnPlayerEnterTrigger(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+        bool bFromSweep, const FHitResult& SweepResult);
+
+    void ActivateBoss(); // Function to start boss behavior
 
     // Ability timers
     float JacobLadderDuration = 5.0f;
