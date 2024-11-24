@@ -52,14 +52,47 @@ void UTP_WeaponComponent::AltFire()
 		return;
 	}
 
+	float CurrentTime = GetWorld()->GetTimeSeconds();
+
+	// Handle fire modes with cooldowns
 	switch (CurrentWeaponMode)
 	{
-	case EWeaponMode::Mode1:
-		AltlifeBloodMode();
+	case EWeaponMode::Mode1: // AltLifeBloodMode
+		if (CurrentTime >= LastAltLifeBloodModeTime) // Only checks cooldown expiration
+		{
+			// Execute AltLifeBloodMode logic
+			FVector ImpactLocation;
+			PerformHitscan(ImpactLocation);
+			HealingSphere(ImpactLocation, 200.0f); // Example radius
+			UE_LOG(LogTemp, Warning, TEXT("AltLifeBloodMode activated!"));
+
+			// Start cooldown after execution
+			LastAltLifeBloodModeTime = CurrentTime + AltLifeBloodCooldown;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("AltLifeBloodMode on cooldown!"));
+		}
 		break;
-	case EWeaponMode::Mode2:
-		AltImpulseMode();
+
+	case EWeaponMode::Mode2: // AltImpulseMode
+		if (CurrentTime >= LastAltImpulseModeTime) // Only checks cooldown expiration
+		{
+			// Execute AltImpulseMode logic
+			FVector ImpactLocation;
+			PerformHitscan(ImpactLocation);
+			ImpulseEffect(ImpactLocation, 300.0f, 1500.0f); // Example radius and strength
+			UE_LOG(LogTemp, Warning, TEXT("AltImpulseMode activated!"));
+
+			// Start cooldown after execution
+			LastAltImpulseModeTime = CurrentTime + AltImpulseCooldown;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("AltImpulseMode on cooldown!"));
+		}
 		break;
+
 	default:
 		break;
 	}

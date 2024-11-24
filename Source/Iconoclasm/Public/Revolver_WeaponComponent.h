@@ -63,6 +63,16 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+
+	// Cooldown flags
+	bool bCanFireAltGunslinger = true;
+	bool bCanFireAltHellfire = true;
+
+	// Timers for cooldowns
+	FTimerHandle TimerHandle_AltGunslingerCooldown;
+	FTimerHandle TimerHandle_AltHellfireCooldown;
+	FTimerHandle TimerHandle_HellfireEffect;
+
 	/** The Character holding this weapon*/
 	AIconoclasmCharacter* Character;
 

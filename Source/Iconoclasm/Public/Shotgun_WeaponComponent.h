@@ -64,6 +64,14 @@ private:
 	FTimerHandle FireCooldownTimerHandle;
 	int32 HitscanCount;
 
+	bool bCanUseAltTimeWarp = true;
+	bool bCanUseAltDefcon = true;
+	float AltTimeWarpCooldownDuration = 5.0f; // Example cooldown in seconds
+	float AltDefconCooldownDuration = 7.0f;
+
+	FTimerHandle AltDefconCooldownTimer;
+	FTimerHandle AltTimeWarpCooldownTimer;
+
 	bool CanFire;
 
 	void TimeWarpMode();

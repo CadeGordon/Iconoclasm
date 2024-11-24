@@ -531,7 +531,7 @@ void ARaphaelAIController::OnPlayerEnterTrigger(UPrimitiveComponent* OverlappedC
         bIsActivated = true;
 
         // Start a timer for activation delay
-        GetWorld()->GetTimerManager().SetTimer(DelayTimerHandle, this, &ARaphaelAIController::PerformAbility, ActivationDelay, false);
+        GetWorld()->GetTimerManager().SetTimer(DelayTimerHandle, this, &ARaphaelAIController::ActivateBoss, ActivationDelay, false);
 
         // Optional: Trigger animation or dialogue here
         UE_LOG(LogTemp, Warning, TEXT("Player entered trigger zone. Performing ability after delay..."));

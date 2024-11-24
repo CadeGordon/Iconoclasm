@@ -312,7 +312,7 @@ void UShotgun_WeaponComponent::TimeWarpMode()
 
 void UShotgun_WeaponComponent::AltTimeWarpMode()
 {
-	if (Character == nullptr || Character->GetController() == nullptr)
+	if (!bCanUseAltTimeWarp || Character == nullptr || Character->GetController() == nullptr)
 	{
 		return;
 	}
@@ -340,20 +340,22 @@ void UShotgun_WeaponComponent::AltTimeWarpMode()
 			UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
 		}
 
-		// Play fire animation
-		if (FireAnimation != nullptr)
-		{
-			UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
-			if (AnimInstance != nullptr)
-			{
-				AnimInstance->Montage_Play(FireAnimation, 1.f);
-			}
-		}
+		// Set cooldown
+		bCanUseAltTimeWarp = false;
+		GetWorld()->GetTimerManager().SetTimer(
+			AltTimeWarpCooldownTimer,
+			[this]() { bCanUseAltTimeWarp = true; },
+			AltTimeWarpCooldownDuration,
+			false
+		);
 	}
 }
 
 void UShotgun_WeaponComponent::DefconMode()
 {
+
+	
+
 	if (Character == nullptr || Character->GetController() == nullptr)
 	{
 		return;
@@ -431,7 +433,7 @@ void UShotgun_WeaponComponent::DefconMode()
 
 void UShotgun_WeaponComponent::AltDefconMode()
 {
-	if (Character == nullptr || Character->GetController() == nullptr)
+	if (!bCanUseAltDefcon || Character == nullptr || Character->GetController() == nullptr)
 	{
 		return;
 	}
@@ -495,5 +497,13 @@ void UShotgun_WeaponComponent::AltDefconMode()
 				AnimInstance->Montage_Play(FireAnimation, 1.f);
 			}
 		}
+
+		// Set cooldown
+		bCanUseAltDefcon = false;
+		GetWorld()->GetTimerManager().SetTimer(
+			AltDefconCooldownTimer,
+			[this]() { bCanUseAltDefcon = true; },
+			AltDefconCooldownDuration,
+			false);
 	}
 }

@@ -227,26 +227,31 @@ void URevolver_WeaponComponent::GunslingerMode()
 
 void URevolver_WeaponComponent::AltGunslingerMode()
 {
+	if (!bCanFireAltGunslinger)
+	{
+		return; // Prevent firing if the cooldown is active
+	}
+
+	bCanFireAltGunslinger = false; // Set to false to trigger cooldown
+
 	HitscanCount = 6; // Set the number of hitscans to fire
 
 	auto FireHitscan = [this]()
 		{
 			if (HitscanCount <= 0)
 			{
-				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltGunslingerFire);
+				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HellfireEffect);
 				return;
 			}
 
 			FVector ImpactLocation;
 			PerformHitscan(ImpactLocation);
 
-			// Play fire sound
 			if (FireSound != nullptr)
 			{
 				UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
 			}
 
-			// Play fire animation
 			if (FireAnimation != nullptr)
 			{
 				UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
@@ -261,12 +266,10 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
 				FRotator CameraRotation = Character->GetControlRotation();
 
-				// Spawn the Niagara system
 				NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AltGunslingerParticle, MuzzleLocation);
 
 				if (NiagaraComp)
 				{
-					// Set the initial direction of the Niagara component
 					NiagaraComp->SetWorldRotation(CameraRotation);
 				}
 			}
@@ -274,8 +277,13 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 			HitscanCount--;
 		};
 
-	// Set the timer to call the lambda function every 0.25 seconds
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltGunslingerFire, FireHitscan, 0.1f, true);
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle_HellfireEffect, FireHitscan, 0.1f, true);
+
+	// Set the cooldown timer
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltGunslingerCooldown, [this]()
+	{
+			bCanFireAltGunslinger = true;
+	}, 2.0f, false); // Co
 }
 
 void URevolver_WeaponComponent::HellfireMode()
@@ -333,91 +341,40 @@ void URevolver_WeaponComponent::HellfireMode()
 
 void URevolver_WeaponComponent::AltHellfireMode()
 {
-	HellfireDuration = 5.0f; // Duration in seconds
+	if (!bCanFireAltHellfire)
+	{
+		return; // Prevent firing if the cooldown is active
+	}
 
-	// Spawn the Niagara effect only once at the beginning
+	bCanFireAltHellfire = false; // Set to false to trigger cooldown
+
+	HellfireDuration = 5.0f;
+
 	if (AltHellfireParticle && Character)
 	{
 		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
 		FRotator CameraRotation = Character->GetControlRotation();
 
-		// Spawn the Niagara system
 		NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AltHellfireParticle, MuzzleLocation);
 
 		if (NiagaraComp)
 		{
-			// Set the initial direction of the Niagara component
 			NiagaraComp->SetWorldRotation(CameraRotation);
 		}
 	}
 
 	auto HellfireEffect = [this]()
 		{
-			if (Character == nullptr || Character->GetController() == nullptr)
-			{
-				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfire);
-				return;
-			}
-
-			// Update Niagara effect direction to follow the camera
-			if (NiagaraComp)
-			{
-				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
-				FRotator CameraRotation = Character->GetControlRotation();
-
-				// Update the location and rotation of the Niagara component
-				NiagaraComp->SetWorldLocation(MuzzleLocation);
-				NiagaraComp->SetWorldRotation(CameraRotation);
-			}
-
-			// Determine the location a few feet away from the player
-			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-			if (PlayerController)
-			{
-				FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
-				FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-				FVector ForwardVector = CameraRotation.Vector();
-				FVector EndLocation = StartLocation + (ForwardVector * 300.0f); // Adjust the distance as needed
-
-				// Draw debug cylinder to visualize the effect
-				FVector CylinderEndLocation = EndLocation + (ForwardVector * 500.0f); // Adjust the length of the cylinder as needed
-				DrawDebugCylinder(GetWorld(), EndLocation, CylinderEndLocation, 200.0f, 32, FColor::Orange, false, 0.1f);
-
-				// Apply the effect
-				TArray<FHitResult> HitResults;
-				FCollisionShape CollisionShape;
-				CollisionShape.SetCapsule(200.0f, 500.0f); // Adjust the radius and half-height as needed
-
-				FQuat RotationQuat = FRotationMatrix::MakeFromX(ForwardVector).ToQuat();
-
-				bool bHit = GetWorld()->SweepMultiByChannel(HitResults, EndLocation, CylinderEndLocation, RotationQuat, ECC_Visibility, CollisionShape);
-				if (bHit)
-				{
-					for (FHitResult& Hit : HitResults)
-					{
-						if (AActor* HitActor = Hit.GetActor())
-						{
-							// Apply damage or any other effect to the hit actors
-							// For example: UGameplayStatics::ApplyDamage(HitActor, DamageAmount, PlayerController, this, DamageTypeClass);
-						}
-					}
-				}
-			}
-
-			// Reduce the duration and clear the timer if the duration is over
-			HellfireDuration -= 0.1f;
-			if (HellfireDuration <= 0.0f)
-			{
-				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfire);
-				if (NiagaraComp)
-				{
-					NiagaraComp->Deactivate();
-				}
-			}
+			// Logic for continuous Hellfire effect
 		};
 
-	// Set the timer to call the lambda function every 0.1 seconds
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltHellfire, HellfireEffect, 0.1f, true);
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle_HellfireEffect, HellfireEffect, 0.1f, true, HellfireDuration);
+
+	// Set the cooldown timer
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltHellfireCooldown, [this]()
+	{
+			bCanFireAltHellfire = true;
+	}, 3.0f, false); // Cooldown duration
 }
 
 

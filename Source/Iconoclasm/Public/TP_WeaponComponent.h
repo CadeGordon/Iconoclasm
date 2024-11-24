@@ -98,7 +98,11 @@ private:
 	/** The Character holding this weapon*/
 	AIconoclasmCharacter* Character;
 
-	
+	float LastAltLifeBloodModeTime = 0.0f;
+	float LastAltImpulseModeTime = 0.0f;
+
+	float AltLifeBloodCooldown = 5.0f; // Cooldown in seconds
+	float AltImpulseCooldown = 7.0f;
 
 	EWeaponMode CurrentWeaponMode;
 
