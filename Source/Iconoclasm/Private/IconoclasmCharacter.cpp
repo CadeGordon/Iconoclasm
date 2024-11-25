@@ -134,6 +134,8 @@ void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 
 		EnhancedInputComponent->BindAction(CycleWeaponAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::CycleWeapon);
+
+		EnhancedInputComponent->BindAction(MeleeAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::PerformMelee);
 	}
 	else
 	{
@@ -487,6 +489,44 @@ void AIconoclasmCharacter::CycleWeapon()
 bool AIconoclasmCharacter::HasWeaponEquipped() const
 {
 	return WeaponInventory.Num() > 0 && WeaponInventory.IsValidIndex(CurrentWeaponIndex);
+}
+
+void AIconoclasmCharacter::PerformMelee()
+{
+	// Get the start and end points of the trace
+	FVector Start = FirstPersonCameraComponent->GetComponentLocation();
+	FVector ForwardVector = FirstPersonCameraComponent->GetForwardVector();
+	FVector End = Start + (ForwardVector * MeleeRange);
+
+	// Trace parameters
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this); // Ignore self
+
+	// Perform the line trace
+	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
+
+	// Visualize the trace for debugging
+	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 1.0f, 0, 1.0f);
+
+	if (bHit)
+	{
+		AActor* HitActor = HitResult.GetActor();
+
+		if (HitActor)
+		{
+			// Apply knockback
+			UPrimitiveComponent* HitComponent = HitResult.GetComponent();
+			if (HitComponent && HitComponent->IsSimulatingPhysics())
+			{
+				FVector KnockbackDirection = (HitResult.ImpactPoint - Start).GetSafeNormal();
+				HitComponent->AddImpulse(KnockbackDirection * KnockbackStrength, NAME_None, true);
+			}
+
+			// Log the hit
+			UE_LOG(LogTemp, Log, TEXT("Melee hit: %s"), *HitActor->GetName());
+		}
+	}
 }
 
 

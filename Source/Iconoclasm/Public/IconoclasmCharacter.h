@@ -50,6 +50,9 @@ class AIconoclasmCharacter : public ACharacter
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	UInputAction* CycleWeaponAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* MeleeAction;
 	
 public:
 	AIconoclasmCharacter();
@@ -119,7 +122,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool HasWeaponEquipped() const;
 
-	
+	void PerformMelee();
 
 	
 
@@ -193,6 +196,11 @@ protected:
 	TArray<UTP_WeaponComponent*> WeaponInventory;
 
 	int32 CurrentWeaponIndex;
+
+	private:
+
+		float MeleeRange = 200.0f; // Range of the melee attack
+		float KnockbackStrength = 1000.0f;
 
 };
 
