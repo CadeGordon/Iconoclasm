@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "TP_WeaponComponent.h"
+#include "HealthComponent.h"
 #include "Shotgun_WeaponComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -68,6 +69,8 @@ private:
 	bool bCanUseAltDefcon = true;
 	float AltTimeWarpCooldownDuration = 5.0f; // Example cooldown in seconds
 	float AltDefconCooldownDuration = 7.0f;
+
+	float ShotgunDamage = 100.0f;
 
 	FTimerHandle AltDefconCooldownTimer;
 	FTimerHandle AltTimeWarpCooldownTimer;
