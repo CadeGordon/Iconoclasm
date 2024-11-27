@@ -64,8 +64,6 @@ public:
 public:
 	virtual void BeginPlay() override;
 
-	virtual void Damage(AActor* TargetActor, float DamageAmount);
-
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual void AttachWeapon(AIconoclasmCharacter* TargetCharacter);
@@ -76,8 +74,6 @@ public:
 	virtual void AltFire();
 	UFUNCTION(BlueprintCallable)
 	virtual void SwitchFireMode();
-
-
 
 	UFUNCTION(BlueprintCallable)
 	virtual void PerformHitscan(FVector& ImpactLocation);

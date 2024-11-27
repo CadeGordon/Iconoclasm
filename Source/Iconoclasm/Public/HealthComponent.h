@@ -32,10 +32,6 @@ protected:
 	// Whether the actor is dead
 	bool bIsDead;
 
-	// Should the actor be destroyed on death?
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-	bool bDestroyOnDeath;
-
 	// Handle damage events
 	UFUNCTION()
 	void HandleTakeAnyDamage(
@@ -67,8 +63,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void TakeDamage(float Damage);
-
-	void ApplyDamage(float DamageAmount);
 
 		
 };

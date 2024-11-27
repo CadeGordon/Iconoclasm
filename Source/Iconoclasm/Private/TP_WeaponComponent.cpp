@@ -25,34 +25,12 @@ void UTP_WeaponComponent::BeginPlay()
 	Character = Cast<AIconoclasmCharacter>(GetOwner());
 }
 
-void UTP_WeaponComponent::Damage(AActor* TargetActor, float DamageAmount)
-{
-	if (!TargetActor)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Damage: TargetActor is null!"));
-		return;
-	}
-
-	// Try to get the HealthComponent on the target
-	UHealthComponent* HealthComp = TargetActor->FindComponentByClass<UHealthComponent>();
-	if (HealthComp)
-	{
-		HealthComp->ApplyDamage(DamageAmount);
-		UE_LOG(LogTemp, Log, TEXT("Applied %f damage to %s"), DamageAmount, *TargetActor->GetName());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Damage: No HealthComponent found on %s"), *TargetActor->GetName());
-	}
-}
-
 void UTP_WeaponComponent::Fire()
 {
 	if (Character == nullptr || Character->GetController() == nullptr)
 	{
 		return;
 	}
-
 
 	switch (CurrentWeaponMode)
 	{
@@ -105,9 +83,6 @@ void UTP_WeaponComponent::AltFire()
 			PerformHitscan(ImpactLocation);
 			ImpulseEffect(ImpactLocation, 300.0f, 1500.0f); // Example radius and strength
 			UE_LOG(LogTemp, Warning, TEXT("AltImpulseMode activated!"));
-
-			AActor* HitActor = nullptr;
-			Damage(HitActor, 100.0f);
 
 			// Start cooldown after execution
 			LastAltImpulseModeTime = CurrentTime + AltImpulseCooldown;
@@ -372,6 +347,33 @@ void UTP_WeaponComponent::LifeBloodMode()
 	ApplyExplosionEffect(ImpactLocation, 300.0f, 2000.0f); // Example radius and strength
 
 
+	// Check if we hit an actor with a health component
+	FHitResult HitResult;
+	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+	if (PlayerController)
+	{
+		FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+		FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+		FVector EndLocation = StartLocation + (CameraRotation.Vector() * 10000.0f);
+
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(Character);
+
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params))
+		{
+			if (AActor* HitActor = HitResult.GetActor())
+			{
+				// Check if the actor has the health component
+				UHealthComponent* HealthComp = HitActor->FindComponentByClass<UHealthComponent>();
+				if (HealthComp)
+				{
+					// Apply damage
+					float DamageAmount = 50.0f; // Example damage value
+					HealthComp->TakeDamage(DamageAmount);
+				}
+			}
+		}
+	}
 
 	// Play fire sound
 	if (FireSound != nullptr)

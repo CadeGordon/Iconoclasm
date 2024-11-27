@@ -53,6 +53,12 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 	{
 		bIsDead = true;
 		OnDeath.Broadcast();
+
+		// Destroy the owner actor
+		if (AActor* Owner = GetOwner())
+		{
+			Owner->Destroy();
+		}
 	}
 }
 
