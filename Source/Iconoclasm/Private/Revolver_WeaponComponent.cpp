@@ -193,6 +193,31 @@ void URevolver_WeaponComponent::GunslingerMode()
 	FVector ImpactLocation;
 	PerformHitscan(ImpactLocation);
 
+	// Perform a line trace to find the hit actor
+	FHitResult HitResult;
+	FVector StartLocation = Character->GetActorLocation();
+	FVector EndLocation = ImpactLocation;
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(Character); // Ignore the player
+	QueryParams.bTraceComplex = true;       // Trace against complex collision
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, QueryParams))
+	{
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor)
+		{
+			float DamageAmount = 100.0f; // Set the damage amount
+			UGameplayStatics::ApplyDamage(
+				HitActor,
+				DamageAmount,
+				Character->GetController(),
+				Character,
+				UDamageType::StaticClass()
+			);
+		}
+	}
+
 	// Play fire sound
 	if (FireSound != nullptr)
 	{
@@ -247,6 +272,31 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 			FVector ImpactLocation;
 			PerformHitscan(ImpactLocation);
 
+			// Perform a line trace to detect hit actor and apply damage
+			FHitResult HitResult;
+			FVector StartLocation = Character->GetActorLocation();
+			FVector EndLocation = ImpactLocation;
+
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(Character); // Ignore the player
+			QueryParams.bTraceComplex = true;       // Trace against complex collision
+
+			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, QueryParams))
+			{
+				AActor* HitActor = HitResult.GetActor();
+				if (HitActor)
+				{
+					float DamageAmount = 15.0f; // Set the damage amount
+					UGameplayStatics::ApplyDamage(
+						HitActor,
+						DamageAmount,
+						Character->GetController(),
+						Character,
+						UDamageType::StaticClass()
+					);
+				}
+			}
+
 			if (FireSound != nullptr)
 			{
 				UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
@@ -281,9 +331,9 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 
 	// Set the cooldown timer
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltGunslingerCooldown, [this]()
-	{
+		{
 			bCanFireAltGunslinger = true;
-	}, 2.0f, false); // Co
+		}, 2.0f, false); // Cooldown duration
 }
 
 void URevolver_WeaponComponent::HellfireMode()
@@ -301,6 +351,31 @@ void URevolver_WeaponComponent::HellfireMode()
 			FVector ImpactLocation;
 			PerformHitscan(ImpactLocation);
 
+			// Trace for hits using the same logic as PerformHitscan
+			FVector StartLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+			FVector EndLocation = ImpactLocation;
+			FHitResult HitResult;
+
+			// Perform a line trace to determine if an actor is hit
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(Character);
+
+			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, QueryParams))
+			{
+				// Apply damage if an actor is hit
+				if (HitResult.GetActor())
+				{
+					float DamageAmount = 50.0f; // Adjust the damage amount as needed
+					UGameplayStatics::ApplyDamage(
+						HitResult.GetActor(),
+						DamageAmount,
+						Character->GetController(),
+						Character,
+						UDamageType::StaticClass()
+					);
+				}
+			}
+
 			// Play fire sound
 			if (FireSound != nullptr)
 			{
@@ -317,6 +392,7 @@ void URevolver_WeaponComponent::HellfireMode()
 				}
 			}
 
+			// Spawn particle effect
 			if (HellfireParticle && Character)
 			{
 				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
@@ -349,6 +425,8 @@ void URevolver_WeaponComponent::AltHellfireMode()
 	bCanFireAltHellfire = false; // Set to false to trigger cooldown
 
 	HellfireDuration = 5.0f;
+	float FlameRadius = 300.0f; // Radius of the flame effect
+	float DamageAmount = 20.0f; // Damage dealt per tick
 
 	if (AltHellfireParticle && Character)
 	{
@@ -363,18 +441,90 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		}
 	}
 
-	auto HellfireEffect = [this]()
-		{
-			// Logic for continuous Hellfire effect
-		};
+	auto HellfireEffect = [this, FlameRadius, DamageAmount]()
+	{
+			if (Character)
+			{
+				// Get the forward direction and muzzle location
+				FVector ForwardVector = Character->GetControlRotation().Vector();
+				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
 
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle_HellfireEffect, HellfireEffect, 0.1f, true, HellfireDuration);
+				// Move the cylinder farther in front of the player
+				float DistanceFromPlayer = 500.0f; // Adjust this value to move the cylinder farther
+				FVector StartLocation = MuzzleLocation + (ForwardVector * DistanceFromPlayer); // Starting point of the cylinder
+				FVector EndLocation = StartLocation + (ForwardVector * 100.0f); // Length of the cylinder
+
+				// Debug cylinder visualization
+				DrawDebugCylinder(
+					GetWorld(),
+					StartLocation,
+					EndLocation,
+					FlameRadius,
+					32, // Number of sides
+					FColor::Red,
+					false,
+					0.1f // Duration of the debug cylinder (disappears after 0.1s)
+				);
+
+				// Apply damage to actors within the flame radius
+				TArray<FHitResult> HitResults;
+				FCollisionShape FlameSphere = FCollisionShape::MakeSphere(FlameRadius);
+
+				// Query for all actors in the sphere
+				if (GetWorld()->SweepMultiByChannel(
+					HitResults,
+					StartLocation,
+					EndLocation,
+					FQuat::Identity,
+					ECC_Visibility,
+					FlameSphere))
+				{
+					for (const FHitResult& Hit : HitResults)
+					{
+						if (Hit.GetActor() && Hit.GetActor() != Character) // Avoid damaging the player
+						{
+							UGameplayStatics::ApplyDamage(
+								Hit.GetActor(),
+								DamageAmount,
+								Character->GetController(),
+								Character,
+								UDamageType::StaticClass()
+							);
+						}
+					}
+				}
+			}
+	};
+
+	// Start the Hellfire effect and stop it after the duration
+	GetWorld()->GetTimerManager().SetTimer(
+		TimerHandle_HellfireEffect,
+		HellfireEffect,
+		0.1f, // Tick interval for the effect
+		true
+	);
+
+	// Stop the effect after the Hellfire duration
+	GetWorld()->GetTimerManager().SetTimer(
+		TimerHandle_HellfireStop,
+		[this]()
+		{
+			GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HellfireEffect);
+		},
+		HellfireDuration,
+		false // Execute only once
+	);
 
 	// Set the cooldown timer
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltHellfireCooldown, [this]()
-	{
+	GetWorld()->GetTimerManager().SetTimer(
+		TimerHandle_AltHellfireCooldown,
+		[this]()
+		{
 			bCanFireAltHellfire = true;
-	}, 3.0f, false); // Cooldown duration
+		},
+		3.0f, // Cooldown duration
+		false
+	); 
 }
 
 

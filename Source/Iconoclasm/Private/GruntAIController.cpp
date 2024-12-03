@@ -51,8 +51,23 @@ void AGruntAIController::MoveToPlayer()
 
 void AGruntAIController::AttackPlayer()
 {
-    // Debug message to indicate the player was hit
-    GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player hit"));
+    if (PlayerPawn)
+    {
+        // Amount of damage to deal
+        float DamageAmount = 20.0f;
+
+        // Deal damage to the player
+        UGameplayStatics::ApplyDamage(
+            PlayerPawn,                // Target actor (the player)
+            DamageAmount,              // Damage amount
+            GetPawn()->GetController(),// Instigator (the AI controller)
+            GetPawn(),                 // Damage causer (the grunt enemy)
+            UDamageType::StaticClass() // Damage type
+        );
+
+        // Debug message to indicate the player was hit
+        GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player hit - Damage dealt!"));
+    }
 }
 
 

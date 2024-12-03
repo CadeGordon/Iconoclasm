@@ -72,6 +72,7 @@ private:
 	FTimerHandle TimerHandle_AltGunslingerCooldown;
 	FTimerHandle TimerHandle_AltHellfireCooldown;
 	FTimerHandle TimerHandle_HellfireEffect;
+	FTimerHandle TimerHandle_HellfireStop;
 
 	/** The Character holding this weapon*/
 	AIconoclasmCharacter* Character;

@@ -280,16 +280,75 @@ void UShotgun_WeaponComponent::TimeWarpMode()
 
 		// Define the cone angle in degrees
 		float ConeAngle = 10.0f;
+		int32 MaxRicochets = 3; // Limit ricochets per shot
 
-		for (int32 i = 0; i < 8; ++i)
+		for (int32 i = 0; i < 8; ++i) // 8 pellets for the shotgun spread
 		{
-			// Randomize the spread within the cone
+			FVector CurrentStart = StartLocation;
 			FRotator SpreadRotation = CameraRotation;
+
+			// Randomize the spread within the cone
 			SpreadRotation.Pitch += FMath::RandRange(-ConeAngle, ConeAngle);
 			SpreadRotation.Yaw += FMath::RandRange(-ConeAngle, ConeAngle);
 
-			FVector EndLocation = StartLocation + (SpreadRotation.Vector() * 10000.0f);
-			PerformPumpHitscan(StartLocation, EndLocation, 8); // Limiting to 3 ricochets
+			FVector CurrentDirection = SpreadRotation.Vector();
+			int32 CurrentRicochetCount = 0;
+
+			while (CurrentRicochetCount <= MaxRicochets)
+			{
+				FVector EndLocation = CurrentStart + (CurrentDirection * 10000.0f);
+				FHitResult HitResult;
+
+				// Perform the hitscan
+				FCollisionQueryParams QueryParams;
+				QueryParams.AddIgnoredActor(Character);
+
+				bool bHit = GetWorld()->LineTraceSingleByChannel(
+					HitResult,
+					CurrentStart,
+					EndLocation,
+					ECC_Visibility,
+					QueryParams
+				);
+
+				// Draw debug line for visualization
+				DrawDebugLine(GetWorld(), CurrentStart, EndLocation, FColor::Red, false, 2.0f, 0, 1.0f);
+
+				if (bHit)
+				{
+					// Apply damage to the hit actor
+					if (HitResult.GetActor())
+					{
+						float DamageAmount = 100.0f; // Adjust as needed
+						UGameplayStatics::ApplyDamage(
+							HitResult.GetActor(),
+							DamageAmount,
+							Character->GetController(),
+							Character,
+							UDamageType::StaticClass()
+						);
+					}
+
+					// Check if we can ricochet
+					if (HitResult.Normal != FVector::ZeroVector && CurrentRicochetCount < MaxRicochets)
+					{
+						// Calculate new direction based on ricochet
+						CurrentDirection = FMath::GetReflectionVector(CurrentDirection, HitResult.Normal);
+						CurrentStart = HitResult.Location + CurrentDirection * 10.0f; // Slight offset to avoid re-hitting the same surface
+						CurrentRicochetCount++;
+					}
+					else
+					{
+						// Stop ricocheting if max ricochets are reached or no valid surface is hit
+						break;
+					}
+				}
+				else
+				{
+					// Stop if no hit is detected
+					break;
+				}
+			}
 		}
 
 		// Play fire sound
@@ -393,6 +452,7 @@ void UShotgun_WeaponComponent::DefconMode()
 			// Apply the launch force if we hit something
 			if (HitResult.GetActor())
 			{
+				// Apply launch force
 				if (ACharacter* HitCharacter = Cast<ACharacter>(HitResult.GetActor()))
 				{
 					FVector LaunchDirection = (HitResult.Location - HitResult.TraceStart).GetSafeNormal();
@@ -410,6 +470,19 @@ void UShotgun_WeaponComponent::DefconMode()
 						HitComponent->AddImpulse(LaunchDirection * LaunchStrength, NAME_None, true);
 					}
 				}
+
+				// Apply damage
+				float DamageAmount = 125.0f; // Example damage value
+				TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
+				AController* InstigatedByController = Character->GetController();
+
+				UGameplayStatics::ApplyDamage(
+					HitResult.GetActor(),
+					DamageAmount,
+					InstigatedByController,
+					Character,
+					DamageTypeClass
+				);
 			}
 		}
 
@@ -457,7 +530,20 @@ void UShotgun_WeaponComponent::AltDefconMode()
 		DrawDebugSphere(GetWorld(), SphereLocation, BlastRadius, 12, FColor::Green, false, 5.0f);
 
 		// Apply a radial force or damage in the area
-		UGameplayStatics::ApplyRadialDamage(GetWorld(), 100.0f, SphereLocation, BlastRadius, UDamageType::StaticClass(), TArray<AActor*>(), Character, Character->GetController(), true);
+		float DamageAmount = 100.0f; // Example damage value
+		TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
+
+		UGameplayStatics::ApplyRadialDamage(
+			GetWorld(),
+			DamageAmount,
+			SphereLocation,
+			BlastRadius,
+			DamageTypeClass,
+			TArray<AActor*>(), // Ignore specific actors if needed
+			Character,         // Damage causer
+			Character->GetController(), // Instigated by
+			true               // Do full damage in the radius
+		);
 
 		// Optionally apply a force to physics objects
 		FCollisionShape CollisionShape;

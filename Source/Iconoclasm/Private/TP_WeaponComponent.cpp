@@ -419,7 +419,29 @@ void UTP_WeaponComponent::ImpulseMode()
 {
 	FVector ImpactLocation;
 	PerformHitscan(ImpactLocation);
-	ImpulseEffect(ImpactLocation, 300.0f, 500000.0f); // Radius and strength
+
+	// Impulse effect
+	float ImpulseRadius = 300.0f;
+	float ImpulseStrength = 500000.0f;
+	ImpulseEffect(ImpactLocation, ImpulseRadius, ImpulseStrength);
+
+	// Apply radial damage
+	float Damage = 100.0f; // Set the damage value
+	TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
+	AController* InstigatorController = Character->GetController(); // Assumes Character is valid
+	AActor* DamageCauser = Character;
+
+	UGameplayStatics::ApplyRadialDamage(
+		GetWorld(),
+		Damage,
+		ImpactLocation,
+		ImpulseRadius,
+		DamageTypeClass,
+		TArray<AActor*>(), // Optional array of actors to ignore
+		DamageCauser,
+		InstigatorController,
+		true // Whether to cause damage even if there’s no line of sight
+	);
 
 	// Play fire sound
 	if (FireSound != nullptr)
