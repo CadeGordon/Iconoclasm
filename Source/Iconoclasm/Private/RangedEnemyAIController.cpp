@@ -8,6 +8,14 @@
 #include "TimerManager.h"
 #include "RangedEnemyCharacter.h"
 
+ARangedEnemyAIController::ARangedEnemyAIController()
+{
+    ShotsFired = 0; // Initialize shot counter
+    MaxShotsBeforeReposition = 3; // Set shots before repositioning
+
+
+}
+
 void ARangedEnemyAIController::BeginPlay()
 {
     Super::BeginPlay();
@@ -23,22 +31,7 @@ void ARangedEnemyAIController::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    // Keep distance from the player
-    if (PlayerPawn)
-    {
-        FVector EnemyLocation = GetPawn()->GetActorLocation();
-        FVector PlayerLocation = PlayerPawn->GetActorLocation();
-        float DistanceToPlayer = FVector::Dist(EnemyLocation, PlayerLocation);
-
-        if (DistanceToPlayer < MinimumDistanceFromPlayer)
-        {
-            // Move away from the player if too close
-            FVector DirectionAwayFromPlayer = (EnemyLocation - PlayerLocation).GetSafeNormal();
-            FVector NewLocation = EnemyLocation + DirectionAwayFromPlayer * MoveRadius;
-
-            MoveToLocation(NewLocation);
-        }
-    }
+   
 }
 
 void ARangedEnemyAIController::FireAtPlayer()
@@ -57,12 +50,19 @@ void ARangedEnemyAIController::FireAtPlayer()
         // Make the enemy shoot in the calculated direction
         RangedEnemy->FireWeapon(FireDirection);
 
-        // Optional: Log the damage for debugging purposes
+        // Optional: Log the shot for debugging purposes
         GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Ranged enemy shot player!"));
     }
 
-    // Continue with repositioning or other logic
-    Reposition();
+    // Increment the shot counter
+    ShotsFired++;
+
+    // Check if it's time to reposition
+    if (ShotsFired >= MaxShotsBeforeReposition)
+    {
+        ShotsFired = 0; // Reset shot counter
+        Reposition();
+    }
 
     // Set timer to shoot again after cooldown
     GetWorld()->GetTimerManager().SetTimer(ShootingTimerHandle, this, &ARangedEnemyAIController::FireAtPlayer, ShootingCooldown, false);
@@ -72,19 +72,22 @@ void ARangedEnemyAIController::Reposition()
 {
     if (ARangedEnemyCharacter* EnemyCharacter = Cast<ARangedEnemyCharacter>(GetPawn()))
     {
-        // Get current location and player's location
+        // Get current location
         FVector CurrentLocation = EnemyCharacter->GetActorLocation();
-        ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-        if (!PlayerCharacter) return;
 
-        FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+        // Generate a random direction
+        FVector RandomDirection = FMath::VRand(); // Random unit vector
+        RandomDirection.Z = 0; // Keep movement on the horizontal plane
+        RandomDirection.Normalize();
 
-        // Calculate a direction away from the player
-        FVector AwayDirection = (CurrentLocation - PlayerLocation).GetSafeNormal();
-        FVector NewLocation = CurrentLocation + AwayDirection * MoveRadius;
+        // Choose a random distance
+        float RandomDistance = FMath::RandRange(MinRepositionDistance, MaxRepositionDistance);
+
+        // Calculate the new location
+        FVector NewLocation = CurrentLocation + RandomDirection * RandomDistance;
 
         // Move the AI character to the new location
         MoveToLocation(NewLocation);
-        UE_LOG(LogTemp, Warning, TEXT("Enemy repositions"));
+        UE_LOG(LogTemp, Warning, TEXT("Enemy repositions to %s"), *NewLocation.ToString());
     }
 }

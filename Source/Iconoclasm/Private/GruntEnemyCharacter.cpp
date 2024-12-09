@@ -14,32 +14,12 @@ AGruntEnemyCharacter::AGruntEnemyCharacter()
 	// Ensure the AI controller is assigned when the character is spawned
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
-    // Set default health value
-    Health = 100.0f;
+   
 
     
 
 }
 
-float AGruntEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
-{
-    // Call parent implementation (optional)
-    Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-
-    // Subtract the damage from health
-    Health -= DamageAmount;
-
-    // Log damage for debugging
-    UE_LOG(LogTemp, Warning, TEXT("Grunt took %f damage. Remaining health: %f"), DamageAmount, Health);
-
-    // Check if health is depleted
-    if (Health <= 0.0f)
-    {
-        Die();
-    }
-
-    return DamageAmount;
-}
 
 //// Called when the game starts or when spawned
 //void AGruntEnemyCharacter::BeginPlay()
@@ -62,12 +42,5 @@ void AGruntEnemyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 }
 
-void AGruntEnemyCharacter::Die()
-{
-    // Log death for debugging
-    UE_LOG(LogTemp, Warning, TEXT("GruntEnemyCharacter has died."));
 
-    // Handle death (e.g., play animation, destroy actor, etc.)
-    Destroy();
-}
 

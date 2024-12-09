@@ -7,6 +7,12 @@
 #include "GameFramework/Character.h"
 #include "Engine/World.h"
 
+AGruntAIController::AGruntAIController()
+{
+    bCanAttack = true; // Enemy can attack initially
+    AttackCooldown = 2.0f; // Default attack cooldown duration (in seconds)
+}
+
 void AGruntAIController::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -51,7 +57,8 @@ void AGruntAIController::MoveToPlayer()
 
 void AGruntAIController::AttackPlayer()
 {
-    if (PlayerPawn)
+    // Check if the AI can attack
+    if (bCanAttack && PlayerPawn)
     {
         // Amount of damage to deal
         float DamageAmount = 20.0f;
@@ -67,7 +74,16 @@ void AGruntAIController::AttackPlayer()
 
         // Debug message to indicate the player was hit
         GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player hit - Damage dealt!"));
+
+        // Start the cooldown
+        bCanAttack = false;
+        GetWorld()->GetTimerManager().SetTimer(AttackCooldownTimerHandle, this, &AGruntAIController::ResetAttack, AttackCooldown);
     }
+}
+
+void AGruntAIController::ResetAttack()
+{
+    bCanAttack = true;
 }
 
 

@@ -15,25 +15,34 @@ class ICONOCLASM_API ARangedEnemyAIController : public AAIController
 	GENERATED_BODY()
 	
 public:
+
+    ARangedEnemyAIController();
+
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
 
 protected:
-    UPROPERTY(EditAnywhere, Category = "AI")
-    float MinimumDistanceFromPlayer = 600.0f; // Desired distance to maintain
+    // Reference to the player pawn
+    APawn* PlayerPawn;
 
-    UPROPERTY(EditAnywhere, Category = "AI")
-    float MaximumDistanceFromPlayer = 1000.0f; // Maximum range from player
+    // Counter for shots fired before repositioning
+    int32 ShotsFired;
 
-    UPROPERTY(EditAnywhere, Category = "AI")
-    float ShootingCooldown = 1.0f; // Time between shots
+    // Maximum shots before the enemy repositions
+    int32 MaxShotsBeforeReposition;
 
-    UPROPERTY(EditAnywhere, Category = "AI")
-    float MoveRadius = 200.0f; // Distance to move after shooting
+    // Minimum and maximum distances for repositioning
+    float MinRepositionDistance = 300.0f;
+    float MaxRepositionDistance = 800.0f;
+
+    // Time between shots
+    float ShootingCooldown = 2.0f;
+
+    // Timer handle for managing shooting behavior
+    FTimerHandle ShootingTimerHandle;
 
 private:
-    APawn* PlayerPawn;
-    FTimerHandle ShootingTimerHandle;
+    
 
     void FireAtPlayer();
     void Reposition();

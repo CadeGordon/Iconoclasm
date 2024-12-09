@@ -66,6 +66,8 @@ void AFlyingAIController::BeginPlay()
     // Find the player pawn
     PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
+    
+
     // Start flying in a random direction
     ChangeFlyDirection();
     TimeSinceLastDirectionChange = 0.0f;

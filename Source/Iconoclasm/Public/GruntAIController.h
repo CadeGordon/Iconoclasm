@@ -15,7 +15,11 @@ class ICONOCLASM_API AGruntAIController : public AAIController
 	GENERATED_BODY()
 
 public:
+    AGruntAIController();
+
+
     virtual void Tick(float DeltaTime) override;
+
 
 protected:
     virtual void BeginPlay() override;
@@ -25,6 +29,18 @@ private:
     FVector WanderLocation;
     bool IsPlayerInRange;
 
+    // Can the AI attack
+    bool bCanAttack;
+
+    // Cooldown duration for attacks
+    float AttackCooldown;
+
+    // Timer handle for attack cooldown
+    FTimerHandle AttackCooldownTimerHandle;
+
     void MoveToPlayer();
     void AttackPlayer();
+
+    // Reset attack ability after cooldown
+    void ResetAttack();
 };
