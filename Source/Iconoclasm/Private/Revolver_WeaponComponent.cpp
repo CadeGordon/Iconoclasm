@@ -156,11 +156,24 @@ void URevolver_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
 
 		FHitResult HitResult;
 		FCollisionQueryParams Params;
-		Params.AddIgnoredActor(Character);
+		Params.bTraceComplex = true;
 
+		// Perform the line trace
 		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params))
 		{
-			ImpactLocation = HitResult.Location;
+			AActor* HitActor = HitResult.GetActor();
+			if (HitActor && HitActor != Character) // Exclude the player character
+			{
+				ImpactLocation = HitResult.Location;
+
+				// Log for debugging
+				UE_LOG(LogTemp, Warning, TEXT("Hit Actor: %s"), *HitActor->GetName());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Ignored Actor: %s"), HitActor ? *HitActor->GetName() : TEXT("None"));
+				ImpactLocation = EndLocation; // Default to the end location if ignored
+			}
 		}
 		else
 		{
@@ -205,6 +218,7 @@ void URevolver_WeaponComponent::GunslingerMode()
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, QueryParams))
 	{
 		AActor* HitActor = HitResult.GetActor();
+
 		if (HitActor)
 		{
 			float DamageAmount = 100.0f; // Set the damage amount

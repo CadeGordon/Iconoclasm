@@ -53,6 +53,9 @@ private:
     // Helper function to handle the beam attack effects
     void SpawnBeamColliderAtLocation(FVector Location);
 
+    UFUNCTION()
+    void OnBeamOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
     // Function to trigger the next beam after the delay
     void StartBeamSummonWithDelay();
 

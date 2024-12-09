@@ -83,6 +83,16 @@ void AIconoclasmProjectile::AltOnHit(UPrimitiveComponent* HitComp, AActor* Other
 {
     if ((OtherActor != nullptr) && (OtherActor != this))
     {
+        // Apply damage to the hit actor
+        float DamageAmount = 100.0f; // Adjust damage as needed
+        UGameplayStatics::ApplyDamage(
+            OtherActor,                // The target actor (the actor that was hit)
+            DamageAmount,              // The damage amount
+            GetInstigatorController(), // The instigator (the actor who fired the projectile)
+            this,                      // The damage causer (the projectile itself)
+            UDamageType::StaticClass() // The type of damage (you can define a custom damage type if needed)
+        );
+
         // Destroy the projectile
         Destroy();
 
@@ -91,7 +101,6 @@ void AIconoclasmProjectile::AltOnHit(UPrimitiveComponent* HitComp, AActor* Other
         FActorSpawnParameters SpawnParams;
         SpawnParams.Owner = this;
         SpawnParams.Instigator = GetInstigator();
-
 
         // Draw debug sphere to visualize the healing area
         DrawDebugSphere(GetWorld(), ImpactLocation, 300.0f, 32, FColor::Green, false, 10.0f);

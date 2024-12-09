@@ -57,16 +57,6 @@ void ARangedEnemyAIController::FireAtPlayer()
         // Make the enemy shoot in the calculated direction
         RangedEnemy->FireWeapon(FireDirection);
 
-        // Apply damage to the player when shot at
-        float DamageAmount = 20.0f; // The amount of damage to deal to the player
-        UGameplayStatics::ApplyDamage(
-            PlayerPawn,                // The target actor (the player)
-            DamageAmount,              // The damage amount
-            GetPawn()->GetController(),// The instigator (the AI controller)
-            GetPawn(),                 // The damage causer (the ranged enemy)
-            UDamageType::StaticClass() // The damage type
-        );
-
         // Optional: Log the damage for debugging purposes
         GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Ranged enemy shot player!"));
     }

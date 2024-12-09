@@ -146,9 +146,11 @@ void ARaphaelAIController::SpawnBeamColliderAtLocation(FVector Location)
         // Draw the debug cylinder to represent the beam
         DrawDebugCylinder(GetWorld(), BottomOfBeam, TopOfBeam, BeamRadius, 12, FColor::Red, false, BeamDuration, 0, 2);
 
-
         // Log for debugging
         UE_LOG(LogTemp, Warning, TEXT("Beam Collider Spawned at Player's Location"));
+
+        // Bind overlap event for the beam collider (use a weak pointer or this if applicable)
+        BeamCollider->OnComponentBeginOverlap.AddDynamic(this, &ARaphaelAIController::OnBeamOverlap);
 
         // Set a timer to destroy the beam collider after the beam duration
         GetWorld()->GetTimerManager().SetTimer(BeamTimerHandle, [=]()
@@ -156,6 +158,27 @@ void ARaphaelAIController::SpawnBeamColliderAtLocation(FVector Location)
                 BeamCollider->DestroyComponent();
                 UE_LOG(LogTemp, Warning, TEXT("Beam Collider Destroyed"));
             }, BeamDuration, false);
+    }
+}
+
+UFUNCTION()
+void ARaphaelAIController::OnBeamOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    // Check if the overlapped actor is the player
+    if (OtherActor && OtherActor != this && OtherActor == UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+    {
+        // Apply damage to the player when the beam overlaps
+        float DamageAmount = 100.0f; // Set the damage amount (adjust as needed)
+        UGameplayStatics::ApplyDamage(
+            OtherActor,                // The target actor (the player)
+            DamageAmount,              // The damage amount
+            GetPawn()->GetController(),// The instigator (the AI controller)
+            GetPawn(),                 // The damage causer (the boss)
+            UDamageType::StaticClass() // The damage type
+        );
+
+        // Optional: Log the damage for debugging purposes
+        GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player hit by beam!"));
     }
 }
 
@@ -357,7 +380,7 @@ void ARaphaelAIController::StopJudgementGaze()
 
 void ARaphaelAIController::PerformJudgementGaze()
 {
-    // Get player reference
+   // Get player reference
     ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
     if (!PlayerCharacter) return;
 
@@ -391,7 +414,19 @@ void ARaphaelAIController::PerformJudgementGaze()
         if (HitResult.GetActor() == PlayerCharacter)
         {
             UE_LOG(LogTemp, Warning, TEXT("JudgementGaze hit the player!"));
-            // Add damage or effects here as needed
+
+            // Apply damage to the player
+            float DamageAmount = 50.0f; // Adjust the damage amount as needed
+            UGameplayStatics::ApplyDamage(
+                PlayerCharacter,          // The target actor (the player)
+                DamageAmount,             // The damage amount
+                ControlledPawn->GetController(), // The instigator (the AI controller)
+                ControlledPawn,           // The damage causer (the boss)
+                UDamageType::StaticClass() // The damage type
+            );
+
+            // Optional: Log the damage for debugging purposes
+            GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player damaged by Judgement Gaze!"));
         }
     }
 }
