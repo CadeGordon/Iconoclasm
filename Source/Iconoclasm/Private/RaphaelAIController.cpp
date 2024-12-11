@@ -48,15 +48,14 @@ ARaphaelAIController::ARaphaelAIController()
 
 void ARaphaelAIController::SummonBeamOnPlayer()
 {
-    // Get the player character
-    ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-    if (PlayerCharacter)
+    // Get the player's location
+    AActor* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+    if (Player)
     {
-        // Get the player's location
-        FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+        FVector PlayerLocation = Player->GetActorLocation();
 
-        // Spawn the beam collider at the player's location
-        SpawnBeamColliderAtLocation(PlayerLocation);
+        // Start with a telegraph before the actual beam spawns
+        SpawnBeamTelegraph(PlayerLocation);
     }
 
     // Set a timer to summon the next beam after the delay
@@ -186,6 +185,34 @@ void ARaphaelAIController::StartBeamSummonWithDelay()
 {
     // Start summoning the beam on the player after the delay
     SummonBeamOnPlayer();
+}
+
+void ARaphaelAIController::SpawnBeamTelegraph(FVector location)
+{
+    // Create a telegraph indicator (visual aid) at the player's location
+    DrawDebugCylinder(
+        GetWorld(),
+        location - FVector(0, 0, BeamHeight / 2), // Bottom of telegraph
+        location + FVector(0, 0, BeamHeight / 2), // Top of telegraph
+        BeamRadius,
+        12,
+        FColor::Yellow,
+        false,
+        TelegraphDuration,
+        0,
+        2.0f // Thickness of the telegraph
+    );
+
+    // Set a timer to spawn the actual beam collider after the telegraph duration
+    GetWorld()->GetTimerManager().SetTimer(
+        TelegraphTimerHandle,
+        [this, location]()
+        {
+            SpawnBeamColliderAtLocation(location);
+        },
+        TelegraphDuration,
+        false
+    );
 }
 
 void ARaphaelAIController::ShootProjectile()
@@ -433,9 +460,10 @@ void ARaphaelAIController::PerformJudgementGaze()
 
 void ARaphaelAIController::SpawnHeavenRainTrace()
 {
-    // Get the controlled pawn’s location (center of the trace area)
     if (APawn* BossPawn = GetPawn())
     {
+        float MaxDamage = 100.0f;
+
         FVector BossLocation = BossPawn->GetActorLocation();
 
         // Generate a random point within the specified radius
@@ -446,9 +474,8 @@ void ARaphaelAIController::SpawnHeavenRainTrace()
             RandomRadius * FMath::Sin(FMath::DegreesToRadians(RandomAngle)),
             0.0f);
 
-        // Set TraceStart higher above the ground (e.g., 5000 units up)
-        FVector TraceStart = BossLocation + Offset + FVector(0.0f, 0.0f, 5000.0f); // Adjust this height as needed
-        FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, 7000.0f); // Trace downwards
+        FVector TraceStart = BossLocation + Offset + FVector(0.0f, 0.0f, 5000.0f);
+        FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, 7000.0f);
 
         // Perform the line trace
         FHitResult Hit;
@@ -457,29 +484,42 @@ void ARaphaelAIController::SpawnHeavenRainTrace()
 
         bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
 
-        // Draw debug cylinder to visualize the trace area
-        float CylinderRadius = 100.0f;  // Adjust this for the thickness of the cylinder
-        float CylinderHeight = (TraceStart - TraceEnd).Size(); // Height of the cylinder matches the trace length
+        // Draw debug cylinder
+        float CylinderRadius = 100.0f;
+        float CylinderHeight = (TraceStart - TraceEnd).Size();
 
         DrawDebugCylinder(GetWorld(),
-            TraceStart,                  // Start location
-            TraceEnd,                    // End location
-            CylinderRadius,              // Radius of the cylinder
-            32,                          // Number of segments (higher = smoother cylinder)
-            FColor::Blue,                // Color
-            false,                       // Persistent lines (false = temporary)
-            2.0f,                        // Lifetime
-            0,                           // Depth priority
-            2.0f);                       // Thickness of the cylinder lines
+            TraceStart,
+            TraceEnd,
+            CylinderRadius,
+            32,
+            FColor::Blue,
+            false,
+            2.0f,
+            0,
+            2.0f);
 
-        // If the trace hits something, draw a debug sphere at the hit location
         if (bHit)
         {
-            DrawDebugSphere(GetWorld(), Hit.Location, 50.0f, 12, FColor::Red, false, 2.0f);
-            if (AActor* HitActor = Hit.GetActor())
-            {
-                UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain hit %s"), *HitActor->GetName());
-            }
+            FVector CylinderCenter = (TraceStart + TraceEnd) * 0.5f;
+
+            // Apply uniform radial damage
+            TArray<AActor*> IgnoredActors;
+            IgnoredActors.Add(BossPawn);
+
+            float DamageApplied = UGameplayStatics::ApplyRadialDamage(
+                GetWorld(),
+                MaxDamage,                     // Damage value
+                CylinderCenter,                // Center of the damage
+                CylinderRadius,                // Radius of the cylinder
+                UDamageType::StaticClass(),    // Damage type
+                IgnoredActors,                 // Actors to ignore
+                this,                          // Damage causer
+                BossPawn->GetController());    // Instigator (controller)
+
+            UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain damage applied. Hit actor: %s, Damage Applied: %f"),
+                Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("None"),
+                DamageApplied);
         }
 
         // Increment the trace count
@@ -502,6 +542,8 @@ void ARaphaelAIController::StartHeavenRain()
 
     
 }
+
+
 
 void ARaphaelAIController::EndHeavenRain()
 {

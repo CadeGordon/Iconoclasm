@@ -43,39 +43,30 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
         // Destroy the projectile
         Destroy();
 
-        // Create a radial force component
+        // Explosion parameters
         FVector ImpactLocation = GetActorLocation();
-        float ExplosionRadius = 300.0f; // Set the radius for the explosion
-        float ExplosionStrength = 2000.0f; // Set the strength of the explosion
+        float ExplosionRadius = 300.0f; // Radius for the explosion
+        float BaseDamage = 100.0f;      // Base damage for the explosion
+        float DamageFalloff = 0.0f;     // Optional damage falloff, 0 for no falloff
 
         // Draw debug sphere to visualize the radius
         DrawDebugSphere(GetWorld(), ImpactLocation, ExplosionRadius, 32, FColor::Red, false, 2.0f);
 
-        // Create and configure the radial force component
-        URadialForceComponent* RadialForce = NewObject<URadialForceComponent>(this);
-        RadialForce->SetupAttachment(RootComponent);
-        RadialForce->Radius = ExplosionRadius;
-        RadialForce->ImpulseStrength = ExplosionStrength;
-        RadialForce->bImpulseVelChange = true;
-        RadialForce->AddCollisionChannelToAffect(ECC_Pawn); // Ensure it affects characters
-        RadialForce->RegisterComponent(); // Register the component to properly initialize it
-        RadialForce->FireImpulse(); // Apply the radial impulse
+        // Apply radial damage
+        UGameplayStatics::ApplyRadialDamage(
+            GetWorld(),                 // World context
+            BaseDamage,                 // Damage to apply at the epicenter
+            ImpactLocation,             // Explosion location
+            ExplosionRadius,            // Radius of the explosion
+            UDamageType::StaticClass(), // Damage type
+            TArray<AActor*>(),          // Actors to ignore (empty array to include all)
+            this,                       // Damage causer (this projectile)
+            GetInstigatorController(),  // Instigator's controller (usually the shooter)
+            true,                       // Do full damage even if there is line-of-sight obstruction
+            ECC_Visibility              // Collision channel for line-of-sight checks
+        );
 
-        // Apply force to any player within the radius
-        TArray<AActor*> OverlappingActors;
-        UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
-
-        for (AActor* Actor : OverlappingActors)
-        {
-            if (ACharacter* Character = Cast<ACharacter>(Actor))
-            {
-                if (FVector::Dist(Character->GetActorLocation(), ImpactLocation) <= ExplosionRadius)
-                {
-                    FVector LaunchDirection = (Character->GetActorLocation() - ImpactLocation).GetSafeNormal();
-                    Character->LaunchCharacter(LaunchDirection * ExplosionStrength, true, true);
-                }
-            }
-        }
+        UE_LOG(LogTemp, Warning, TEXT("Explosion at location: %s"), *ImpactLocation.ToString());
     }
 }
 

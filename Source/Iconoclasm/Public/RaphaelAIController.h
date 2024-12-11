@@ -59,6 +59,7 @@ private:
     // Function to trigger the next beam after the delay
     void StartBeamSummonWithDelay();
 
+    void SpawnBeamTelegraph(FVector location);
     
 
     // Number of line traces per Heaven's Rain move
@@ -215,4 +216,9 @@ private:
     float ThrowDuration = 6.0f;
     float GazeDuration = 7.0f;
     float RainDuration = 8.0f;
+
+
+    float TelegraphDuration = 1.5f;
+
+    FTimerHandle TelegraphTimerHandle;
 };
