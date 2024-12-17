@@ -342,8 +342,22 @@ void ARaphaelAIController::SpawnExplosionAtLocation(FVector Location)
     float KnockbackForce = 1500.0f; // Adjust force as needed
     float LaunchHeight = 1000.0f;  // Adjust height as needed
 
-    // Define the radius for the knockback
+    // Define the radius for the knockback and damage
     float KnockbackRadius = 500.0f;
+    float DamageAmount = 100.0f; // Set the damage amount (adjust as needed)
+
+    // Draw a debug sphere to visualize the explosion radius
+    DrawDebugSphere(
+        GetWorld(),
+        Location,           // Center of the sphere
+        KnockbackRadius,    // Radius of the sphere
+        24,                 // Number of segments
+        FColor::Orange,     // Sphere color
+        false,              // Persistent (false means it will disappear after some time)
+        5.0f,               // Lifetime (5 seconds)
+        0,                  // Depth priority
+        2.0f                // Thickness of the lines
+    );
 
     // Collect actors within the explosion radius
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
@@ -374,6 +388,15 @@ void ARaphaelAIController::SpawnExplosionAtLocation(FVector Location)
                 {
                     FVector LaunchVelocity = FVector(0.0f, 0.0f, LaunchHeight);
                     OverlappingCharacter->LaunchCharacter(LaunchVelocity, true, true);
+
+                    // Apply damage to the character caught in the explosion radius
+                    UGameplayStatics::ApplyDamage(
+                        Actor,               // The target actor
+                        DamageAmount,        // The amount of damage
+                        GetPawn()->GetController(), // The instigator (the AI controller)
+                        GetPawn(),           // The damage causer (the boss)
+                        UDamageType::StaticClass() // The damage type
+                    );
                 }
             }
         }
@@ -407,7 +430,7 @@ void ARaphaelAIController::StopJudgementGaze()
 
 void ARaphaelAIController::PerformJudgementGaze()
 {
-   // Get player reference
+    // Get player reference
     ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
     if (!PlayerCharacter) return;
 
@@ -430,31 +453,57 @@ void ARaphaelAIController::PerformJudgementGaze()
 
         FVector BossLocation = ControlledPawn->GetActorLocation();
 
-        // Line trace from the boss's location toward the trailing player position
+        // Radius for the sphere trace
+        float TraceRadius = 50.0f; // Adjust the radius as needed
+
+        // Sweep from the boss's location toward the trailing player position using a sphere
         FHitResult HitResult;
-        GetWorld()->LineTraceSingleByChannel(HitResult, BossLocation, TargetLocation, ECC_Visibility);
+        FCollisionQueryParams TraceParams;
+        TraceParams.AddIgnoredActor(ControlledPawn); // Ignore the boss itself in the trace
+
+        // Perform the sphere trace
+        bool bHit = GetWorld()->SweepSingleByChannel(
+            HitResult,
+            BossLocation,
+            TargetLocation,
+            FQuat::Identity, // No rotation
+            ECC_Pawn, // Use ECC_Pawn to detect characters and pawns
+            FCollisionShape::MakeSphere(TraceRadius),
+            TraceParams
+        );
+
+        // Debug output for the trace result
+        if (bHit)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Hit actor: %s"), *HitResult.GetActor()->GetName());
+
+            // Handle logic if player is hit
+            if (HitResult.GetActor() == PlayerCharacter)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("JudgementGaze hit the player!"));
+
+                // Apply damage to the player
+                float DamageAmount = 50.0f; // Adjust the damage amount as needed
+                UGameplayStatics::ApplyDamage(
+                    PlayerCharacter,          // The target actor (the player)
+                    DamageAmount,             // The damage amount
+                    ControlledPawn->GetController(), // The instigator (the AI controller)
+                    ControlledPawn,           // The damage causer (the boss)
+                    UDamageType::StaticClass() // The damage type
+                );
+
+                // Optional: Log the damage for debugging purposes
+                GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player damaged by Judgement Gaze!"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("No hit detected!"));
+        }
 
         // Visualize the trace for debugging
+        DrawDebugSphere(GetWorld(), TargetLocation, TraceRadius, 24, FColor::Red, false, 0.1f, 0, 2.0f);
         DrawDebugLine(GetWorld(), BossLocation, TargetLocation, FColor::Red, false, 0.1f, 0, 2.0f);
-
-        // Handle logic if player is hit
-        if (HitResult.GetActor() == PlayerCharacter)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("JudgementGaze hit the player!"));
-
-            // Apply damage to the player
-            float DamageAmount = 50.0f; // Adjust the damage amount as needed
-            UGameplayStatics::ApplyDamage(
-                PlayerCharacter,          // The target actor (the player)
-                DamageAmount,             // The damage amount
-                ControlledPawn->GetController(), // The instigator (the AI controller)
-                ControlledPawn,           // The damage causer (the boss)
-                UDamageType::StaticClass() // The damage type
-            );
-
-            // Optional: Log the damage for debugging purposes
-            GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player damaged by Judgement Gaze!"));
-        }
     }
 }
 
