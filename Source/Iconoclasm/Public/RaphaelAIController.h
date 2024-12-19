@@ -66,7 +66,7 @@ private:
     int32 HeavenRainTraceCount = 20;
 
     // Radius within which the traces should spawn
-    float HeavenRainRadius = 3000.0f;
+    float HeavenRainRadius = 5000.0f;
 
     // Interval between each line trace in seconds
     float HeavenRainInterval = 0.5f;
@@ -221,4 +221,7 @@ private:
     float TelegraphDuration = 1.5f;
 
     FTimerHandle TelegraphTimerHandle;
+
+    // Tracks the active rain area centers
+    TArray<FVector> ActiveRainAreas;
 };

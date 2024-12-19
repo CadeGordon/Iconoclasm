@@ -167,7 +167,7 @@ void ARaphaelAIController::OnBeamOverlap(UPrimitiveComponent* OverlappedComponen
     if (OtherActor && OtherActor != this && OtherActor == UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
     {
         // Apply damage to the player when the beam overlaps
-        float DamageAmount = 100.0f; // Set the damage amount (adjust as needed)
+        float DamageAmount = 0.0f; // Set the damage amount (adjust as needed)
         UGameplayStatics::ApplyDamage(
             OtherActor,                // The target actor (the player)
             DamageAmount,              // The damage amount
@@ -344,7 +344,7 @@ void ARaphaelAIController::SpawnExplosionAtLocation(FVector Location)
 
     // Define the radius for the knockback and damage
     float KnockbackRadius = 500.0f;
-    float DamageAmount = 100.0f; // Set the damage amount (adjust as needed)
+    float DamageAmount = 0.0f; // Set the damage amount (adjust as needed)
 
     // Draw a debug sphere to visualize the explosion radius
     DrawDebugSphere(
@@ -483,7 +483,7 @@ void ARaphaelAIController::PerformJudgementGaze()
                 UE_LOG(LogTemp, Warning, TEXT("JudgementGaze hit the player!"));
 
                 // Apply damage to the player
-                float DamageAmount = 50.0f; // Adjust the damage amount as needed
+                float DamageAmount = 0.0f; // Adjust the damage amount as needed
                 UGameplayStatics::ApplyDamage(
                     PlayerCharacter,          // The target actor (the player)
                     DamageAmount,             // The damage amount
@@ -534,7 +534,7 @@ void ARaphaelAIController::SpawnHeavenRainTrace()
         bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
 
         // Draw debug cylinder
-        float CylinderRadius = 100.0f;
+        float CylinderRadius = 200.0f;
         float CylinderHeight = (TraceStart - TraceEnd).Size();
 
         DrawDebugCylinder(GetWorld(),
