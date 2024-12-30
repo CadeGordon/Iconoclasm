@@ -20,7 +20,7 @@ UGrappleComponent::UGrappleComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 
     IsGrappleActive = false;
-    
+    GrappleOnCooldown = false;
 
 
     // Set default values for FOV and interpolation speed
@@ -55,6 +55,17 @@ void UGrappleComponent::BeginPlay()
             TargetFOV = OriginalFOV; // Initialize TargetFOV to OriginalFOV
         }
     }
+
+    // Create the HUD
+    if (GrappleHUDClass)
+    {
+        GrappleHUD = CreateWidget<UGrappleHUD>(GetWorld(), GrappleHUDClass);
+        if (GrappleHUD)
+        {
+            GrappleHUD->AddToViewport();
+            GrappleHUD->UpdateProgressBar(1.0f); // Set full progress initially
+        }
+    }
 }
 
 void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -80,6 +91,24 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
                 CameraComponent->SetFieldOfView(CurrentFOV);
             }
         }
+    }
+
+    if (GrappleOnCooldown && GrappleCooldownDuration > 0.0f)
+    {
+        // Calculate recharge progress
+        float ElapsedTime = GetWorld()->GetTimerManager().GetTimerElapsed(GrappleCooldownTimerHandle);
+        float Progress = ElapsedTime / GrappleCooldownDuration;
+
+        // Update HUD progress bar
+        if (GrappleHUD)
+        {
+            GrappleHUD->UpdateProgressBar(Progress);
+        }
+    }
+    else if (GrappleHUD)
+    {
+        // Ensure progress bar is full when not on cooldown
+        GrappleHUD->UpdateProgressBar(1.0f);
     }
  
 }
@@ -114,6 +143,12 @@ void UGrappleComponent::FireGrapple()
 
         // Set target FOV for when grapple is active
         TargetFOV = GrappleFOV;
+
+        // Set progress to zero immediately
+        if (GrappleHUD)
+        {
+            GrappleHUD->UpdateProgressBar(0.0f);
+        }
     }
     else
     {

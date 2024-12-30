@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "GameFramework/Character.h"
 #include "TimerManager.h"
+#include "GrappleHUD.h"
 #include "GrappleComponent.generated.h"
 
 
@@ -85,7 +86,13 @@ private:
 	float CurrentFOV;
 	float GrappleFOV;
 
-	
+	UPROPERTY()
+	class UGrappleHUD* GrappleHUD;
+
+	UPROPERTY(EditDefaultsOnly, Category = "HUD")
+	TSubclassOf<UUserWidget> GrappleHUDClass;
+
+	float CooldownProgress;
 
 
 	
