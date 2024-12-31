@@ -4,7 +4,7 @@
 #include "DashHUD.h"
 #include "Components/ProgressBar.h"
 
-void UDashHUD::UpdateDashProgressBar(float Progress)
+void UDashHUD::UpdateDashProgress(float Progress)
 {
     if (DashProgressBar)
     {

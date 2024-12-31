@@ -17,9 +17,9 @@ class ICONOCLASM_API UDashHUD : public UUserWidget
 public:
     // Updates the progress bar with the given value (0.0f to 1.0f)
     UFUNCTION(BlueprintCallable, Category = "GrappleHUD")
-    void UpdateDashProgressBar(float Progress);
+    void UpdateDashProgress(float Progress);
 
-protected:
+public:
     // Reference to the progress bar in the UI
     UPROPERTY(meta = (BindWidget))
     class UProgressBar* DashProgressBar;

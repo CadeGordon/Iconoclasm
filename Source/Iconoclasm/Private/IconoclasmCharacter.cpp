@@ -15,6 +15,8 @@
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "TP_WeaponComponent.h"
+#include "DashHUD.h"
+#include "Components/ProgressBar.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -88,7 +90,17 @@ void AIconoclasmCharacter::BeginPlay()
 	}
 
 	
-
+	// Create and add the DashHUD to the viewport
+	if (DashHUDClass)
+	{
+		DashHUD = Cast<UDashHUD>(CreateWidget<UUserWidget>(GetWorld(), DashHUDClass));
+		if (DashHUD)
+		{
+			DashHUD->AddToViewport();
+			// Set the progress bar to full (3 charges)
+			UpdateDashProgress();
+		}
+	}
 	
 
 }
@@ -212,47 +224,24 @@ void AIconoclasmCharacter::Dash()
 		if (!DashDirection.IsNearlyZero())
 		{
 			// Determine whether the player is dashing forward
-			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f); // Use a small tolerance to account for floating point precision
+			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f);
 
 			// Perform the dash
 			IsDashing = true;
-			float DashSpeed = 0.0f;
-
-			if (GetCharacterMovement()->IsMovingOnGround())
-			{
-				// Dash on ground
-				DashSpeed = GroundDash;
-			}
-			else
-			{
-				// Dash in air
-				DashSpeed = AirDash;
-			}
-
-			FVector DashVelocity = DashDirection * DashSpeed;
-			GetCharacterMovement()->Velocity = DashVelocity;
+			float DashSpeed = GetCharacterMovement()->IsMovingOnGround() ? GroundDash : AirDash;
+			GetCharacterMovement()->Velocity = DashDirection * DashSpeed;
 
 			// Decrement dash charges
 			DashCharges--;
 
-			//// If the player is dashing forward, change the FOV to DashFOV
-			//if (IsDashingForward)
-			//{
-			//	TargetFOV = DashFOV;
-			//}
+			// Update the HUD
+			UpdateDashProgress();
 
 			// Start cooldown timer
 			StartDashCooldown();
 		}
 
-		CanDashAgain = true;
-
-		if (DashCharges == 0)
-		{
-			//DashCharges = 3;
-			CanDashAgain = false;
-		}
-
+		CanDashAgain = (DashCharges > 0);
 	}
 }
 
@@ -267,9 +256,12 @@ void AIconoclasmCharacter::ResetDashCooldown()
 {
 	CanDash = true;
 
-	if (DashCharges < 3) {
-
+	if (DashCharges < 3)
+	{
 		DashCharges++;
+
+		// Update the HUD
+		UpdateDashProgress();
 
 		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
 	}
@@ -526,6 +518,15 @@ void AIconoclasmCharacter::PerformMelee()
 			// Log the hit
 			UE_LOG(LogTemp, Log, TEXT("Melee hit: %s"), *HitActor->GetName());
 		}
+	}
+}
+
+void AIconoclasmCharacter::UpdateDashProgress()
+{
+	if (DashHUD)
+	{
+		float Progress = static_cast<float>(DashCharges) / 3.0f;
+		DashHUD->UpdateDashProgress(Progress);
 	}
 }
 

@@ -7,6 +7,7 @@
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "TP_WeaponComponent.h"
+#include "DashHUD.h"
 #include "IconoclasmCharacter.generated.h"
 
 class UInputComponent;
@@ -124,6 +125,8 @@ public:
 
 	void PerformMelee();
 
+	void UpdateDashProgress();
+
 	
 
 protected:
@@ -197,10 +200,21 @@ protected:
 
 	int32 CurrentWeaponIndex;
 
+	UPROPERTY()
+	UDashHUD* DashHUD;
+
+	// Dash HUD reference
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> DashHUDClass;
+
+	
+
+
 	private:
 
 		float MeleeRange = 200.0f; // Range of the melee attack
 		float KnockbackStrength = 1000.0f;
 
+		
 };
 
