@@ -62,6 +62,11 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	SlideSpeed = 2000.0f;
 	SlideJumpBoostStrength = 3500.0f;
 	GroundSlamStrength = 200000.0f;
+
+	//DashUI
+	TargetDashProgress = 1.0f;  // Starts full
+	CurrentDashProgress = 1.0f;
+	ProgressInterpSpeed = 5.0f; // Adjust this for smoother or faster interpolation
 }
 
 void AIconoclasmCharacter::BeginPlay()
@@ -120,6 +125,18 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 	{
 		CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, InterpSpeed);
 		FirstPersonCamera->SetFieldOfView(CurrentFOV);
+	}
+
+	// Interpolate the progress bar value
+	if (FMath::Abs(CurrentDashProgress - TargetDashProgress) > KINDA_SMALL_NUMBER)
+	{
+		CurrentDashProgress = FMath::FInterpTo(CurrentDashProgress, TargetDashProgress, DeltaTime, ProgressInterpSpeed);
+
+		// Update the HUD
+		if (DashHUD)
+		{
+			DashHUD->UpdateDashProgress(CurrentDashProgress);
+		}
 	}
 
 }
@@ -217,27 +234,21 @@ void AIconoclasmCharacter::Dash()
 {
 	if ((CanDash || CanDashAgain) && DashCharges > 0)
 	{
-		// Get the direction the player is moving
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
 
-		// Check if the player is moving in any direction
 		if (!DashDirection.IsNearlyZero())
 		{
-			// Determine whether the player is dashing forward
 			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f);
 
-			// Perform the dash
 			IsDashing = true;
 			float DashSpeed = GetCharacterMovement()->IsMovingOnGround() ? GroundDash : AirDash;
 			GetCharacterMovement()->Velocity = DashDirection * DashSpeed;
 
-			// Decrement dash charges
 			DashCharges--;
 
-			// Update the HUD
-			UpdateDashProgress();
+			// Set target progress based on charges
+			TargetDashProgress = static_cast<float>(DashCharges) / 3.0f;
 
-			// Start cooldown timer
 			StartDashCooldown();
 		}
 
@@ -260,8 +271,8 @@ void AIconoclasmCharacter::ResetDashCooldown()
 	{
 		DashCharges++;
 
-		// Update the HUD
-		UpdateDashProgress();
+		// Update the target progress smoothly
+		TargetDashProgress = static_cast<float>(DashCharges) / 3.0f;
 
 		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
 	}

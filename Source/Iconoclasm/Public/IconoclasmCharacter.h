@@ -215,6 +215,9 @@ protected:
 		float MeleeRange = 200.0f; // Range of the melee attack
 		float KnockbackStrength = 1000.0f;
 
+		float TargetDashProgress; // The desired progress value
+		float CurrentDashProgress; // The current progress value for interpolation
+		float ProgressInterpSpeed; // The speed of interpolation
 		
 };
 
