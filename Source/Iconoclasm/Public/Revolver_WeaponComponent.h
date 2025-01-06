@@ -58,6 +58,13 @@ public:
 
 	UNiagaraComponent* NiagaraComp;
 
+	UPROPERTY()
+	URevolverHUD* RevolverHUD;
+
+	// Dash HUD reference
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> RevolverHUDClass;
+
 protected:
 	/** Ends gameplay for this component. */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

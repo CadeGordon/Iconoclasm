@@ -14,6 +14,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 #include "Components/SphereComponent.h"
+#include "RevolverHUD.h"
 
 
 URevolver_WeaponComponent::URevolver_WeaponComponent()
@@ -69,6 +70,12 @@ void URevolver_WeaponComponent::SwitchFireMode()
 {
 	// Cycle through the weapon modes
 	CurrentWeaponMode = static_cast<ERevolverMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(ERevolverMode::RevolverMode2) + 1));
+
+	// Update UI color
+	if (RevolverHUD)
+	{
+		RevolverHUD->UpdateRevolverModeColor(static_cast<uint8>(CurrentWeaponMode));
+	}
 }
 
 void URevolver_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacter)
@@ -109,6 +116,24 @@ void URevolver_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharact
 			EnhancedInputComponent->BindAction(SwitchFireModeAction, ETriggerEvent::Triggered, this, &URevolver_WeaponComponent::SwitchFireMode);
 		}
 	}
+
+	// Display RevolverHUD
+	if (APlayerController* PC = Cast<APlayerController>(TargetCharacter->GetController()))
+	{
+		if (!RevolverHUD)
+		{
+			RevolverHUD = CreateWidget<URevolverHUD>(PC, RevolverHUDClass);
+			if (RevolverHUD)
+			{
+				RevolverHUD->AddToViewport();
+			}
+		}
+		if (RevolverHUD)
+		{
+			RevolverHUD->SetVisibilityState(true);
+			RevolverHUD->UpdateRevolverModeColor(static_cast<uint8>(CurrentWeaponMode));
+		}
+	}
 }
 
 void URevolver_WeaponComponent::DetachFromCharacter()
@@ -142,6 +167,12 @@ void URevolver_WeaponComponent::DetachFromCharacter()
 
 		// Clear reference
 		Character = nullptr;
+
+		// Hide RevolverHUD
+		if (RevolverHUD)
+		{
+			RevolverHUD->SetVisibilityState(false);
+		}
 	}
 }
 
