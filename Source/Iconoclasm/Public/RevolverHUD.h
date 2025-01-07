@@ -23,6 +23,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Revolver HUD")
 	void SetVisibilityState(bool bIsVisible);
 
+	// Bindable progress bar for AltFire cooldown
+	UPROPERTY(meta = (BindWidget))
+	class UProgressBar* AltFireCooldownBar;
+
+	// Updates the progress bar value (0 to 1)
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+	void UpdateAltFireCooldownProgress(float Progress);
+
+	// Function to update the AltHellfire cooldown progress bar
+	UFUNCTION(BlueprintCallable, Category = "RevolverHUD")
+	void UpdateAltHellfireCooldownProgress(float Progress);
+
+	// Bindable progress bar for AltFire cooldown
+	UPROPERTY(meta = (BindWidget))
+	class UProgressBar* AltHellfireCooldownProgressBar;
+
 protected:
 	UPROPERTY(meta = (BindWidget))
 	class UImage* RevolverImage;

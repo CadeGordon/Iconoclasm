@@ -75,6 +75,16 @@ private:
 	bool bCanFireAltGunslinger = true;
 	bool bCanFireAltHellfire = true;
 
+	float ElapsedTime = 0.0f; // Track the elapsed time during cooldown
+	float CooldownDuration = 2.0f; // Duration of the cooldown
+	FTimerHandle CooldownTimerHandle; // Timer handle for the cooldown
+
+	// Timer handle for updating the cooldown progress of AltHellfire
+	FTimerHandle TimerHandle_AltHellfireProgress;
+
+	// Variable to track the elapsed time for the AltHellfire cooldown
+	float ElapsedHellfireTime = 0.0f;
+
 	// Timers for cooldowns
 	FTimerHandle TimerHandle_AltGunslingerCooldown;
 	FTimerHandle TimerHandle_AltHellfireCooldown;
@@ -100,4 +110,8 @@ private:
 	void HellfireMode();
 	UFUNCTION(BlueprintCallable)
 	void AltHellfireMode();
+
+	void HandleGunslingerAltCooldown();
+
+	void HandleHellfireAltCooldown();
 };

@@ -304,6 +304,13 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 
 	bCanFireAltGunslinger = false; // Set to false to trigger cooldown
 
+	// Set the cooldown and drain the progress bar to 0% immediately when AltFire is used
+	ElapsedTime = 0.0f; // Reset the elapsed time to zero when AltFire is used
+	if (RevolverHUD != nullptr)
+	{
+		RevolverHUD->UpdateAltFireCooldownProgress(0.0f); // Set the progress bar to 0% immediately
+	}
+
 	HitscanCount = 6; // Set the number of hitscans to fire
 
 	auto FireHitscan = [this]()
@@ -374,11 +381,8 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle_HellfireEffect, FireHitscan, 0.1f, true);
 
-	// Set the cooldown timer
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltGunslingerCooldown, [this]()
-		{
-			bCanFireAltGunslinger = true;
-		}, 2.0f, false); // Cooldown duration
+	// Start cooldown and update the progress bar during cooldown
+	GetWorld()->GetTimerManager().SetTimer(CooldownTimerHandle, this, &URevolver_WeaponComponent::HandleGunslingerAltCooldown, 0.01f, true);
 }
 
 void URevolver_WeaponComponent::HellfireMode()
@@ -473,6 +477,7 @@ void URevolver_WeaponComponent::AltHellfireMode()
 	float FlameRadius = 300.0f; // Radius of the flame effect
 	float DamageAmount = 20.0f; // Damage dealt per tick
 
+	// Trigger the particle effect
 	if (AltHellfireParticle && Character)
 	{
 		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
@@ -486,36 +491,32 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		}
 	}
 
+	// Hellfire effect function
 	auto HellfireEffect = [this, FlameRadius, DamageAmount]()
-	{
+		{
 			if (Character)
 			{
-				// Get the forward direction and muzzle location
 				FVector ForwardVector = Character->GetControlRotation().Vector();
 				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
 
-				// Move the cylinder farther in front of the player
-				float DistanceFromPlayer = 500.0f; // Adjust this value to move the cylinder farther
-				FVector StartLocation = MuzzleLocation + (ForwardVector * DistanceFromPlayer); // Starting point of the cylinder
-				FVector EndLocation = StartLocation + (ForwardVector * 100.0f); // Length of the cylinder
+				float DistanceFromPlayer = 500.0f;
+				FVector StartLocation = MuzzleLocation + (ForwardVector * DistanceFromPlayer);
+				FVector EndLocation = StartLocation + (ForwardVector * 100.0f);
 
-				// Debug cylinder visualization
 				DrawDebugCylinder(
 					GetWorld(),
 					StartLocation,
 					EndLocation,
 					FlameRadius,
-					32, // Number of sides
+					32,
 					FColor::Red,
 					false,
-					0.1f // Duration of the debug cylinder (disappears after 0.1s)
+					0.1f
 				);
 
-				// Apply damage to actors within the flame radius
 				TArray<FHitResult> HitResults;
 				FCollisionShape FlameSphere = FCollisionShape::MakeSphere(FlameRadius);
 
-				// Query for all actors in the sphere
 				if (GetWorld()->SweepMultiByChannel(
 					HitResults,
 					StartLocation,
@@ -526,7 +527,7 @@ void URevolver_WeaponComponent::AltHellfireMode()
 				{
 					for (const FHitResult& Hit : HitResults)
 					{
-						if (Hit.GetActor() && Hit.GetActor() != Character) // Avoid damaging the player
+						if (Hit.GetActor() && Hit.GetActor() != Character)
 						{
 							UGameplayStatics::ApplyDamage(
 								Hit.GetActor(),
@@ -539,17 +540,17 @@ void URevolver_WeaponComponent::AltHellfireMode()
 					}
 				}
 			}
-	};
+		};
 
-	// Start the Hellfire effect and stop it after the duration
+	// Start the Hellfire effect
 	GetWorld()->GetTimerManager().SetTimer(
 		TimerHandle_HellfireEffect,
 		HellfireEffect,
-		0.1f, // Tick interval for the effect
+		0.1f,
 		true
 	);
 
-	// Stop the effect after the Hellfire duration
+	// Stop the Hellfire effect after HellfireDuration
 	GetWorld()->GetTimerManager().SetTimer(
 		TimerHandle_HellfireStop,
 		[this]()
@@ -557,19 +558,74 @@ void URevolver_WeaponComponent::AltHellfireMode()
 			GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HellfireEffect);
 		},
 		HellfireDuration,
-		false // Execute only once
+		false
 	);
 
-	// Set the cooldown timer
+	// Set the cooldown timer for AltHellfire
 	GetWorld()->GetTimerManager().SetTimer(
 		TimerHandle_AltHellfireCooldown,
 		[this]()
 		{
-			bCanFireAltHellfire = true;
+			bCanFireAltHellfire = true; // Reset AltHellfire to be used again
 		},
-		3.0f, // Cooldown duration
+		3.0f, // Cooldown duration for AltHellfire
 		false
-	); 
+	);
+
+	// Update AltHellfire cooldown progress bar to 0% when activated
+	if (RevolverHUD != nullptr)
+	{
+		RevolverHUD->UpdateAltHellfireCooldownProgress(0.0f); // Set to 0% immediately
+	}
+
+	// Start updating the progress for the cooldown (filling up to 100%)
+	GetWorld()->GetTimerManager().SetTimer(
+		TimerHandle_AltHellfireProgress,
+		this,
+		&URevolver_WeaponComponent::HandleHellfireAltCooldown,
+		0.01f, // Update the progress every 0.01 seconds
+		true
+	);
+}
+
+void URevolver_WeaponComponent::HandleGunslingerAltCooldown()
+{
+	if (RevolverHUD == nullptr) return;
+
+	// Update the progress bar
+	ElapsedTime += GetWorld()->GetDeltaSeconds();
+	float Progress = FMath::Clamp(ElapsedTime / CooldownDuration, 0.0f, 1.0f); // Progress from 0 to 1
+
+	// The progress bar should refill from 0 to 1, so update it accordingly
+	RevolverHUD->UpdateAltFireCooldownProgress(Progress); // Refill progress bar from 0 to 100%
+
+	// Once cooldown is complete, reset and allow AltFire again
+	if (Progress >= 1.0f)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(CooldownTimerHandle); // Clear the cooldown timer
+		bCanFireAltGunslinger = true; // Re-enable AltFire
+	}
+}
+
+void URevolver_WeaponComponent::HandleHellfireAltCooldown()
+{
+	if (RevolverHUD == nullptr) return;
+
+	// Increment elapsed time based on cooldown duration
+	ElapsedHellfireTime += GetWorld()->GetDeltaSeconds(); // Increment elapsed time
+
+	// Calculate the cooldown progress (0.0f = 0%, 1.0f = 100%)
+	float Progress = ElapsedHellfireTime / 3.0f; // Assuming cooldown duration is 3 seconds
+
+	// Update the cooldown progress bar (0% to 100%)
+	RevolverHUD->UpdateAltHellfireCooldownProgress(Progress);
+
+	// Once cooldown is done, stop updating the progress and reset the timer
+	if (Progress >= 1.0f)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfireProgress); // Stop progress updates
+		ElapsedHellfireTime = 0.0f; // Reset elapsed time
+	}
 }
 
 
