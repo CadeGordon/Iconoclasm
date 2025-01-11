@@ -75,6 +75,18 @@ void URevolver_WeaponComponent::SwitchFireMode()
 	if (RevolverHUD)
 	{
 		RevolverHUD->UpdateRevolverModeColor(static_cast<uint8>(CurrentWeaponMode));
+
+		// Update progress bar visibility based on the current mode
+		if (CurrentWeaponMode == ERevolverMode::RevolverMode1)
+		{
+			RevolverHUD->SetAltGunslingerCooldownVisibility(true);
+			RevolverHUD->SetAltHellfireCooldownVisibility(false);
+		}
+		else if (CurrentWeaponMode == ERevolverMode::RevolverMode2)
+		{
+			RevolverHUD->SetAltHellfireCooldownVisibility(true);
+			RevolverHUD->SetAltGunslingerCooldownVisibility(false);
+		}
 	}
 }
 

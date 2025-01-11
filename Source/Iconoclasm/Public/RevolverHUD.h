@@ -19,6 +19,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Revolver HUD")
 	void UpdateRevolverModeColor(uint8 Mode);
 
+	void NativeConstruct();
+
 	/** Show or hide the widget */
 	UFUNCTION(BlueprintCallable, Category = "Revolver HUD")
 	void SetVisibilityState(bool bIsVisible);
@@ -34,6 +36,10 @@ public:
 	// Function to update the AltHellfire cooldown progress bar
 	UFUNCTION(BlueprintCallable, Category = "RevolverHUD")
 	void UpdateAltHellfireCooldownProgress(float Progress);
+
+	void SetAltHellfireCooldownVisibility(bool bIsVisible);
+
+	void SetAltGunslingerCooldownVisibility(bool bIsVisible);
 
 	// Bindable progress bar for AltFire cooldown
 	UPROPERTY(meta = (BindWidget))

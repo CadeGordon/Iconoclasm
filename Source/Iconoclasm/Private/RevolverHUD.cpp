@@ -14,6 +14,21 @@ void URevolverHUD::UpdateRevolverModeColor(uint8 Mode)
 	}
 }
 
+void URevolverHUD::NativeConstruct()
+{
+	Super::NativeConstruct();
+
+	if (AltHellfireCooldownProgressBar)
+	{
+		AltHellfireCooldownProgressBar->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (AltFireCooldownBar)
+	{
+		AltFireCooldownBar->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
 void URevolverHUD::SetVisibilityState(bool bIsVisible)
 {
 	SetVisibility(bIsVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
@@ -34,3 +49,21 @@ void URevolverHUD::UpdateAltHellfireCooldownProgress(float Progress)
 		AltHellfireCooldownProgressBar->SetPercent(Progress); // Update the AltHellfire cooldown progress
 	}
 }
+
+void URevolverHUD::SetAltHellfireCooldownVisibility(bool bIsVisible)
+{
+	if (AltHellfireCooldownProgressBar)
+	{
+		AltHellfireCooldownProgressBar->SetVisibility(bIsVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+	}
+}
+
+void URevolverHUD::SetAltGunslingerCooldownVisibility(bool bIsVisible)
+{
+	if (AltFireCooldownBar)
+	{
+		AltFireCooldownBar->SetVisibility(bIsVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+	}
+}
+
+
