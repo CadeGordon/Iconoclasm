@@ -64,6 +64,8 @@ public:
 public:
 	virtual void BeginPlay() override;
 
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual void AttachWeapon(AIconoclasmCharacter* TargetCharacter);
@@ -95,6 +97,14 @@ protected:
 	UFUNCTION()
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+	// HUD class for the grenade launcher
+    UPROPERTY(EditDefaultsOnly, Category = "UI")
+    TSubclassOf<class UGLHUD> GLHUDClass;
+
+    // Instance of the HUD
+    UPROPERTY()
+    class UGLHUD* GLHUDInstance;
+
 private:
 	/** The Character holding this weapon*/
 	AIconoclasmCharacter* Character;
@@ -111,4 +121,6 @@ private:
 	void AltlifeBloodMode();
 	void ImpulseMode();
 	void AltImpulseMode();
+
+	void GetCooldownProgress(float LastFireTime, float CooldownDuration) const;
 };

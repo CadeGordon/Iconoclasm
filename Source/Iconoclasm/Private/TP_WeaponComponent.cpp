@@ -10,6 +10,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "GLHUD.h"
 
 // Sets default values for this component's properties
 UTP_WeaponComponent::UTP_WeaponComponent()
@@ -102,6 +103,27 @@ void UTP_WeaponComponent::SwitchFireMode()
 {
 	// Cycle through the weapon modes
 	CurrentWeaponMode = static_cast<EWeaponMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(EWeaponMode::Mode2) + 1));
+
+	// Map modes to colors
+	FLinearColor ModeColor;
+	switch (CurrentWeaponMode)
+	{
+	case EWeaponMode::Mode1:
+		ModeColor = FLinearColor::Red;  // Example: Mode1 = Red
+		break;
+	case EWeaponMode::Mode2:
+		ModeColor = FLinearColor::Blue; // Example: Mode2 = Blue
+		break;
+	default:
+		ModeColor = FLinearColor::White; // Default color
+		break;
+	}
+
+	// Notify the HUD
+	if (GLHUDInstance)
+	{
+		GLHUDInstance->UpdateImageColor(ModeColor);
+	}
 }
 
 void UTP_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
@@ -278,6 +300,13 @@ void UTP_WeaponComponent::DetachFromCharacter()
 		SetSimulatePhysics(false);
 		SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+		// Remove the HUD instance
+		if (GLHUDInstance)
+		{
+			GLHUDInstance->RemoveFromViewport();
+			GLHUDInstance = nullptr;
+		}
+
 		// Clear reference
 		Character = nullptr;
 	}
@@ -320,6 +349,20 @@ void UTP_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacter)
 			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::Fire);
 			EnhancedInputComponent->BindAction(AltFireAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::AltFire);
 			EnhancedInputComponent->BindAction(SwitchFireModeAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::SwitchFireMode);
+		}
+	}
+
+	if (GLHUDClass && !GLHUDInstance)
+	{
+		// Create the HUD instance
+		GLHUDInstance = CreateWidget<UGLHUD>(GetWorld(), GLHUDClass);
+		if (GLHUDInstance)
+		{
+			GLHUDInstance->AddToViewport();
+
+			// Set initial mode color
+			FLinearColor InitialColor = (CurrentWeaponMode == EWeaponMode::Mode1) ? FLinearColor::Red : FLinearColor::Blue;
+			GLHUDInstance->UpdateImageColor(InitialColor);
 		}
 	}
 }
@@ -483,4 +526,8 @@ void UTP_WeaponComponent::AltImpulseMode()
 			AnimInstance->Montage_Play(FireAnimation, 1.f);
 		}
 	}
+}
+
+void UTP_WeaponComponent::GetCooldownProgress(float LastFireTime, float CooldownDuration) const
+{
 }
