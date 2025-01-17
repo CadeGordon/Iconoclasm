@@ -19,6 +19,20 @@ public:
     UFUNCTION(BlueprintCallable, Category = "UI")
     void UpdateImageColor(FLinearColor NewColor);
 
+    // Update progress bar for AltLifeBloodMode
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void UpdateAltLifeBloodCooldownProgress(float Progress);
+
+    // Update progress bar for AltImpulseMode
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void UpdateAltImpulseCooldownProgress(float Progress);
+
+    void SetAltLifeBloodModeActive(bool bIsActive);
+
+    void SetAltImpulseModeActive(bool bIsActive);
+
+
+
 protected:
     // Reference to the image widget in the UI
     UPROPERTY(meta = (BindWidget))
@@ -28,6 +42,13 @@ protected:
     // Reference to the image widget in the UI
     UPROPERTY(meta = (BindWidget))
     class UImage* Crosshair;
+
+    // References to the progress bars
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* AltLifeBloodProgressBar;
+
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* AltImpulseProgressBar;
 
     
 };

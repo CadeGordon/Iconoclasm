@@ -123,4 +123,6 @@ private:
 	void AltImpulseMode();
 
 	void GetCooldownProgress(float LastFireTime, float CooldownDuration) const;
+
+	void UpdateCooldowns();
 };

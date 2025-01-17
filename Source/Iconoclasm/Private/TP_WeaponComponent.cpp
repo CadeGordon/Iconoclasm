@@ -26,6 +26,14 @@ void UTP_WeaponComponent::BeginPlay()
 	Character = Cast<AIconoclasmCharacter>(GetOwner());
 }
 
+void UTP_WeaponComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Update HUD cooldown progress
+	UpdateCooldowns();
+}
+
 void UTP_WeaponComponent::Fire()
 {
 	if (Character == nullptr || Character->GetController() == nullptr)
@@ -530,4 +538,46 @@ void UTP_WeaponComponent::AltImpulseMode()
 
 void UTP_WeaponComponent::GetCooldownProgress(float LastFireTime, float CooldownDuration) const
 {
+}
+
+void UTP_WeaponComponent::UpdateCooldowns()
+{
+	if (GLHUDInstance)
+	{
+		float CurrentTime = GetWorld()->GetTimeSeconds();
+
+		// Determine the currently active mode
+		switch (CurrentWeaponMode)
+		{
+		case EWeaponMode::Mode1: // AltLifeBloodMode
+		{
+			float AltLifeBloodProgress = 1.0f;
+			if (CurrentTime < LastAltLifeBloodModeTime)
+			{
+				AltLifeBloodProgress = FMath::Clamp(1.0f - ((LastAltLifeBloodModeTime - CurrentTime) / AltLifeBloodCooldown), 0.0f, 1.0f);
+			}
+			GLHUDInstance->SetAltLifeBloodModeActive(true);
+			GLHUDInstance->SetAltImpulseModeActive(false);
+			GLHUDInstance->UpdateAltLifeBloodCooldownProgress(AltLifeBloodProgress);
+			break;
+		}
+		case EWeaponMode::Mode2: // AltImpulseMode
+		{
+			float AltImpulseProgress = 1.0f;
+			if (CurrentTime < LastAltImpulseModeTime)
+			{
+				AltImpulseProgress = FMath::Clamp(1.0f - ((LastAltImpulseModeTime - CurrentTime) / AltImpulseCooldown), 0.0f, 1.0f);
+			}
+			GLHUDInstance->SetAltLifeBloodModeActive(false);
+			GLHUDInstance->SetAltImpulseModeActive(true);
+			GLHUDInstance->UpdateAltImpulseCooldownProgress(AltImpulseProgress);
+			break;
+		}
+		default:
+			// Hide both progress bars for unhandled modes
+			GLHUDInstance->SetAltLifeBloodModeActive(false);
+			GLHUDInstance->SetAltImpulseModeActive(false);
+			break;
+		}
+	}
 }
