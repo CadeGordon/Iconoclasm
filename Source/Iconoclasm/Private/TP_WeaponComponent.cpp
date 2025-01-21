@@ -311,7 +311,7 @@ void UTP_WeaponComponent::DetachFromCharacter()
 		// Remove the HUD instance
 		if (GLHUDInstance)
 		{
-			GLHUDInstance->RemoveFromViewport();
+			GLHUDInstance->RemoveFromParent();
 			GLHUDInstance = nullptr;
 		}
 

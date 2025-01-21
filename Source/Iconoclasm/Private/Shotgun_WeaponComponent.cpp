@@ -63,6 +63,26 @@ void UShotgun_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacte
 			EnhancedInputComponent->BindAction(SwitchFireModeAction, ETriggerEvent::Triggered, this, &UShotgun_WeaponComponent::SwitchFireMode);
 		}
 	}
+
+	if (ShotgunHUDClass)
+	{
+		ShotgunHUDInstance = CreateWidget<UShotgunHUD>(Character->GetWorld(), ShotgunHUDClass);
+		if (ShotgunHUDInstance)
+		{
+			ShotgunHUDInstance->AddToViewport();
+			ShotgunHUDInstance->SetActive(true);
+
+			// Update HUD to reflect the current mode
+			if (CurrentWeaponMode == EShotgunMode::ShotgunMode1)
+			{
+				ShotgunHUDInstance->UpdateMode(true); // Red
+			}
+			else if (CurrentWeaponMode == EShotgunMode::ShotgunMode2)
+			{
+				ShotgunHUDInstance->UpdateMode(false); // Blue
+			}
+		}
+	}
 }
 
 void UShotgun_WeaponComponent::Fire()
@@ -109,6 +129,14 @@ void UShotgun_WeaponComponent::SwitchFireMode()
 {
 	// Cycle through the weapon modes
 	CurrentWeaponMode = static_cast<EShotgunMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(EShotgunMode::ShotgunMode2) + 1));
+
+	// Update the HUD based on the new mode
+	if (ShotgunHUDInstance)
+	{
+		// Assuming ShotgunMode1 corresponds to "Red" and ShotgunMode2 to "Blue"
+		bool bIsRedMode = (CurrentWeaponMode == EShotgunMode::ShotgunMode1);
+		ShotgunHUDInstance->UpdateMode(bIsRedMode);
+	}
 }
 
 void UShotgun_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
@@ -242,6 +270,13 @@ void UShotgun_WeaponComponent::DetachFromCharacter()
 		SetVisibility(false, true);
 		SetSimulatePhysics(false);
 		SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		if (ShotgunHUDInstance)
+		{
+			ShotgunHUDInstance->SetActive(false);
+			ShotgunHUDInstance->RemoveFromViewport();
+			ShotgunHUDInstance = nullptr;
+		}
 
 		// Clear reference
 		Character = nullptr;

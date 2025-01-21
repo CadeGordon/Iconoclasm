@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "TP_WeaponComponent.h"
 #include "HealthComponent.h"
+#include "ShotgunHUD.h"
 #include "Shotgun_WeaponComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -57,6 +58,13 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+
+
+	UPROPERTY(EditDefaultsOnly, Category = "HUD")
+	TSubclassOf<UShotgunHUD> ShotgunHUDClass;
+
+	UShotgunHUD* ShotgunHUDInstance;
+
 	/** The Character holding this weapon*/
 	AIconoclasmCharacter* Character;
 
