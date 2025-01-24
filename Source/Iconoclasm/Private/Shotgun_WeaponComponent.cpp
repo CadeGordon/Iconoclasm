@@ -64,6 +64,8 @@ void UShotgun_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharacte
 		}
 	}
 
+	
+
 	if (ShotgunHUDClass)
 	{
 		ShotgunHUDInstance = CreateWidget<UShotgunHUD>(Character->GetWorld(), ShotgunHUDClass);
@@ -137,6 +139,21 @@ void UShotgun_WeaponComponent::SwitchFireMode()
 		bool bIsRedMode = (CurrentWeaponMode == EShotgunMode::ShotgunMode1);
 		ShotgunHUDInstance->UpdateMode(bIsRedMode);
 	}
+
+	// Update HUD to show the correct progress bar
+	if (ShotgunHUDInstance)
+	{
+		if (CurrentWeaponMode == EShotgunMode::ShotgunMode1)
+		{
+			ShotgunHUDInstance->ShowAltTimeWarpProgressBar();
+		}
+		else if (CurrentWeaponMode == EShotgunMode::ShotgunMode2)
+		{
+			ShotgunHUDInstance->ShowAltDefconProgressBar();
+		}
+	}
+
+
 }
 
 void UShotgun_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
@@ -434,6 +451,21 @@ void UShotgun_WeaponComponent::AltTimeWarpMode()
 			UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
 		}
 
+		if (AltTimeWarpProgress >= 1.0f)
+		{
+			// Activate the mode
+			AltTimeWarpProgress = 0.0f;
+			GetWorld()->GetTimerManager().SetTimer(
+				AltTimeWarpTimerHandle, this, &UShotgun_WeaponComponent::UpdateCooldowns, 0.1f, true);
+
+			// Show TimeWarp progress bar
+			if (ShotgunHUDInstance)
+			{
+				ShotgunHUDInstance->ShowAltTimeWarpProgressBar();
+				ShotgunHUDInstance->UpdateCooldown(0.0f);
+			}
+		}
+
 		// Set cooldown
 		bCanUseAltTimeWarp = false;
 		GetWorld()->GetTimerManager().SetTimer(
@@ -546,6 +578,8 @@ void UShotgun_WeaponComponent::AltDefconMode()
 		return;
 	}
 
+
+
 	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
 	if (PlayerController)
 	{
@@ -619,6 +653,21 @@ void UShotgun_WeaponComponent::AltDefconMode()
 			}
 		}
 
+		if (AltDefconProgress >= 1.0f)
+		{
+			// Activate the mode
+			AltDefconProgress = 0.0f;
+			GetWorld()->GetTimerManager().SetTimer(
+				AltDefconTimerHandle, this, &UShotgun_WeaponComponent::UpdateCooldowns, 0.1f, true);
+
+			// Show Defcon progress bar
+			if (ShotgunHUDInstance)
+			{
+				ShotgunHUDInstance->ShowAltDefconProgressBar();
+				ShotgunHUDInstance->UpdateCooldown(0.0f);
+			}
+		}
+
 		// Set cooldown
 		bCanUseAltDefcon = false;
 		GetWorld()->GetTimerManager().SetTimer(
@@ -626,5 +675,38 @@ void UShotgun_WeaponComponent::AltDefconMode()
 			[this]() { bCanUseAltDefcon = true; },
 			AltDefconCooldownDuration,
 			false);
+	}
+}
+
+void UShotgun_WeaponComponent::UpdateCooldowns()
+{
+	// Update AltTimeWarp progress
+	if (AltTimeWarpProgress < 1.0f && CurrentWeaponMode == EShotgunMode::ShotgunMode1)
+	{
+		AltTimeWarpProgress += 0.1f / AltTimeWarpCooldown;
+		if (ShotgunHUDInstance)
+		{
+			ShotgunHUDInstance->UpdateCooldown(AltTimeWarpProgress);
+		}
+		if (AltTimeWarpProgress >= 1.0f)
+		{
+			AltTimeWarpProgress = 1.0f;
+			GetWorld()->GetTimerManager().ClearTimer(AltTimeWarpTimerHandle);
+		}
+	}
+
+	// Update AltDefcon progress
+	if (AltDefconProgress < 1.0f && CurrentWeaponMode == EShotgunMode::ShotgunMode2)
+	{
+		AltDefconProgress += 0.1f / AltDefconCooldown;
+		if (ShotgunHUDInstance)
+		{
+			ShotgunHUDInstance->UpdateCooldown(AltDefconProgress);
+		}
+		if (AltDefconProgress >= 1.0f)
+		{
+			AltDefconProgress = 1.0f;
+			GetWorld()->GetTimerManager().ClearTimer(AltDefconTimerHandle);
+		}
 	}
 }
