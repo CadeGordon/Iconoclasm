@@ -17,6 +17,7 @@
 #include "TP_WeaponComponent.h"
 #include "DashHUD.h"
 #include "Components/ProgressBar.h"
+#include "WheelHUD.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -69,6 +70,49 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	ProgressInterpSpeed = 5.0f; // Adjust this for smoother or faster interpolation
 }
 
+void AIconoclasmCharacter::ToggleWeaponWheel()
+{
+	if (WeaponWheelWidget)
+	{
+		bool bIsVisible = WeaponWheelWidget->GetVisibility() == ESlateVisibility::Visible;
+		WeaponWheelWidget->SetVisibility(bIsVisible ? ESlateVisibility::Hidden : ESlateVisibility::Visible);
+
+		// Show or hide mouse cursor based on the weapon wheel's visibility
+		APlayerController* PlayerController = Cast<APlayerController>(GetController());
+		if (PlayerController)
+		{
+			if (bIsVisible)
+			{
+				// Hide the cursor and return to game input mode when weapon wheel is hidden
+				PlayerController->SetShowMouseCursor(false);
+				PlayerController->SetInputMode(FInputModeGameOnly());
+			}
+			else
+			{
+				// Show the cursor and switch to UI input mode when weapon wheel is visible
+				PlayerController->SetShowMouseCursor(true);
+				PlayerController->SetInputMode(FInputModeUIOnly());
+			}
+		}
+	}
+}
+
+void AIconoclasmCharacter::DisableWeaponWheel()
+{
+	if (WeaponWheelWidget)
+	{
+		WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);
+
+		// Ensure the cursor is hidden and game input mode is restored
+		APlayerController* PlayerController = Cast<APlayerController>(GetController());
+		if (PlayerController)
+		{
+			PlayerController->SetShowMouseCursor(false);
+			PlayerController->SetInputMode(FInputModeGameOnly());
+		}
+	}
+}
+
 void AIconoclasmCharacter::BeginPlay()
 {
 	// Call the base class  
@@ -107,6 +151,17 @@ void AIconoclasmCharacter::BeginPlay()
 		}
 	}
 	
+	if (WeaponWheelWidgetClass)
+	{
+		// Create and add the widget to the viewport
+		WeaponWheelWidget = CreateWidget<UWheelHUD>(GetWorld(), WeaponWheelWidgetClass);
+
+		if (WeaponWheelWidget)
+		{
+			WeaponWheelWidget->AddToViewport();
+			WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);  // Initially hidden
+		}
+	}
 
 }
 
@@ -165,6 +220,10 @@ void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		EnhancedInputComponent->BindAction(CycleWeaponAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::CycleWeapon);
 
 		EnhancedInputComponent->BindAction(MeleeAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::PerformMelee);
+
+		EnhancedInputComponent->BindAction(WheelAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::ToggleWeaponWheel);
+		//EnhancedInputComponent->BindAction(DisableWheelAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::DisableWeaponWheel);
+
 	}
 	else
 	{

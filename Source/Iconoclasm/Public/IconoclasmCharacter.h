@@ -54,9 +54,26 @@ class AIconoclasmCharacter : public ACharacter
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* MeleeAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* WheelAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* DisableWheelAction;
 	
 public:
 	AIconoclasmCharacter();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UUserWidget> WeaponWheelWidgetClass;
+
+	UPROPERTY()
+	class UWheelHUD* WeaponWheelWidget;
+
+	void ToggleWeaponWheel();
+
+	// New function to disable the weapon wheel
+	void DisableWeaponWheel();
 
 protected:
 	virtual void BeginPlay();
@@ -147,7 +164,7 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
-protected:
+public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	int32 JumpCount;
