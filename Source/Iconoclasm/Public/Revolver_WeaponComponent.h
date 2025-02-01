@@ -59,7 +59,7 @@ public:
 	UNiagaraComponent* NiagaraComp;
 
 	UPROPERTY()
-	URevolverHUD* RevolverHUD;
+	class URevolverHUD* RevolverHUD;
 
 	// Dash HUD reference
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")

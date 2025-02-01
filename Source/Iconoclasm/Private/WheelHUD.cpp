@@ -12,32 +12,51 @@ void UWheelHUD::NativeConstruct()
 {
     Super::NativeConstruct();
 
-    PlayerCharacter = Cast<AIconoclasmCharacter>(GetOwningPlayerPawn());
-
-    /*if (WeaponButton1)
+    if (RevolverButton)
     {
-        WeaponButton1->OnClicked.AddDynamic(this, &UWheelHUD::EquipRevolver);
-    }*/
+        RevolverButton->OnClicked.AddDynamic(this, &UWheelHUD::OnRevolverButtonClicked);
+    }
+
+    if (ShotgunButton)
+    {
+        ShotgunButton->OnClicked.AddDynamic(this, &UWheelHUD::OnShotgunButtonClicked);
+    }
+
+    if (GrenadeLauncherButton)
+    {
+        GrenadeLauncherButton->OnClicked.AddDynamic(this, &UWheelHUD::OnGrenadeLauncherButtonClicked);
+    }
+
+    // Assuming your player character has a reference to the weapon wheel widget
+    PlayerCharacter = Cast<AIconoclasmCharacter>(GetOwningPlayerPawn());
 }
 
-void UWheelHUD::EquipRevolver()
+void UWheelHUD::OnRevolverButtonClicked()
 {
-    if (PlayerCharacter && RevolverComponent)
+    UE_LOG(LogTemp, Warning, TEXT("Revolver Button Pressed"));
+
+    DisableWheel();
+}
+
+void UWheelHUD::OnShotgunButtonClicked()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Shotgun Button Pressed"));
+
+    DisableWheel();
+}
+
+void UWheelHUD::OnGrenadeLauncherButtonClicked()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Grenade Launcher Button Pressed"));
+
+    DisableWheel();
+}
+
+void UWheelHUD::DisableWheel()
+{
+    if (PlayerCharacter)
     {
-        if (PlayerCharacter->WeaponInventory.Contains(RevolverComponent))
-        {
-            int32 WeaponIndex = PlayerCharacter->WeaponInventory.Find(RevolverComponent);
-            if (WeaponIndex != INDEX_NONE)
-            {
-                // Update CurrentWeaponIndex to switch to the revolver
-                PlayerCharacter->CurrentWeaponIndex = WeaponIndex;
-                PlayerCharacter->EquipWeapon(RevolverComponent);
-                UE_LOG(LogTemp, Warning, TEXT("Switched to revolver: %s"), *RevolverComponent->GetName());
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Revolver not in inventory, cannot equip."));
-        }
+        // Hide the weapon wheel
+        PlayerCharacter->DisableWeaponWheel();
     }
 }

@@ -72,44 +72,44 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 
 void AIconoclasmCharacter::ToggleWeaponWheel()
 {
-	if (WeaponWheelWidget)
-	{
-		bool bIsVisible = WeaponWheelWidget->GetVisibility() == ESlateVisibility::Visible;
-		WeaponWheelWidget->SetVisibility(bIsVisible ? ESlateVisibility::Hidden : ESlateVisibility::Visible);
+	if (!WeaponWheelWidget) return; // Ensure Widget exists before proceeding
 
-		// Show or hide mouse cursor based on the weapon wheel's visibility
-		APlayerController* PlayerController = Cast<APlayerController>(GetController());
-		if (PlayerController)
+	bool bIsVisible = WeaponWheelWidget->GetVisibility() == ESlateVisibility::Visible;
+	WeaponWheelWidget->SetVisibility(bIsVisible ? ESlateVisibility::Hidden : ESlateVisibility::Visible);
+
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	if (PlayerController)
+	{
+		if (bIsVisible)
 		{
-			if (bIsVisible)
-			{
-				// Hide the cursor and return to game input mode when weapon wheel is hidden
-				PlayerController->SetShowMouseCursor(false);
-				PlayerController->SetInputMode(FInputModeGameOnly());
-			}
-			else
-			{
-				// Show the cursor and switch to UI input mode when weapon wheel is visible
-				PlayerController->SetShowMouseCursor(true);
-				PlayerController->SetInputMode(FInputModeUIOnly());
-			}
+			// Hide the cursor and return to game input mode when weapon wheel is hidden
+			PlayerController->SetShowMouseCursor(false);
+			PlayerController->SetInputMode(FInputModeGameOnly());
+		}
+		else
+		{
+			// Show the cursor and switch to UI input mode when weapon wheel is visible
+			PlayerController->SetShowMouseCursor(true);
+			FInputModeGameAndUI InputMode;
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			InputMode.SetWidgetToFocus(WeaponWheelWidget->TakeWidget()); // Ensure focus on UI
+			PlayerController->SetInputMode(InputMode);
 		}
 	}
 }
 
 void AIconoclasmCharacter::DisableWeaponWheel()
 {
-	if (WeaponWheelWidget)
-	{
-		WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (!WeaponWheelWidget) return; // Ensure Widget exists before proceeding
 
-		// Ensure the cursor is hidden and game input mode is restored
-		APlayerController* PlayerController = Cast<APlayerController>(GetController());
-		if (PlayerController)
-		{
-			PlayerController->SetShowMouseCursor(false);
-			PlayerController->SetInputMode(FInputModeGameOnly());
-		}
+	// Instead of removing from viewport, just hide it
+	WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (PlayerController)
+	{
+		PlayerController->SetShowMouseCursor(false);
+		PlayerController->SetInputMode(FInputModeGameOnly());
 	}
 }
 

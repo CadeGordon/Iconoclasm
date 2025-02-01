@@ -18,17 +18,25 @@ public:
 
     virtual void NativeConstruct() override;
 
-    UFUNCTION(BlueprintCallable, Category = "Weapon Wheel")
-    void EquipRevolver();
+    UFUNCTION()
+    void OnRevolverButtonClicked();
+
+    UFUNCTION()
+    void OnShotgunButtonClicked();
+
+    UFUNCTION()
+    void OnGrenadeLauncherButtonClicked();
+
+    void DisableWheel();
 
     UPROPERTY(meta = (BindWidget))
-    class UButton* WeaponButton1;
+    class UButton* RevolverButton;
 
     UPROPERTY(meta = (BindWidget))
-    class UButton* WeaponButton2;
+    class UButton* ShotgunButton;
 
     UPROPERTY(meta = (BindWidget))
-    class UButton* WeaponButton3;
+    class UButton* GrenadeLauncherButton;
 
 private:
 
