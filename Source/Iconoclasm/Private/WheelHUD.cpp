@@ -27,12 +27,20 @@ void UWheelHUD::NativeConstruct()
         GrenadeLauncherButton->OnClicked.AddDynamic(this, &UWheelHUD::OnGrenadeLauncherButtonClicked);
     }
 
+    bIsFocusable = true;
+
     // Assuming your player character has a reference to the weapon wheel widget
     PlayerCharacter = Cast<AIconoclasmCharacter>(GetOwningPlayerPawn());
 }
 
 void UWheelHUD::OnRevolverButtonClicked()
 {
+    AIconoclasmCharacter* PlayerCharacterRef = Cast<AIconoclasmCharacter>(GetOwningPlayerPawn());
+    if (PlayerCharacterRef)
+    {
+        PlayerCharacterRef->EquipRevolver();
+    }
+
     UE_LOG(LogTemp, Warning, TEXT("Revolver Button Pressed"));
 
     DisableWheel();

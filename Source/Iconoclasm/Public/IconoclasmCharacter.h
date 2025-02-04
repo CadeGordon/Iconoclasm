@@ -70,6 +70,8 @@ public:
 	UPROPERTY()
 	class UWheelHUD* WeaponWheelWidget;
 
+	void EquipRevolver();
+
 	void ToggleWeaponWheel();
 
 	// New function to disable the weapon wheel

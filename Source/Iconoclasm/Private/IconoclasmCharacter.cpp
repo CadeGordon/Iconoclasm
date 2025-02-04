@@ -17,6 +17,7 @@
 #include "TP_WeaponComponent.h"
 #include "DashHUD.h"
 #include "Components/ProgressBar.h"
+#include "Revolver_WeaponComponent.h"
 #include "WheelHUD.h"
 
 
@@ -70,46 +71,80 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	ProgressInterpSpeed = 5.0f; // Adjust this for smoother or faster interpolation
 }
 
+void AIconoclasmCharacter::EquipRevolver()
+{
+	for (int32 i = 0; i < WeaponInventory.Num(); i++)
+	{
+		if (WeaponInventory[i] && WeaponInventory[i]->IsA(URevolver_WeaponComponent::StaticClass()))
+		{
+			// Detach the current weapon if any
+			if (HasWeaponEquipped())
+			{
+				WeaponInventory[CurrentWeaponIndex]->DetachFromCharacter();
+			}
+
+			// Equip the revolver
+			CurrentWeaponIndex = i;
+			WeaponInventory[i]->AttachWeapon(this);
+			UE_LOG(LogTemp, Warning, TEXT("Revolver equipped!"));
+
+			// Close the weapon wheel after selection
+			DisableWeaponWheel();
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Revolver not found in inventory!"));
+}
+
 void AIconoclasmCharacter::ToggleWeaponWheel()
 {
-	if (!WeaponWheelWidget) return; // Ensure Widget exists before proceeding
-
-	bool bIsVisible = WeaponWheelWidget->GetVisibility() == ESlateVisibility::Visible;
-	WeaponWheelWidget->SetVisibility(bIsVisible ? ESlateVisibility::Hidden : ESlateVisibility::Visible);
-
-	APlayerController* PlayerController = Cast<APlayerController>(GetController());
-	if (PlayerController)
+	if (WeaponWheelWidget)
 	{
+		APlayerController* PlayerController = Cast<APlayerController>(GetController());
+		if (!PlayerController) return;
+
+		bool bIsVisible = WeaponWheelWidget->GetVisibility() == ESlateVisibility::Visible;
+
 		if (bIsVisible)
 		{
-			// Hide the cursor and return to game input mode when weapon wheel is hidden
+			// Hide Weapon Wheel
+			WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);
+
+			// Restore player control
 			PlayerController->SetShowMouseCursor(false);
 			PlayerController->SetInputMode(FInputModeGameOnly());
 		}
 		else
 		{
-			// Show the cursor and switch to UI input mode when weapon wheel is visible
-			PlayerController->SetShowMouseCursor(true);
-			FInputModeGameAndUI InputMode;
-			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-			InputMode.SetWidgetToFocus(WeaponWheelWidget->TakeWidget()); // Ensure focus on UI
+			// Show Weapon Wheel
+			WeaponWheelWidget->SetVisibility(ESlateVisibility::Visible);
+
+			// Set UI mode to focus on the Weapon Wheel
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(WeaponWheelWidget->TakeWidget());
 			PlayerController->SetInputMode(InputMode);
+
+			// Ensure mouse cursor is visible and the UI has focus
+			PlayerController->SetShowMouseCursor(true);
+			WeaponWheelWidget->SetKeyboardFocus();
 		}
 	}
 }
 
 void AIconoclasmCharacter::DisableWeaponWheel()
 {
-	if (!WeaponWheelWidget) return; // Ensure Widget exists before proceeding
-
-	// Instead of removing from viewport, just hide it
-	WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);
-
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (PlayerController)
+	if (WeaponWheelWidget)
 	{
-		PlayerController->SetShowMouseCursor(false);
-		PlayerController->SetInputMode(FInputModeGameOnly());
+		WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);
+
+		// Restore player input controls
+		APlayerController* PlayerController = Cast<APlayerController>(GetController());
+		if (PlayerController)
+		{
+			PlayerController->SetShowMouseCursor(false);
+			PlayerController->SetInputMode(FInputModeGameOnly());
+		}
 	}
 }
 
@@ -158,7 +193,7 @@ void AIconoclasmCharacter::BeginPlay()
 
 		if (WeaponWheelWidget)
 		{
-			WeaponWheelWidget->AddToViewport();
+			WeaponWheelWidget->AddToViewport(100);
 			WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);  // Initially hidden
 		}
 	}
