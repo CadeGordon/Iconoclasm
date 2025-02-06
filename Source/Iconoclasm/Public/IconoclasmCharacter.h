@@ -72,6 +72,10 @@ public:
 
 	void EquipRevolver();
 
+	void EquipShotgun();
+
+	void EquipGrenadeLauncher();
+
 	void ToggleWeaponWheel();
 
 	// New function to disable the weapon wheel

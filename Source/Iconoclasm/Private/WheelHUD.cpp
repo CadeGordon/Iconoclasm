@@ -50,12 +50,24 @@ void UWheelHUD::OnShotgunButtonClicked()
 {
     UE_LOG(LogTemp, Warning, TEXT("Shotgun Button Pressed"));
 
+    AIconoclasmCharacter* PlayerCharacterRef = Cast<AIconoclasmCharacter>(GetOwningPlayerPawn());
+    if (PlayerCharacterRef)
+    {
+        PlayerCharacterRef->EquipShotgun();
+    }
+
     DisableWheel();
 }
 
 void UWheelHUD::OnGrenadeLauncherButtonClicked()
 {
     UE_LOG(LogTemp, Warning, TEXT("Grenade Launcher Button Pressed"));
+
+    AIconoclasmCharacter* PlayerCharacterRef = Cast<AIconoclasmCharacter>(GetOwningPlayerPawn());
+    if (PlayerCharacterRef)
+    {
+        PlayerCharacterRef->EquipGrenadeLauncher();
+    }
 
     DisableWheel();
 }

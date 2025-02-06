@@ -18,6 +18,7 @@
 #include "DashHUD.h"
 #include "Components/ProgressBar.h"
 #include "Revolver_WeaponComponent.h"
+#include "Shotgun_WeaponComponent.h"
 #include "WheelHUD.h"
 
 
@@ -95,6 +96,58 @@ void AIconoclasmCharacter::EquipRevolver()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Revolver not found in inventory!"));
+}
+
+void AIconoclasmCharacter::EquipShotgun()
+{
+	for (int32 i = 0; i < WeaponInventory.Num(); i++)
+	{
+		if (WeaponInventory[i] && WeaponInventory[i]->IsA(UShotgun_WeaponComponent::StaticClass()))
+		{
+			// Detach the current weapon if any
+			if (HasWeaponEquipped())
+			{
+				WeaponInventory[CurrentWeaponIndex]->DetachFromCharacter();
+			}
+
+			// Equip the shotgun
+			CurrentWeaponIndex = i;
+			WeaponInventory[i]->AttachWeapon(this);
+			UE_LOG(LogTemp, Warning, TEXT("Shotgun equipped!"));
+
+			// Close the weapon wheel after selection
+			DisableWeaponWheel();
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Shotgun not found in inventory!"));
+}
+
+void AIconoclasmCharacter::EquipGrenadeLauncher()
+{
+	for (int32 i = 0; i < WeaponInventory.Num(); i++)
+	{
+		if (WeaponInventory[i] && WeaponInventory[i]->IsA(UTP_WeaponComponent::StaticClass()))
+		{
+			// Detach the current weapon if any
+			if (HasWeaponEquipped())
+			{
+				WeaponInventory[CurrentWeaponIndex]->DetachFromCharacter();
+			}
+
+			// Equip the grenade launcher
+			CurrentWeaponIndex = i;
+			WeaponInventory[i]->AttachWeapon(this);
+			UE_LOG(LogTemp, Warning, TEXT("Grenade Launcher equipped!"));
+
+			// Close the weapon wheel after selection
+			DisableWeaponWheel();
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Grenade Launcher not found in inventory!"));
 }
 
 void AIconoclasmCharacter::ToggleWeaponWheel()
