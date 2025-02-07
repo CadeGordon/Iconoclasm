@@ -257,6 +257,13 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+
+	// Check if the player is on the ground
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		LastSafeLocation = GetActorLocation();
+	}
+
 	if (IsSliding) {
 
 		UpdateSlide();
@@ -643,6 +650,9 @@ bool AIconoclasmCharacter::HasWeaponEquipped() const
 
 void AIconoclasmCharacter::PerformMelee()
 {
+
+	float MeleeDamage = 20.0f;
+
 	// Get the start and end points of the trace
 	FVector Start = FirstPersonCameraComponent->GetComponentLocation();
 	FVector ForwardVector = FirstPersonCameraComponent->GetForwardVector();
@@ -671,6 +681,22 @@ void AIconoclasmCharacter::PerformMelee()
 			{
 				FVector KnockbackDirection = (HitResult.ImpactPoint - Start).GetSafeNormal();
 				HitComponent->AddImpulse(KnockbackDirection * KnockbackStrength, NAME_None, true);
+			}
+
+			// Apply damage to the hit actor
+			UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, UDamageType::StaticClass());
+
+			// Check if the hit actor has a health component
+			UHealthComponent* EnemyHealthComp = HitActor->FindComponentByClass<UHealthComponent>();
+			if (EnemyHealthComp)
+			{
+				// Heal the player by a fraction of the melee damage
+				UHealthComponent* PlayerHealthComp = FindComponentByClass<UHealthComponent>();
+				if (PlayerHealthComp)
+				{
+					float HealAmount = MeleeDamage * 0.5f; // Heal 50% of the melee damage dealt
+					PlayerHealthComp->Heal(HealAmount);
+				}
 			}
 
 			// Log the hit
