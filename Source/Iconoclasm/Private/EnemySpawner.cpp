@@ -67,9 +67,16 @@ void AEnemySpawner::SpawnEnemies()
 
     for (int32 i = 0; i < SpawnPoints.Num(); ++i)
     {
-        if (i >= EnemyTypes.Num() || i >= EnemyCounts.Num() || !SpawnPoints[i])
+        if (!EnemyTypes.IsValidIndex(i) || !SpawnPoints.IsValidIndex(i) || !SpawnPoints[i])
         {
-            UE_LOG(LogTemp, Error, TEXT("Invalid spawn point or enemy configuration at index: %d"), i);
+            UE_LOG(LogTemp, Error, TEXT("Invalid spawn data at index: %d"), i);
+            continue;
+        }
+
+        UClass* EnemyClass = EnemyTypes[i];
+        if (!EnemyClass)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Enemy class at index %d is NULL!"), i);
             continue;
         }
 
@@ -77,41 +84,19 @@ void AEnemySpawner::SpawnEnemies()
 
         for (int32 j = 0; j < SpawnCount; ++j)
         {
-            FVector SpawnLocation = SpawnPoints[i]->GetActorLocation(); // Get location from the spawn point
+            FVector SpawnLocation = SpawnPoints[i]->GetActorLocation();
             FActorSpawnParameters SpawnParams;
-            SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-            // Spawn the enemy
-            AActor* SpawnedEnemy = GetWorld()->SpawnActor<AActor>(EnemyTypes[i], SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+            AActor* SpawnedEnemy = GetWorld()->SpawnActor<AActor>(EnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 
-            if (SpawnedEnemy)
+            if (!SpawnedEnemy)
             {
-                UE_LOG(LogTemp, Warning, TEXT("Successfully spawned: %s"), *SpawnedEnemy->GetName());
+                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy at index %d!"), i);
+                continue;
+            }
 
-                // Possess the enemy with the correct AI controller
-                if (SpawnedEnemy->IsA(AGruntEnemyCharacter::StaticClass()))
-                {
-                    AGruntAIController* AIController = GetWorld()->SpawnActor<AGruntAIController>(AGruntAIController::StaticClass());
-                    if (AIController)
-                    {
-                        AIController->Possess(Cast<AGruntEnemyCharacter>(SpawnedEnemy));
-                        UE_LOG(LogTemp, Warning, TEXT("Grunt AIController possessed: %s"), *SpawnedEnemy->GetName());
-                    }
-                }
-                else if (SpawnedEnemy->IsA(AFlyingEnemyCharacter::StaticClass()))
-                {
-                    AFlyingAIController* FlyingAIController = GetWorld()->SpawnActor<AFlyingAIController>(AFlyingAIController::StaticClass());
-                    if (FlyingAIController)
-                    {
-                        FlyingAIController->Possess(Cast<AFlyingEnemyCharacter>(SpawnedEnemy));
-                        UE_LOG(LogTemp, Warning, TEXT("Flying AIController possessed: %s"), *SpawnedEnemy->GetName());
-                    }
-                }
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy at location: %s"), *SpawnLocation.ToString());
-            }
+            UE_LOG(LogTemp, Warning, TEXT("Successfully spawned: %s"), *SpawnedEnemy->GetName());
         }
     }
 }
