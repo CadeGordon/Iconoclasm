@@ -246,7 +246,7 @@ void AIconoclasmCharacter::BeginPlay()
 
 		if (WeaponWheelWidget)
 		{
-			WeaponWheelWidget->AddToViewport(100);
+			WeaponWheelWidget->AddToViewport(0);
 			WeaponWheelWidget->SetVisibility(ESlateVisibility::Hidden);  // Initially hidden
 		}
 	}

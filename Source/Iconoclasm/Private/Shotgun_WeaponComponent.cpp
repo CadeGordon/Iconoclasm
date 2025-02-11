@@ -168,8 +168,9 @@ void UShotgun_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
 		FHitResult HitResult;
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(Character);
+		Params.bTraceComplex = true;
 
-		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params))
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, Params))
 		{
 			ImpactLocation = HitResult.Location;
 		}
@@ -194,6 +195,7 @@ void UShotgun_WeaponComponent::PerformTeleportHitscan(FVector& ImpactLocation, F
 
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(Character);
+		Params.bTraceComplex = true;
 
 		if (GetWorld()->LineTraceSingleByChannel(OutHit, StartLocation, EndLocation, ECC_Visibility, Params))
 		{
@@ -221,8 +223,9 @@ void UShotgun_WeaponComponent::PerformPumpHitscan(FVector& StartLocation, FVecto
 		FHitResult HitResult;
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(Character);
+		Params.bTraceComplex = true;
 
-		if (GetWorld()->LineTraceSingleByChannel(HitResult, CurrentStartLocation, CurrentEndLocation, ECC_Visibility, Params))
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, CurrentStartLocation, CurrentEndLocation, ECC_Pawn, Params))
 		{
 			// Draw debug line for visualization
 			DrawDebugLine(GetWorld(), CurrentStartLocation, HitResult.Location, FColor::Red, false, 2.0f, 0, 1.0f);
@@ -359,7 +362,7 @@ void UShotgun_WeaponComponent::TimeWarpMode()
 					HitResult,
 					CurrentStart,
 					EndLocation,
-					ECC_Visibility,
+					ECC_Pawn,
 					QueryParams
 				);
 
@@ -511,7 +514,7 @@ void UShotgun_WeaponComponent::DefconMode()
 			FCollisionQueryParams Params;
 			Params.AddIgnoredActor(Character);
 
-			GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params);
+			GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, Params);
 
 			// Draw debug line for visualization
 			DrawDebugLine(GetWorld(), StartLocation, EndLocation, FColor::Red, false, 2.0f, 0, 1.0f);
