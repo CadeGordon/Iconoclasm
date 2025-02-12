@@ -202,7 +202,7 @@ void URevolver_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
 		Params.bTraceComplex = true;
 
 		// Perform the line trace
-		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params))
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, Params))
 		{
 			AActor* HitActor = HitResult.GetActor();
 			if (HitActor && HitActor != Character) // Exclude the player character
@@ -249,6 +249,7 @@ void URevolver_WeaponComponent::GunslingerMode()
 	FVector ImpactLocation;
 	PerformHitscan(ImpactLocation);
 
+
 	// Perform a line trace to find the hit actor
 	FHitResult HitResult;
 	FVector StartLocation = Character->GetActorLocation();
@@ -257,8 +258,10 @@ void URevolver_WeaponComponent::GunslingerMode()
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(Character); // Ignore the player
 	QueryParams.bTraceComplex = true;       // Trace against complex collision
+	
 
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, QueryParams))
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
 	{
 		AActor* HitActor = HitResult.GetActor();
 
@@ -344,13 +347,14 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 			FCollisionQueryParams QueryParams;
 			QueryParams.AddIgnoredActor(Character); // Ignore the player
 			QueryParams.bTraceComplex = true;       // Trace against complex collision
+			
 
-			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, QueryParams))
+			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
 			{
 				AActor* HitActor = HitResult.GetActor();
 				if (HitActor)
 				{
-					float DamageAmount = 15.0f; // Set the damage amount
+					float DamageAmount = 100.0f; // Set the damage amount
 					UGameplayStatics::ApplyDamage(
 						HitActor,
 						DamageAmount,
@@ -420,13 +424,14 @@ void URevolver_WeaponComponent::HellfireMode()
 			// Perform a line trace to determine if an actor is hit
 			FCollisionQueryParams QueryParams;
 			QueryParams.AddIgnoredActor(Character);
+			
 
-			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, QueryParams))
+			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
 			{
 				// Apply damage if an actor is hit
 				if (HitResult.GetActor())
 				{
-					float DamageAmount = 50.0f; // Adjust the damage amount as needed
+					float DamageAmount = 100.0f; // Adjust the damage amount as needed
 					UGameplayStatics::ApplyDamage(
 						HitResult.GetActor(),
 						DamageAmount,

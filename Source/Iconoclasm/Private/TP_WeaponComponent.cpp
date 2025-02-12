@@ -11,6 +11,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GLHUD.h"
+#include "HealthComponent.h"
 
 // Sets default values for this component's properties
 UTP_WeaponComponent::UTP_WeaponComponent()
@@ -32,6 +33,37 @@ void UTP_WeaponComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 	// Update HUD cooldown progress
 	UpdateCooldowns();
+}
+
+void UTP_WeaponComponent::ApplyHealing()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	TArray<AActor*> OverlappingActors;
+	UGameplayStatics::GetAllActorsOfClass(World, ACharacter::StaticClass(), OverlappingActors);
+
+	for (AActor* Actor : OverlappingActors)
+	{
+		if (FVector::Dist(Actor->GetActorLocation(), HealingSphereLocation) <= HealingSphereRadius)
+		{
+			AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(Actor);
+			if (PlayerCharacter)
+			{
+				// Get the HealthComponent
+				UHealthComponent* HealthComp = PlayerCharacter->FindComponentByClass<UHealthComponent>();
+				if (HealthComp)
+				{
+					HealthComp->Heal(10.0f);  // Adjust healing amount as needed
+				}
+			}
+		}
+	}
+}
+
+void UTP_WeaponComponent::StopHealing()
+{
+	GetWorld()->GetTimerManager().ClearTimer(HealingTimerHandle);
 }
 
 void UTP_WeaponComponent::Fire()
@@ -146,6 +178,7 @@ void UTP_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
 		FHitResult HitResult;
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(Character);
+		Params.bTraceComplex = true;
 
 		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params))
 		{
@@ -165,18 +198,34 @@ void UTP_WeaponComponent::ApplyExplosionEffect(const FVector& ImpactLocation, fl
 {
 	DrawDebugSphere(GetWorld(), ImpactLocation, Radius, 32, FColor::Green, false, 2.0f);
 
+	// Get the actor that owns this weapon component
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor) return;
+
+	// Apply radial damage to all affected actors
+	UGameplayStatics::ApplyRadialDamage(
+		GetWorld(),
+		100.0f, // Explosion damage
+		ImpactLocation,
+		Radius,
+		UDamageType::StaticClass(),
+		TArray<AActor*>(), // Ignore list (empty = affect all actors)
+		OwnerActor, // Damage Causer (fix)
+		OwnerActor->GetInstigatorController(), // Instigator
+		true // Do full damage at center, falloff otherwise
+	);
+
 	TArray<AActor*> OverlappingActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
 
 	for (AActor* Actor : OverlappingActors)
 	{
-		if (ACharacter* OverlappingCharacter = Cast<ACharacter>(Actor))
+		// Cast to player character
+		AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(Actor);
+		if (PlayerCharacter && FVector::Dist(PlayerCharacter->GetActorLocation(), ImpactLocation) <= Radius)
 		{
-			if (FVector::Dist(OverlappingCharacter->GetActorLocation(), ImpactLocation) <= Radius)
-			{
-				FVector LaunchDirection = (OverlappingCharacter->GetActorLocation() - ImpactLocation).GetSafeNormal();
-				OverlappingCharacter->LaunchCharacter(LaunchDirection * Strength, true, true);
-			}
+			FVector LaunchDirection = (PlayerCharacter->GetActorLocation() - ImpactLocation).GetSafeNormal();
+			PlayerCharacter->LaunchCharacter(LaunchDirection * Strength, true, true);
 		}
 	}
 
@@ -186,6 +235,13 @@ void UTP_WeaponComponent::HealingSphere(const FVector& ImpactLocation, float Rad
 {
 	// Draw the debug sphere to visualize the radius
 	DrawDebugSphere(GetWorld(), ImpactLocation, Radius, 32, FColor::Green, false, 5.0f);
+
+	// Start the healing loop
+	GetWorld()->GetTimerManager().SetTimer(HealingTimerHandle, this, &UTP_WeaponComponent::ApplyHealing, 0.5f, true);
+
+	// Store sphere data
+	HealingSphereLocation = ImpactLocation;
+	HealingSphereRadius = Radius;
 }
 
 void UTP_WeaponComponent::ImpulseEffect(const FVector& ImpactLocation, float Radius, float Strength)
@@ -409,8 +465,9 @@ void UTP_WeaponComponent::LifeBloodMode()
 
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(Character);
+		Params.bTraceComplex = true;
 
-		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params))
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, Params))
 		{
 			if (AActor* HitActor = HitResult.GetActor())
 			{

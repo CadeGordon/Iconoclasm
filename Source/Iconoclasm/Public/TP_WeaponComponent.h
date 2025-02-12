@@ -66,6 +66,11 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	// Timer function to apply healing over time
+	void ApplyHealing();
+
+	void StopHealing();
+
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual void AttachWeapon(AIconoclasmCharacter* TargetCharacter);
@@ -108,6 +113,13 @@ protected:
 private:
 	/** The Character holding this weapon*/
 	AIconoclasmCharacter* Character;
+
+	// Healing sphere parameters
+	FVector HealingSphereLocation;
+	float HealingSphereRadius;
+
+	// Timer handle for healing
+	FTimerHandle HealingTimerHandle;
 
 	float LastAltLifeBloodModeTime = 0.0f;
 	float LastAltImpulseModeTime = 0.0f;
