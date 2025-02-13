@@ -121,6 +121,8 @@ private:
 	// Timer handle for healing
 	FTimerHandle HealingTimerHandle;
 
+	FTimerHandle HealingEndTimerHandle;
+
 	float LastAltLifeBloodModeTime = 0.0f;
 	float LastAltImpulseModeTime = 0.0f;
 

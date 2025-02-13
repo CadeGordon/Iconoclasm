@@ -202,30 +202,38 @@ void UTP_WeaponComponent::ApplyExplosionEffect(const FVector& ImpactLocation, fl
 	AActor* OwnerActor = GetOwner();
 	if (!OwnerActor) return;
 
-	// Apply radial damage to all affected actors
+	// Create an ignore list to exclude the player
+	TArray<AActor*> IgnoreActors;
+	AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(OwnerActor);
+	if (PlayerCharacter)
+	{
+		IgnoreActors.Add(PlayerCharacter); // Add player to ignore list
+	}
+
+	// Apply radial damage to all affected actors except the player
 	UGameplayStatics::ApplyRadialDamage(
 		GetWorld(),
 		100.0f, // Explosion damage
 		ImpactLocation,
 		Radius,
 		UDamageType::StaticClass(),
-		TArray<AActor*>(), // Ignore list (empty = affect all actors)
-		OwnerActor, // Damage Causer (fix)
+		IgnoreActors, // Exclude player from damage
+		OwnerActor, // Damage Causer
 		OwnerActor->GetInstigatorController(), // Instigator
 		true // Do full damage at center, falloff otherwise
 	);
 
+	// Apply force to all characters in radius
 	TArray<AActor*> OverlappingActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
 
 	for (AActor* Actor : OverlappingActors)
 	{
-		// Cast to player character
-		AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(Actor);
-		if (PlayerCharacter && FVector::Dist(PlayerCharacter->GetActorLocation(), ImpactLocation) <= Radius)
+		AIconoclasmCharacter* AffectedCharacter = Cast<AIconoclasmCharacter>(Actor);
+		if (AffectedCharacter && FVector::Dist(AffectedCharacter->GetActorLocation(), ImpactLocation) <= Radius)
 		{
-			FVector LaunchDirection = (PlayerCharacter->GetActorLocation() - ImpactLocation).GetSafeNormal();
-			PlayerCharacter->LaunchCharacter(LaunchDirection * Strength, true, true);
+			FVector LaunchDirection = (AffectedCharacter->GetActorLocation() - ImpactLocation).GetSafeNormal();
+			AffectedCharacter->LaunchCharacter(LaunchDirection * Strength, true, true);
 		}
 	}
 
@@ -238,6 +246,9 @@ void UTP_WeaponComponent::HealingSphere(const FVector& ImpactLocation, float Rad
 
 	// Start the healing loop
 	GetWorld()->GetTimerManager().SetTimer(HealingTimerHandle, this, &UTP_WeaponComponent::ApplyHealing, 0.5f, true);
+
+	// Stop healing after 5 seconds
+	GetWorld()->GetTimerManager().SetTimer(HealingEndTimerHandle, this, &UTP_WeaponComponent::StopHealing, 5.0f, false);
 
 	// Store sphere data
 	HealingSphereLocation = ImpactLocation;
@@ -534,7 +545,7 @@ void UTP_WeaponComponent::ImpulseMode()
 	ImpulseEffect(ImpactLocation, ImpulseRadius, ImpulseStrength);
 
 	// Apply radial damage
-	float Damage = 100.0f; // Set the damage value
+	float Damage = 10.0f; // Set the damage value
 	TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
 	AController* InstigatorController = Character->GetController(); // Assumes Character is valid
 	AActor* DamageCauser = Character;
