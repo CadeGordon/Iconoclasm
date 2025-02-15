@@ -118,6 +118,18 @@ private:
 	FVector HealingSphereLocation;
 	float HealingSphereRadius;
 
+	FTimerHandle LifeBloodCooldownTimer;
+	FTimerHandle ImpulseCooldownTimer;
+
+	bool bCanFireLifeBlood = true;
+	bool bCanFireImpulse = true;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Cooldown")
+	float LifeBloodCooldown = 1.5f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Cooldown")
+	float ImpulseCooldown = 2.0f;
+
 	// Timer handle for healing
 	FTimerHandle HealingTimerHandle;
 
@@ -139,4 +151,8 @@ private:
 	void GetCooldownProgress(float LastFireTime, float CooldownDuration) const;
 
 	void UpdateCooldowns();
+
+	void ResetLifeBloodCooldown();
+
+	void ResetImpulseCooldown();
 };

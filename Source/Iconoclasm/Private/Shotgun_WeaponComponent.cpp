@@ -97,10 +97,32 @@ void UShotgun_WeaponComponent::Fire()
 	switch (CurrentWeaponMode)
 	{
 	case EShotgunMode::ShotgunMode1:
-		TimeWarpMode();
+		if (bCanFireTimeWarp)
+		{
+			TimeWarpMode();
+			bCanFireTimeWarp = false;
+			GetWorld()->GetTimerManager().SetTimer(
+				TimeWarpCooldownTimer,
+				this,
+				&UShotgun_WeaponComponent::ResetTimeWarpCooldown,
+				TimeWarpCooldown,
+				false
+			);
+		}
 		break;
 	case EShotgunMode::ShotgunMode2:
-		DefconMode();
+		if (bCanFireDefcon)
+		{
+			DefconMode();
+			bCanFireDefcon = false;
+			GetWorld()->GetTimerManager().SetTimer(
+				DefconCooldownTimer,
+				this,
+				&UShotgun_WeaponComponent::ResetDefconCooldown,
+				DefconCooldown,
+				false
+			);
+		}
 		break;
 	default:
 		break;
@@ -712,4 +734,14 @@ void UShotgun_WeaponComponent::UpdateCooldowns()
 			GetWorld()->GetTimerManager().ClearTimer(AltDefconTimerHandle);
 		}
 	}
+}
+
+void UShotgun_WeaponComponent::ResetTimeWarpCooldown()
+{
+	bCanFireTimeWarp = true;
+}
+
+void UShotgun_WeaponComponent::ResetDefconCooldown()
+{
+	bCanFireDefcon = true;
 }

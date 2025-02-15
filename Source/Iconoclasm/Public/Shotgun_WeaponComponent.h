@@ -83,12 +83,20 @@ private:
 
 	float ShotgunDamage = 100.0f;
 
+	bool bCanFireTimeWarp = true;
+	bool bCanFireDefcon = true;
+	float TimeWarpCooldown = 2.0f; // Set desired cooldown time
+	float DefconCooldown = 2.0f;
+
 	// Cooldown durations
 	float AltTimeWarpCooldown = 5.0f;
 	float AltDefconCooldown = 7.0f;
 
 	FTimerHandle AltDefconCooldownTimer;
 	FTimerHandle AltTimeWarpCooldownTimer;
+
+	FTimerHandle TimeWarpCooldownTimer;
+	FTimerHandle DefconCooldownTimer;
 
 	// Timers for cooldowns
 	FTimerHandle AltTimeWarpTimerHandle;
@@ -105,6 +113,10 @@ private:
 	void AltDefconMode();
 
 	void UpdateCooldowns();
+
+	void ResetTimeWarpCooldown();
+
+	void ResetDefconCooldown();
 
 
 	struct FPlayerStae

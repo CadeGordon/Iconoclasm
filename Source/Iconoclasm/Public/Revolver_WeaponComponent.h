@@ -85,6 +85,15 @@ private:
 	// Variable to track the elapsed time for the AltHellfire cooldown
 	float ElapsedHellfireTime = 0.0f;
 
+	FTimerHandle GunslingerCooldownTimer;
+	FTimerHandle HellfireCooldownTimer;
+
+	bool bCanFireGunslinger = true;
+	bool bCanFireHellfire = true;
+
+	float GunslingerCooldown = 2.0f;
+	float HellfireCooldown = 2.0f;
+
 	// Timers for cooldowns
 	FTimerHandle TimerHandle_AltGunslingerCooldown;
 	FTimerHandle TimerHandle_AltHellfireCooldown;
@@ -114,4 +123,8 @@ private:
 	void HandleGunslingerAltCooldown();
 
 	void HandleHellfireAltCooldown();
+
+	void ResetGunslingerCooldown();
+
+	void ResetHellfireCooldown();
 };

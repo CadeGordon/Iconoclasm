@@ -36,11 +36,33 @@ void URevolver_WeaponComponent::Fire()
 	switch (CurrentWeaponMode)
 	{
 	case ERevolverMode::RevolverMode1:
-		GunslingerMode();
+		if (bCanFireGunslinger)
+		{
+			GunslingerMode();
+			bCanFireGunslinger = false;
+			GetWorld()->GetTimerManager().SetTimer(
+				GunslingerCooldownTimer,
+				this,
+				&URevolver_WeaponComponent::ResetGunslingerCooldown,
+				GunslingerCooldown,
+				false
+			);
+		}
 		break;
 	case ERevolverMode::RevolverMode2:
-		HellfireMode();
-		break;
+		if (bCanFireHellfire)
+		{
+			HellfireMode();
+			bCanFireHellfire = false;
+			GetWorld()->GetTimerManager().SetTimer(
+				HellfireCooldownTimer,
+				this,
+				&URevolver_WeaponComponent::ResetHellfireCooldown,
+				HellfireCooldown,
+				false
+			);
+		}
+
 	default:
 		break;
 	}
@@ -643,6 +665,16 @@ void URevolver_WeaponComponent::HandleHellfireAltCooldown()
 		GetWorld()->GetTimerManager().ClearTimer(TimerHandle_AltHellfireProgress); // Stop progress updates
 		ElapsedHellfireTime = 0.0f; // Reset elapsed time
 	}
+}
+
+void URevolver_WeaponComponent::ResetGunslingerCooldown()
+{
+	bCanFireGunslinger = true;
+}
+
+void URevolver_WeaponComponent::ResetHellfireCooldown()
+{
+	bCanFireHellfire = true;
 }
 
 

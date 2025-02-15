@@ -76,10 +76,32 @@ void UTP_WeaponComponent::Fire()
 	switch (CurrentWeaponMode)
 	{
 	case EWeaponMode::Mode1:
-		LifeBloodMode();
+		if (bCanFireLifeBlood)
+		{
+			LifeBloodMode();
+			bCanFireLifeBlood = false;
+			GetWorld()->GetTimerManager().SetTimer(
+				LifeBloodCooldownTimer,
+				this,
+				&UTP_WeaponComponent::ResetLifeBloodCooldown,
+				LifeBloodCooldown,
+				false
+			);
+		}
 		break;
 	case EWeaponMode::Mode2:
-		ImpulseMode();
+		if (bCanFireImpulse)
+		{
+			ImpulseMode();
+			bCanFireImpulse = false;
+			GetWorld()->GetTimerManager().SetTimer(
+				ImpulseCooldownTimer,
+				this,
+				&UTP_WeaponComponent::ResetImpulseCooldown,
+				ImpulseCooldown,
+				false
+			);
+		}
 		break;
 	default:
 		break;
@@ -648,4 +670,14 @@ void UTP_WeaponComponent::UpdateCooldowns()
 			break;
 		}
 	}
+}
+
+void UTP_WeaponComponent::ResetLifeBloodCooldown()
+{
+	bCanFireLifeBlood = true;
+}
+
+void UTP_WeaponComponent::ResetImpulseCooldown()
+{
+	bCanFireImpulse = true;
 }
