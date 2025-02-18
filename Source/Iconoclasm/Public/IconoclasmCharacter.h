@@ -67,6 +67,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UUserWidget> WeaponWheelWidgetClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite , Category = "UI")
+	TSubclassOf<UUserWidget> HealthWidgetClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	class UHealthComponent* HealthComponent;
+	
 	UPROPERTY()
 	class UWheelHUD* WeaponWheelWidget;
 

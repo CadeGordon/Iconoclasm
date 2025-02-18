@@ -20,6 +20,9 @@
 #include "Revolver_WeaponComponent.h"
 #include "Shotgun_WeaponComponent.h"
 #include "WheelHUD.h"
+#include "PlayerHealthBarHUD.h"
+#include "Blueprint/UserWidget.h"
+#include "HealthComponent.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -70,6 +73,8 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	TargetDashProgress = 1.0f;  // Starts full
 	CurrentDashProgress = 1.0f;
 	ProgressInterpSpeed = 5.0f; // Adjust this for smoother or faster interpolation
+
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
 void AIconoclasmCharacter::EquipRevolver()
@@ -251,6 +256,16 @@ void AIconoclasmCharacter::BeginPlay()
 		}
 	}
 
+	if (HealthComponent)
+	{
+		UPlayerHealthBarHUD* HealthWidget = CreateWidget<UPlayerHealthBarHUD>(GetWorld(), HealthWidgetClass);
+		if (HealthWidget)
+		{
+			HealthWidget->AddToViewport();
+			HealthWidget->InitializeHealthBar(HealthComponent);
+		}
+	}
+	
 }
 
 void AIconoclasmCharacter::Tick(float DeltaTime)

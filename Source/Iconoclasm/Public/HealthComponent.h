@@ -19,14 +19,14 @@ public:
 	// Sets default values for this component's properties
 	UHealthComponent();
 
-protected:
+public:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 	// Health variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float MaxHealth;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Health")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float CurrentHealth;
 
 	// Whether the actor is dead
@@ -63,6 +63,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void TakeDamage(float Damage);
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	float GetMaxHealth() const { return MaxHealth; }
 
 		
 };
