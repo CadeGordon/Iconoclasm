@@ -37,14 +37,21 @@ void UPlayerHealthBarHUD::UpdateHealthBar(float CurrentHealth)
 
 void UPlayerHealthBarHUD::InitializeHealthBar(UHealthComponent* HealthComp)
 {
-	if (HealthComp)
+	if (!HealthComp)
 	{
-		HealthComponent = HealthComp;
-
-		// Bind to HealthComponent's OnHealthChanged event
-		HealthComponent->OnHealthChanged.AddDynamic(this, &UPlayerHealthBarHUD::UpdateHealthBar);
-
-		// Set initial health bar value
-		UpdateHealthBar(HealthComponent->GetCurrentHealth());
+		UE_LOG(LogTemp, Error, TEXT("InitializeHealthBar: HealthComponent is NULL!"));
+		return;
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Health Widget Initialized"));
+
+	HealthComponent = HealthComp;
+
+	if (!HealthComponent->OnHealthChanged.IsBound())  // Check if already bound
+	{
+		HealthComponent->OnHealthChanged.AddDynamic(this, &UPlayerHealthBarHUD::UpdateHealthBar);
+	}
+
+	// Set initial health
+	UpdateHealthBar(HealthComponent->GetCurrentHealth());
 }

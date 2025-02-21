@@ -256,13 +256,20 @@ void AIconoclasmCharacter::BeginPlay()
 		}
 	}
 
-	if (HealthComponent)
+	if (!HealthComponent)
+	 { 
+		UE_LOG(LogTemp, Error, TEXT("BeginPlay: HealthComponent is NULL in Player!"));
+		return;
+	 }
+
+	if (HealthWidgetClass)
 	{
-		UPlayerHealthBarHUD* HealthWidget = CreateWidget<UPlayerHealthBarHUD>(GetWorld(), HealthWidgetClass);
+		HealthWidget = CreateWidget<UPlayerHealthBarHUD>(GetWorld(), HealthWidgetClass);
 		if (HealthWidget)
 		{
 			HealthWidget->AddToViewport();
 			HealthWidget->InitializeHealthBar(HealthComponent);
+			UE_LOG(LogTemp, Warning, TEXT("Health Widget Created and Initialized"));
 		}
 	}
 	

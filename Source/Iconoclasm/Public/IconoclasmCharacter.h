@@ -72,6 +72,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	class UHealthComponent* HealthComponent;
+
+	UPROPERTY()
+	class UPlayerHealthBarHUD* HealthWidget;
 	
 	UPROPERTY()
 	class UWheelHUD* WeaponWheelWidget;
