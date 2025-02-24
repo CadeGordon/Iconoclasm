@@ -2,6 +2,7 @@
 
 
 #include "HealthComponent.h"
+#include "IconoclasmCharacter.h"
 
 // Sets default values for this component's properties
 UHealthComponent::UHealthComponent()
@@ -54,10 +55,10 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 		bIsDead = true;
 		OnDeath.Broadcast();
 
-		// Destroy the owner actor
-		if (AActor* Owner = GetOwner())
+		AIconoclasmCharacter* Player = Cast<AIconoclasmCharacter>(GetOwner());
+		if (Player)
 		{
-			Owner->Destroy();
+			Player->ShowDeathScreen();  // Show death screen when player dies
 		}
 	}
 }

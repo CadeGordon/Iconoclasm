@@ -23,6 +23,7 @@
 #include "PlayerHealthBarHUD.h"
 #include "Blueprint/UserWidget.h"
 #include "HealthComponent.h"
+#include "DeathScreenHUD.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -733,6 +734,30 @@ void AIconoclasmCharacter::UpdateDashProgress()
 	{
 		float Progress = static_cast<float>(DashCharges) / 3.0f;
 		DashHUD->UpdateDashProgress(Progress);
+	}
+}
+
+void AIconoclasmCharacter::ShowDeathScreen()
+{
+	if (DeathScreenWidgetClass)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC)
+		{
+			// Create and display the death screen HUD
+			UDeathScreenHUD* DeathScreen = CreateWidget<UDeathScreenHUD>(PC, DeathScreenWidgetClass);
+			if (DeathScreen)
+			{
+				DeathScreen->AddToViewport();
+
+				// Pause the game
+				UGameplayStatics::SetGamePaused(GetWorld(), true);
+
+				// Set input mode to UI only
+				PC->SetInputMode(FInputModeUIOnly());
+				PC->SetShowMouseCursor(true);
+			}
+		}
 	}
 }
 

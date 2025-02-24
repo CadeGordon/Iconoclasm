@@ -162,6 +162,7 @@ public:
 
 	void UpdateDashProgress();
 
+	void ShowDeathScreen();
 	
 
 protected:
@@ -242,6 +243,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUserWidget> DashHUDClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> DeathScreenWidgetClass;
 	
 
 
