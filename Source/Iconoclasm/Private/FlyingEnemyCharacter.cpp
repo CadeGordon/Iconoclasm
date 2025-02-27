@@ -34,6 +34,9 @@ AFlyingEnemyCharacter::AFlyingEnemyCharacter()
 	// You can set the size of the sphere if needed
 	MuzzleSphere->SetSphereRadius(10.0f);
 	MuzzleSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); // Only used for positioning
+
+    // Set the "Enemy" tag
+    Tags.Add(FName("Enemy"));
 }
 
 // Called when the game starts or when spawned

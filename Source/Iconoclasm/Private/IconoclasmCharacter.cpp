@@ -744,11 +744,16 @@ void AIconoclasmCharacter::ShowDeathScreen()
 		APlayerController* PC = GetWorld()->GetFirstPlayerController();
 		if (PC)
 		{
-			// Create and display the death screen HUD
-			UDeathScreenHUD* DeathScreen = CreateWidget<UDeathScreenHUD>(PC, DeathScreenWidgetClass);
-			if (DeathScreen)
+			//  Check if the widget already exists
+			if (!DeathScreenHUD)
 			{
-				DeathScreen->AddToViewport();
+				DeathScreenHUD = CreateWidget<UDeathScreenHUD>(PC, DeathScreenWidgetClass);
+			}
+
+			//  Make sure it's added to the viewport
+			if (DeathScreenHUD && !DeathScreenHUD->IsInViewport())
+			{
+				DeathScreenHUD->AddToViewport();
 
 				// Pause the game
 				UGameplayStatics::SetGamePaused(GetWorld(), true);
@@ -761,5 +766,34 @@ void AIconoclasmCharacter::ShowDeathScreen()
 	}
 }
 
+void AIconoclasmCharacter::SetCheckpointLocation(FVector NewLocation)
+{
+	CheckpointLocation = NewLocation;
+	bCheckpointActive = true;
+}
 
+FVector AIconoclasmCharacter::GetCheckpointLocation() const
+{
+	return CheckpointLocation;
+}
+
+bool AIconoclasmCharacter::IsCheckpointActive() const
+{
+	return bCheckpointActive;
+
+}
+
+void AIconoclasmCharacter::RestoreFullHealth()
+{
+	UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>();
+	if (HealthComp)
+	{
+		HealthComp->Heal(HealthComp->GetMaxHealth());
+	}
+}
+
+UHealthComponent* AIconoclasmCharacter::GetHealthComponent() const
+{
+	return FindComponentByClass<UHealthComponent>();
+}
 

@@ -101,4 +101,12 @@ void AEnemySpawner::SpawnEnemies()
     }
 }
 
+void AEnemySpawner::ResetSpawner()
+{
+    // Re-enable the trigger so it can spawn enemies again
+    SpawnTrigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    UE_LOG(LogTemp, Warning, TEXT("Enemy spawner reset, trigger re-enabled."));
+}
+
+
 

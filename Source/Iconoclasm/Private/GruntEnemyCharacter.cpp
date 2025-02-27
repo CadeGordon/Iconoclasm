@@ -14,7 +14,8 @@ AGruntEnemyCharacter::AGruntEnemyCharacter()
 	// Ensure the AI controller is assigned when the character is spawned
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
-   
+	// Set the "Enemy" tag
+	Tags.Add(FName("Enemy"));
 
     
 

@@ -67,5 +67,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	float GetMaxHealth() const { return MaxHealth; }
 
+	UFUNCTION()
+	void SetCurrentHealth(float NewHealth);
+
 		
 };

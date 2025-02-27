@@ -5,6 +5,7 @@
 #include "Components/Button.h"
 #include "Kismet/GameplayStatics.h"
 #include "IconoclasmCharacter.h"
+#include "EnemySpawner.h"
 
 
 void UDeathScreenHUD::NativeConstruct()
@@ -25,19 +26,63 @@ void UDeathScreenHUD::NativeConstruct()
 
 void UDeathScreenHUD::RestartLevel()
 {
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (PC)
+	AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+
+	if (PlayerCharacter && PlayerController)
 	{
-		// Unpause the game before restarting
-		UGameplayStatics::SetGamePaused(GetWorld(), false);
+		//  Ensure the DeathScreenHUD is removed before respawning
+		if (PlayerCharacter->DeathScreenHUD)
+		{
+			PlayerCharacter->DeathScreenHUD->RemoveFromParent();
+			PlayerCharacter->DeathScreenHUD = nullptr;  // Destroy it
+		}
 
-		// Reset input mode to game only
-		PC->SetShowMouseCursor(false);
-		PC->SetInputMode(FInputModeGameOnly());
+		// Respawn logic...
+		if (PlayerCharacter->IsCheckpointActive())
+		{
+			// Move to checkpoint
+			PlayerCharacter->SetActorLocation(PlayerCharacter->GetCheckpointLocation());
+
+			// Restore full health
+			UHealthComponent* HealthComp = PlayerCharacter->GetHealthComponent();
+			if (HealthComp)
+			{
+				HealthComp->SetCurrentHealth(HealthComp->GetMaxHealth());
+			}
+
+			// Clear enemies, reactivate spawners, and unpause game
+			TArray<AActor*> Enemies;
+			UGameplayStatics::GetAllActorsWithTag(this, FName("Enemy"), Enemies);
+			for (AActor* Enemy : Enemies)
+			{
+				Enemy->Destroy();
+			}
+
+			TArray<AActor*> EnemySpawners;
+			UGameplayStatics::GetAllActorsOfClass(this, AEnemySpawner::StaticClass(), EnemySpawners);
+			for (AActor* Spawner : EnemySpawners)
+			{
+				AEnemySpawner* EnemySpawner = Cast<AEnemySpawner>(Spawner);
+				if (EnemySpawner)
+				{
+					EnemySpawner->ResetSpawner();
+				}
+			}
+
+			// Restore game input
+			UGameplayStatics::SetGamePaused(GetWorld(), false);
+			PlayerController->SetInputMode(FInputModeGameOnly());
+			PlayerController->bShowMouseCursor = false;
+		}
+		else
+		{
+			// Restart level
+			UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetName()), false);
+			PlayerController->SetInputMode(FInputModeGameOnly());
+			PlayerController->bShowMouseCursor = false;
+		}
 	}
-
-	// Restart the level
-	UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetName()), false);
 }
 
 void UDeathScreenHUD::QuitGame()

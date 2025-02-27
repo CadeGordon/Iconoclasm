@@ -49,8 +49,12 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+    void ResetSpawner();
+
 
 private:
     void SpawnEnemies();
+
+
 
 };

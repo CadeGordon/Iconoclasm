@@ -58,7 +58,17 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 		AIconoclasmCharacter* Player = Cast<AIconoclasmCharacter>(GetOwner());
 		if (Player)
 		{
-			Player->ShowDeathScreen();  // Show death screen when player dies
+			// Player-specific logic (show death screen instead of destroying)
+			Player->ShowDeathScreen();
+		}
+		else
+		{
+			// Destroy any other actor that has a health component
+			AActor* Owner = GetOwner();
+			if (Owner)
+			{
+				Owner->Destroy();
+			}
 		}
 	}
 }
@@ -88,5 +98,10 @@ void UHealthComponent::TakeDamage(float Damage)
 }
 
 
-
+void UHealthComponent::SetCurrentHealth(float NewHealth)
+{
+	CurrentHealth = FMath::Clamp(NewHealth, 0.0f, MaxHealth);
+	OnHealthChanged.Broadcast(CurrentHealth);
+	bIsDead = (CurrentHealth <= 0.0f);
+}
 

@@ -163,7 +163,21 @@ public:
 	void UpdateDashProgress();
 
 	void ShowDeathScreen();
+
+	public:
+		void SetCheckpointLocation(FVector NewLocation);
+
+		FVector GetCheckpointLocation() const;
+
+		bool IsCheckpointActive() const;
+
+		void RestoreFullHealth();
+
+		UFUNCTION()
+		UHealthComponent* GetHealthComponent() const;
 	
+	
+
 
 protected:
 	/** Called for movement input */
@@ -171,6 +185,8 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+	
 
 protected:
 	// APawn interface
@@ -184,6 +200,10 @@ public:
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 public:
+
+
+	FVector CheckpointLocation;
+	bool bCheckpointActive = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	int32 JumpCount;
@@ -246,7 +266,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> DeathScreenWidgetClass;
 	
-
+	UPROPERTY()
+	class UDeathScreenHUD* DeathScreenHUD;
 
 	private:
 
