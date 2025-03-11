@@ -10,6 +10,7 @@
 #include "IconoclasmProjectile.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "RaphHealthBar.h"
 
 
 // Sets default values
@@ -31,6 +32,13 @@ ARaphaelBossCharacter::ARaphaelBossCharacter()
 	PushBackSphere->SetupAttachment(RootComponent);
 	PushBackSphere->SetSphereRadius(300.0f);  // Adjust the radius as needed
 	PushBackSphere->OnComponentBeginOverlap.AddDynamic(this, &ARaphaelBossCharacter::OnPushBackSphereOverlapBegin);
+
+	// Create the detection sphere
+	PlayerDetectionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("PlayerDetectionSphere"));
+	PlayerDetectionSphere->SetupAttachment(RootComponent);
+	PlayerDetectionSphere->SetSphereRadius(1000.0f);  // Adjust the radius as needed
+	PlayerDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &ARaphaelBossCharacter::OnPlayerEnterBossArea);
+
 
 }
 
@@ -94,5 +102,23 @@ void ARaphaelBossCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 
 }
 
+
+void ARaphaelBossCharacter::OnPlayerEnterBossArea(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	ACharacter* PlayerCharacter = Cast<ACharacter>(OtherActor);
+	if (PlayerCharacter && PlayerCharacter == UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
+	{
+		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+		if (PC && BossHealthWidgetClass)
+		{
+			BossHealthWidget = CreateWidget<URaphHealthBar>(PC, BossHealthWidgetClass);
+			if (BossHealthWidget)
+			{
+				BossHealthWidget->AddToViewport();
+			}
+		}
+	}
+}
 
 

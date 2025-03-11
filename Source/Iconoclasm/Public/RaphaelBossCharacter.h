@@ -62,5 +62,16 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	
+	UPROPERTY(EditAnywhere, Category = "Boss")
+	class USphereComponent* PlayerDetectionSphere;
+
+	UPROPERTY()
+	class URaphHealthBar* BossHealthWidget;
+
+	UPROPERTY(EditAnywhere, Category = "Boss")
+	TSubclassOf<UUserWidget> BossHealthWidgetClass;
+
+	UFUNCTION()
+	void OnPlayerEnterBossArea(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 };
