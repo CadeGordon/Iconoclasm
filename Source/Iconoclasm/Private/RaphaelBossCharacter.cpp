@@ -11,6 +11,9 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "RaphHealthBar.h"
+#include "Components/ProgressBar.h"
+#include "Blueprint/UserWidget.h"
+#include "HealthComponent.h"
 
 
 // Sets default values
@@ -38,6 +41,9 @@ ARaphaelBossCharacter::ARaphaelBossCharacter()
 	PlayerDetectionSphere->SetupAttachment(RootComponent);
 	PlayerDetectionSphere->SetSphereRadius(1000.0f);  // Adjust the radius as needed
 	PlayerDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &ARaphaelBossCharacter::OnPlayerEnterBossArea);
+
+	// Initialize Health Component
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 
 
 }
@@ -72,6 +78,20 @@ void ARaphaelBossCharacter::PushBackPlayer(ACharacter* PlayerCharacter)
 void ARaphaelBossCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Bind to HealthComponent events
+	if (HealthComponent)
+	{
+		HealthComponent->OnHealthChanged.AddDynamic(this, &ARaphaelBossCharacter::OnBossHealthChanged);
+		HealthComponent->OnDeath.AddDynamic(this, &ARaphaelBossCharacter::OnBossDeath);
+	}
+
+	// Create but hide Health Bar UI at first
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (PC && BossHealthWidgetClass)
+	{
+		BossHealthWidget = CreateWidget<URaphHealthBar>(PC, BossHealthWidgetClass);
+	}
 }
 
 // Overlap event
@@ -109,16 +129,38 @@ void ARaphaelBossCharacter::OnPlayerEnterBossArea(UPrimitiveComponent* Overlappe
 	ACharacter* PlayerCharacter = Cast<ACharacter>(OtherActor);
 	if (PlayerCharacter && PlayerCharacter == UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
 	{
-		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-		if (PC && BossHealthWidgetClass)
+		if (BossHealthWidget && !BossHealthWidget->IsInViewport())
 		{
-			BossHealthWidget = CreateWidget<URaphHealthBar>(PC, BossHealthWidgetClass);
-			if (BossHealthWidget)
-			{
-				BossHealthWidget->AddToViewport();
-			}
+			BossHealthWidget->AddToViewport();
+			UpdateBossHealthUI(HealthComponent->GetCurrentHealth());
 		}
 	}
 }
 
 
+void ARaphaelBossCharacter::OnBossHealthChanged(float NewHealth)
+{
+	if (BossHealthWidget && HealthComponent)
+	{
+		float HealthPercentage = NewHealth / HealthComponent->MaxHealth;
+		BossHealthWidget->UpdateHealthBar(HealthPercentage);
+	}
+}
+
+void ARaphaelBossCharacter::OnBossDeath()
+{
+	if (BossHealthWidget)
+	{
+		BossHealthWidget->RemoveFromParent();
+		BossHealthWidget = nullptr;
+	}
+}
+
+void ARaphaelBossCharacter::UpdateBossHealthUI(float CurrentHealth)
+{
+	if (BossHealthWidget && HealthComponent)
+	{
+		float HealthPercentage = CurrentHealth / HealthComponent->MaxHealth;
+		BossHealthWidget->UpdateHealthBar(HealthPercentage);
+	}
+}

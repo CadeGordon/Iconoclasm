@@ -18,5 +18,12 @@ protected:
 	// Reference to the progress bar in the UI
 	UPROPERTY(meta = (BindWidget))
 	class UProgressBar* HealthBar;
+
+
+public:
+	/** Updates the health bar progress */
+	void UpdateHealthBar(float HealthPercentage);
+
+	virtual void NativeConstruct() override;
 	
 };

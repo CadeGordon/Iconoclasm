@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "HealthComponent.h"
 #include "RaphaelBossCharacter.generated.h"
 
 UCLASS()
@@ -49,7 +50,7 @@ protected:
 
 	// Sphere component to determine push back radius
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Push Back")
-	USphereComponent* PushBackSphere;
+	class USphereComponent* PushBackSphere;
 
 	// Array of actors set in the editor to serve as healing sources
 	UPROPERTY(EditAnywhere, Category = "Healing")
@@ -68,10 +69,21 @@ public:
 	UPROPERTY()
 	class URaphHealthBar* BossHealthWidget;
 
-	UPROPERTY(EditAnywhere, Category = "Boss")
+	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<UUserWidget> BossHealthWidgetClass;
 
 	UFUNCTION()
 	void OnPlayerEnterBossArea(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UPROPERTY(VisibleAnywhere, Category = "Health")
+	UHealthComponent* HealthComponent;
+
+	void UpdateBossHealthUI(float CurrentHealth);
+
+	UFUNCTION()
+	void OnBossHealthChanged(float NewHealth);
+
+	UFUNCTION()
+	void OnBossDeath();
 };
