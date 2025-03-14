@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "HealthPack.h"
 #include "HealthComponent.generated.h"
 
 // Declare a dynamic multicast delegate for health-related events
@@ -69,6 +70,10 @@ public:
 
 	UFUNCTION()
 	void SetCurrentHealth(float NewHealth);
+
+	// Class to spawn when the actor dies
+	UPROPERTY(EditDefaultsOnly, Category = "Health")
+	TSubclassOf<AHealthPack> HealthPackClass;
 
 		
 };

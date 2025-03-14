@@ -3,6 +3,7 @@
 
 #include "HealthComponent.h"
 #include "IconoclasmCharacter.h"
+#include "HealthPack.h"
 
 // Sets default values for this component's properties
 UHealthComponent::UHealthComponent()
@@ -63,6 +64,13 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 		}
 		else
 		{
+			// Spawn health pack at actor's location
+			if (GetWorld() && HealthPackClass)
+			{
+				FActorSpawnParameters SpawnParams;
+				GetWorld()->SpawnActor<AHealthPack>(HealthPackClass, GetOwner()->GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+			}
+
 			// Destroy any other actor that has a health component
 			AActor* Owner = GetOwner();
 			if (Owner)
