@@ -389,17 +389,29 @@ bool AIconoclasmCharacter::GetHasRifle()
 void AIconoclasmCharacter::DoubleJump()
 {
 
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+
+	if (MoveComp->IsMovingOnGround())
+	{
+		bHasLeftGround = false;
+	}
+
+	// If falling and haven't already counted this as first jump
+	if (MoveComp->IsFalling() && JumpCount == 0 && !bHasLeftGround)
+	{
+		JumpCount = 1; // Count walking off as first jump
+		bHasLeftGround = true;
+	}
+
 	if (JumpCount < 2)
 	{
-		if (JumpCount == 0)
+		// If grounded, use regular jump
+		if (MoveComp->IsMovingOnGround())
 		{
-			// First jump using the built-in Jump function
 			Jump();
-			
 		}
 		else
 		{
-			// Second jump - manually set the velocity
 			LaunchCharacter(FVector(0, 0, 1400.0f), false, true);
 		}
 
@@ -598,6 +610,7 @@ void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 
 	CanDashAgain = true;
 	JumpCount = 0;
+	bHasLeftGround = false;
 
 	// If there are no dash charges, start recharging them
 	if (DashCharges == 0)

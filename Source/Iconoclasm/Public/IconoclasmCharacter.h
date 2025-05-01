@@ -277,6 +277,8 @@ public:
 		float TargetDashProgress; // The desired progress value
 		float CurrentDashProgress; // The current progress value for interpolation
 		float ProgressInterpSpeed; // The speed of interpolation
+
+		bool bHasLeftGround = false;
 		
 };
 
