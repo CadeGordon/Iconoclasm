@@ -76,6 +76,10 @@ void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
 void UWallRunComponent::StartWallRun()
 {
+	// Unlock character rotation so camera can look independently
+	OwningCharacter->bUseControllerRotationYaw = false;
+	OwningCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
+
 	FVector OutWallNormal, OutWallRunDirection;
 	if (DetectWall(OutWallNormal, OutWallRunDirection))
 	{
@@ -110,6 +114,15 @@ void UWallRunComponent::StopWallRun()
 	// Set the cooldown timer
 	WallRunCooldownActive = true;
 	GetWorld()->GetTimerManager().SetTimer(WallRunCooldownTimerHandle, this, &UWallRunComponent::ResetWallRunCooldown, WallRunCooldownDuration, false);
+
+	// Re-lock camera and character rotation
+	OwningCharacter->bUseControllerRotationYaw = true;
+	OwningCharacter->GetCharacterMovement()->bOrientRotationToMovement = true;
+
+	// Optional: Snap character to camera rotation
+	FRotator ControlRot = OwningCharacter->GetControlRotation();
+	FRotator NewYaw = FRotator(0.f, ControlRot.Yaw, 0.f);
+	OwningCharacter->SetActorRotation(NewYaw);
 }
 
 void UWallRunComponent::WallRun()
@@ -169,13 +182,27 @@ bool UWallRunComponent::DetectWall(FVector& OutWallNormal, FVector& OutWallDirec
 	if (bHitRight && HitResultRight.bBlockingHit)
 	{
 		OutWallNormal = HitResultRight.Normal;
-		OutWallDirection = FVector::CrossProduct(FVector::UpVector, OutWallNormal).GetSafeNormal();
+
+		// Try both directions and pick the one facing forward
+		FVector WallDir1 = FVector::CrossProduct(FVector::UpVector, OutWallNormal).GetSafeNormal();
+		FVector WallDir2 = -WallDir1;
+		FVector Forward = OwningCharacter->GetActorForwardVector();
+
+		OutWallDirection = (FVector::DotProduct(Forward, WallDir1) > FVector::DotProduct(Forward, WallDir2)) ? WallDir1 : WallDir2;
+
 		return true;
 	}
 	else if (bHitLeft && HitResultLeft.bBlockingHit)
 	{
 		OutWallNormal = HitResultLeft.Normal;
-		OutWallDirection = FVector::CrossProduct(FVector::UpVector, OutWallNormal).GetSafeNormal();
+
+		// Try both directions and pick the one facing forward
+		FVector WallDir1 = FVector::CrossProduct(FVector::UpVector, OutWallNormal).GetSafeNormal();
+		FVector WallDir2 = -WallDir1;
+		FVector Forward = OwningCharacter->GetActorForwardVector();
+
+		OutWallDirection = (FVector::DotProduct(Forward, WallDir1) > FVector::DotProduct(Forward, WallDir2)) ? WallDir1 : WallDir2;
+
 		return true;
 	}
 
