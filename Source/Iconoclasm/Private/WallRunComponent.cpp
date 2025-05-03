@@ -15,7 +15,7 @@ UWallRunComponent::UWallRunComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
-	WallRunSpeed = 10.0f;
+	WallRunSpeed = 1000.0f;
 	
 	DescentRate = 200.0f;
 
@@ -89,16 +89,23 @@ void UWallRunComponent::StartWallRun()
 		GetWorld()->GetTimerManager().SetTimer(WallRunTimerHandle, this, &UWallRunComponent::EndWallRun, WallRunDuration, false);
 
 		// Call WallRun function every tick
-		OwningCharacter->GetCharacterMovement()->StopMovementImmediately(); // Stop other movement
+		//OwningCharacter->GetCharacterMovement()->StopMovementImmediately(); // Stop other movement
 		GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UWallRunComponent::WallRun);
 	}
 }
 
 void UWallRunComponent::StopWallRun()
 {
-	// Clear timer handle and reset movement mode
-	GetWorld()->GetTimerManager().ClearTimer(WallRunTimerHandle);
-	OwningCharacter->GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
+
+	// Save current wall run velocity before switching movement mode
+	FVector ExitVelocity = MovementComp->Velocity;
+
+	// Reset movement mode (back to walking)
+	MovementComp->SetMovementMode(EMovementMode::MOVE_Walking);
+
+	// Reapply momentum after mode change (Unreal zeroes it out otherwise)
+	MovementComp->Velocity = ExitVelocity;
 
 	// Set the cooldown timer
 	WallRunCooldownActive = true;
@@ -107,35 +114,34 @@ void UWallRunComponent::StopWallRun()
 
 void UWallRunComponent::WallRun()
 {
-	// Calculate wall run movement using the initial speed
-	FVector HorizontalInitialVelocity = InitialVelocity.ProjectOnTo(WallRunDirection);
-	FVector WallRunVelocity = WallRunDirection * WallRunSpeed;
+	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
+	FVector CurrentVelocity = MovementComp->Velocity;
 
-	// Maintain the player's initial speed while wall running
-	FVector FinalWallRunVelocity = HorizontalInitialVelocity + WallRunVelocity;
+	// Project current velocity onto wall run direction
+	float ForwardSpeed = FVector::DotProduct(CurrentVelocity, WallRunDirection);
 
-	// Calculate downward velocity
-	FVector DownwardVelocity = FVector(0.0f, 0.0f, -DescentRate);
+	// If the forward speed is below desired wall run speed, boost it
+	if (ForwardSpeed < WallRunSpeed)
+	{
+		float SpeedBoost = WallRunSpeed - ForwardSpeed;
+		CurrentVelocity += WallRunDirection * SpeedBoost;
+	}
 
-	// Combine wall run, downward velocities, and initial velocity
-	FinalWallRunVelocity += DownwardVelocity;
+	// Apply descent rate (Z component)
+	CurrentVelocity.Z = -DescentRate;
 
-	// Apply the final velocity to the character
-	OwningCharacter->LaunchCharacter(FinalWallRunVelocity, false, false);
+	// Set the velocity directly instead of using LaunchCharacter
+	MovementComp->Velocity = CurrentVelocity;
 
-	// Draw debug line to visualize wall running (optional)
 	DrawDebugLine(GetWorld(), OwningCharacter->GetActorLocation(), OwningCharacter->GetActorLocation() + WallRunDirection * 100.0f, FColor::Green, false, 0.1f);
 
-	// Continue wall run if still on the wall
 	FVector OutWallNormal, OutWallRunDirection;
 	if (DetectWall(OutWallNormal, OutWallRunDirection))
 	{
-		// Call WallRun function again for the next tick
 		GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UWallRunComponent::WallRun);
 	}
 	else
 	{
-		// Stop wall run if no wall is detected
 		StopWallRun();
 	}
 }
@@ -149,55 +155,27 @@ void UWallRunComponent::ResetWallRunCooldown()
 
 bool UWallRunComponent::DetectWall(FVector& OutWallNormal, FVector& OutWallDirection)
 {
-	// Raycast from the character's position to detect the wall
 	FVector Start = OwningCharacter->GetActorLocation();
-	FVector ForwardVector = OwningCharacter->GetActorForwardVector();
 	FVector RightVector = OwningCharacter->GetActorRightVector();
 
 	FVector EndRight = Start + RightVector * 100.0f;
 	FVector EndLeft = Start - RightVector * 100.0f;
 
-	FHitResult HitResultRight;
-	FHitResult HitResultLeft;
+	FHitResult HitResultRight, HitResultLeft;
 
-	// Perform line traces on both sides to detect a wall
 	bool bHitRight = GetWorld()->LineTraceSingleByChannel(HitResultRight, Start, EndRight, ECC_Visibility);
 	bool bHitLeft = GetWorld()->LineTraceSingleByChannel(HitResultLeft, Start, EndLeft, ECC_Visibility);
 
 	if (bHitRight && HitResultRight.bBlockingHit)
 	{
-		// Wall detected on the right side
 		OutWallNormal = HitResultRight.Normal;
-
-		// Calculate wall run direction
-		OutWallDirection = FVector::CrossProduct(OutWallNormal, FVector::UpVector).GetSafeNormal();
-
-		// Verify the direction: if it’s in the reverse direction of the forward vector, invert it
-		if (FVector::DotProduct(OutWallDirection, ForwardVector) < 0)
-		{
-			OutWallDirection *= -1;
-		}
-
-		UE_LOG(LogTemp, Warning, TEXT("Wall detected on the right side. Wall normal: %s"), *OutWallNormal.ToString());
-
+		OutWallDirection = FVector::CrossProduct(FVector::UpVector, OutWallNormal).GetSafeNormal();
 		return true;
 	}
 	else if (bHitLeft && HitResultLeft.bBlockingHit)
 	{
-		// Wall detected on the left side
 		OutWallNormal = HitResultLeft.Normal;
-
-		// Calculate wall run direction
-		OutWallDirection = FVector::CrossProduct(OutWallNormal, FVector::UpVector).GetSafeNormal();
-
-		// Verify the direction: if it’s in the reverse direction of the forward vector, invert it
-		if (FVector::DotProduct(OutWallDirection, ForwardVector) < 0)
-		{
-			OutWallDirection *= -1;
-		}
-
-		UE_LOG(LogTemp, Warning, TEXT("Wall detected on the left side. Wall normal: %s"), *OutWallNormal.ToString());
-
+		OutWallDirection = FVector::CrossProduct(FVector::UpVector, OutWallNormal).GetSafeNormal();
 		return true;
 	}
 
