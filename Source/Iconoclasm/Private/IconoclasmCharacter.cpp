@@ -413,6 +413,7 @@ void AIconoclasmCharacter::DoubleJump()
 		else
 		{
 			LaunchCharacter(FVector(0, 0, 1400.0f), false, true);
+			WallRunComponent->StopWallRun();
 		}
 
 		JumpCount++;
