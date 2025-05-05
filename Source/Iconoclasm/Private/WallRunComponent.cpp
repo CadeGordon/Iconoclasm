@@ -215,3 +215,8 @@ void UWallRunComponent::EndWallRun()
 	
 }
 
+void UWallRunComponent::ResetWallJumpCooldown()
+{
+	bWallJumped = false;
+}
+

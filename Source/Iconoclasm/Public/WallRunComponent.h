@@ -40,6 +40,8 @@ private:
 
 	void EndWallRun();
 
+	void ResetWallJumpCooldown();
+
 private:
 	ACharacter* OwningCharacter;
 
@@ -62,6 +64,10 @@ private:
 	bool WallRunCooldownActive = false;
 
 	FTimerHandle WallRunTimerHandle;
+
+	bool bWallJumped = false;
+	float WallJumpCooldownDuration = 0.2f;
+	FTimerHandle WallJumpCooldownHandle;
 
 
 		
