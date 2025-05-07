@@ -173,6 +173,8 @@ public:
 
 		void RestoreFullHealth();
 
+		void ResetJumpCount();
+
 		UFUNCTION()
 		UHealthComponent* GetHealthComponent() const;
 	

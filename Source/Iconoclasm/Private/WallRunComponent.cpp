@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
+#include "IconoclasmCharacter.h"
 
 // Sets default values for this component's properties
 UWallRunComponent::UWallRunComponent()
@@ -95,6 +96,12 @@ void UWallRunComponent::StartWallRun()
 		// Call WallRun function every tick
 		//OwningCharacter->GetCharacterMovement()->StopMovementImmediately(); // Stop other movement
 		GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UWallRunComponent::WallRun);
+
+		// Reset jump count when wall running begins
+		if (AIconoclasmCharacter* IconoclasmChar = Cast<AIconoclasmCharacter>(OwningCharacter))
+		{
+			IconoclasmChar->ResetJumpCount();
+		}
 	}
 }
 

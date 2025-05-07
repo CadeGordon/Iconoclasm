@@ -391,29 +391,31 @@ void AIconoclasmCharacter::DoubleJump()
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 
+	if (WallRunComponent && WallRunComponent->IsWallRunning) 
+	{
+		WallRunComponent->StopWallRun();
+	}
+
 	if (MoveComp->IsMovingOnGround())
 	{
 		bHasLeftGround = false;
 	}
 
-	// If falling and haven't already counted this as first jump
 	if (MoveComp->IsFalling() && JumpCount == 0 && !bHasLeftGround)
 	{
-		JumpCount = 1; // Count walking off as first jump
+		JumpCount = 1;
 		bHasLeftGround = true;
 	}
 
 	if (JumpCount < 2)
 	{
-		// If grounded, use regular jump
 		if (MoveComp->IsMovingOnGround())
 		{
-			Jump();
+			Jump(); // Applies default jump Z velocity
 		}
 		else
 		{
-			LaunchCharacter(FVector(0, 0, 1400.0f), false, true);
-			WallRunComponent->StopWallRun();
+			LaunchCharacter(FVector(0, 0, 1400.0f), false, true); // Apply manual jump force
 		}
 
 		JumpCount++;
@@ -811,3 +813,8 @@ UHealthComponent* AIconoclasmCharacter::GetHealthComponent() const
 	return FindComponentByClass<UHealthComponent>();
 }
 
+void AIconoclasmCharacter::ResetJumpCount()
+{
+	JumpCount = 0;
+	bHasLeftGround = false;
+}
