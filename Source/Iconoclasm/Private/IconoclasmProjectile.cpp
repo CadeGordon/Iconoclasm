@@ -8,6 +8,7 @@
 #include "PhysicsEngine/RadialForceComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
+#include "IconoclasmCharacter.h"
 
 AIconoclasmProjectile::AIconoclasmProjectile() 
 {
@@ -38,7 +39,7 @@ AIconoclasmProjectile::AIconoclasmProjectile()
 
 void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-    if ((OtherActor != nullptr) && (OtherActor != this))
+    if (OtherActor && OtherActor != this && OtherActor->IsA(AIconoclasmCharacter::StaticClass()))
     {
         // Destroy the projectile
         Destroy();
@@ -51,6 +52,9 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 
         // Draw debug sphere to visualize the radius
         DrawDebugSphere(GetWorld(), ImpactLocation, ExplosionRadius, 32, FColor::Red, false, 2.0f);
+
+        TArray<AActor*> IgnoreActors;
+        // Add all actors except the player to IgnoreActors if needed
 
         // Apply radial damage
         UGameplayStatics::ApplyRadialDamage(
@@ -72,7 +76,7 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 
 void AIconoclasmProjectile::AltOnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-    if ((OtherActor != nullptr) && (OtherActor != this))
+    if (OtherActor && OtherActor != this && OtherActor->IsA(AIconoclasmCharacter::StaticClass()))
     {
         // Apply damage to the hit actor
         float DamageAmount = 100.0f; // Adjust damage as needed
