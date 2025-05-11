@@ -608,6 +608,22 @@ void UTP_WeaponComponent::ImpulseMode()
 		true // Whether to cause damage even if there’s no line of sight
 	);
 
+	// Apply impulse to characters
+	TArray<AActor*> OverlappingActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
+
+	for (AActor* Actor : OverlappingActors)
+	{
+		if (!Actor || Actor == Character) continue;
+
+		ACharacter* AffectedCharacter = Cast<ACharacter>(Actor);
+		if (AffectedCharacter && FVector::Dist(AffectedCharacter->GetActorLocation(), ImpactLocation) <= ImpulseRadius)
+		{
+			FVector LaunchDirection = (AffectedCharacter->GetActorLocation() - ImpactLocation).GetSafeNormal();
+			AffectedCharacter->LaunchCharacter(LaunchDirection * (ImpulseStrength / 100.0f), true, true); // Scale down to avoid overkill
+		}
+	}
+
 	// Play fire sound
 	if (FireSound != nullptr)
 	{
