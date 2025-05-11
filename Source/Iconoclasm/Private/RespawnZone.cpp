@@ -6,6 +6,7 @@
 #include "IconoclasmCharacter.h"
 #include "GameFramework/Actor.h"
 #include "HealthComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 ARespawnZone::ARespawnZone()
@@ -42,20 +43,28 @@ void ARespawnZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* O
 	AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(OtherActor);
 	if (PlayerCharacter)
 	{
-		// Log respawn event
 		UE_LOG(LogTemp, Warning, TEXT("Player entered Respawn Zone! Respawning..."));
 
-		// Move player to last known safe location
 		if (PlayerCharacter->LastSafeLocation != FVector::ZeroVector)
 		{
+			// Stop all movement first
+			if (UCharacterMovementComponent* MoveComp = PlayerCharacter->GetCharacterMovement())
+			{
+				MoveComp->StopMovementImmediately();
+			}
+
+			// Teleport player (use SetActorLocation or TeleportTo)
 			PlayerCharacter->SetActorLocation(PlayerCharacter->LastSafeLocation);
 		}
 
-		// Apply damage using HealthComponent
-		UHealthComponent* HealthComp = PlayerCharacter->FindComponentByClass<UHealthComponent>();
-		if (HealthComp)
+		if (PlayerCharacter)
 		{
-			HealthComp->TakeDamage(DamageOnRespawn);
+	
+			UHealthComponent* HealthComp = PlayerCharacter->FindComponentByClass<UHealthComponent>();
+			if (HealthComp)
+			{
+				HealthComp->TakeDamage(DamageOnRespawn);
+			}
 		}
 	}
 }

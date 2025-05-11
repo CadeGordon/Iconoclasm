@@ -220,30 +220,45 @@ void UTP_WeaponComponent::ApplyExplosionEffect(const FVector& ImpactLocation, fl
 {
 	DrawDebugSphere(GetWorld(), ImpactLocation, Radius, 32, FColor::Green, false, 2.0f);
 
-	// Get the actor that owns this weapon component
 	AActor* OwnerActor = GetOwner();
 	if (!OwnerActor) return;
 
-	// Create an ignore list to exclude the player
-	TArray<AActor*> IgnoreActors;
 	AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(OwnerActor);
-	if (PlayerCharacter)
-	{
-		IgnoreActors.Add(PlayerCharacter); // Add player to ignore list
-	}
 
-	// Apply radial damage to all affected actors except the player
-	UGameplayStatics::ApplyRadialDamage(
-		GetWorld(),
-		100.0f, // Explosion damage
+	// Manually detect actors in the explosion radius
+	TArray<FOverlapResult> OverlapResults;
+	FCollisionShape CollisionShape = FCollisionShape::MakeSphere(Radius);
+
+	bool bHit = GetWorld()->OverlapMultiByChannel(
+		OverlapResults,
 		ImpactLocation,
-		Radius,
-		UDamageType::StaticClass(),
-		IgnoreActors, // Exclude player from damage
-		OwnerActor, // Damage Causer
-		OwnerActor->GetInstigatorController(), // Instigator
-		true // Do full damage at center, falloff otherwise
+		FQuat::Identity,
+		ECC_Pawn,
+		CollisionShape
 	);
+
+	if (bHit)
+	{
+		for (const FOverlapResult& Result : OverlapResults)
+		{
+			AActor* HitActor = Result.GetActor();
+			if (!HitActor) continue;
+
+			if (HitActor->IsA(AIconoclasmCharacter::StaticClass()))
+			{
+				continue; // Skip damaging any player characters
+			}
+
+			// Apply damage
+			UGameplayStatics::ApplyDamage(
+				HitActor,
+				100.0f,
+				OwnerActor->GetInstigatorController(),
+				OwnerActor,
+				UDamageType::StaticClass()
+			);
+		}
+	}
 
 	// Apply force to all characters in radius
 	TArray<AActor*> OverlappingActors;
@@ -504,13 +519,22 @@ void UTP_WeaponComponent::LifeBloodMode()
 		{
 			if (AActor* HitActor = HitResult.GetActor())
 			{
-				// Check if the actor has the health component
-				UHealthComponent* HealthComp = HitActor->FindComponentByClass<UHealthComponent>();
-				if (HealthComp)
+				UHealthComponent* HitHealthComp = HitActor->FindComponentByClass<UHealthComponent>();
+				UHealthComponent* PlayerHealthComp = Character->FindComponentByClass<UHealthComponent>();
+
+				if (HitHealthComp && PlayerHealthComp)
 				{
-					// Apply damage
-					float DamageAmount = 50.0f; // Example damage value
-					HealthComp->TakeDamage(DamageAmount);
+					if (HitActor->IsA(AIconoclasmCharacter::StaticClass()))
+					{
+						// Heal the player when hitting an IconoclasmCharacter
+						PlayerHealthComp->Heal(30.0f); // Example heal amount
+					}
+					else
+					{
+						// Deal damage to enemies
+						float DamageAmount = 50.0f;
+						HitHealthComp->TakeDamage(DamageAmount);
+					}
 				}
 			}
 		}
