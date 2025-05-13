@@ -12,6 +12,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "GLHUD.h"
 #include "HealthComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "RaphaelBossCharacter.h"
 
 // Sets default values for this component's properties
 UTP_WeaponComponent::UTP_WeaponComponent()
@@ -345,39 +347,52 @@ void UTP_WeaponComponent::AntiGravity(const FVector& ImpactLocation, float Radiu
 	TArray<AActor*> OverlappingActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), OverlappingActors);
 
-	// Iterate over each actor to apply the anti-gravity effect
 	for (AActor* Actor : OverlappingActors)
 	{
-		// Skip the player character
 		if (Actor != Character && FVector::Dist(Actor->GetActorLocation(), ImpactLocation) <= Radius)
 		{
-			// Get the primitive component to disable gravity
-			UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (PrimComp && PrimComp->IsSimulatingPhysics())
+			bool bEffectApplied = false;
+
+			// Handle physics-simulating objects
+			if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(Actor->GetRootComponent()))
 			{
-				PrimComp->SetEnableGravity(false);
+				if (PrimComp->IsSimulatingPhysics())
+				{
+					PrimComp->SetEnableGravity(false);
+					bEffectApplied = true;
 
-				// Re-enable gravity after 5 seconds
-				FTimerHandle TimerHandle;
-				GetWorld()->GetTimerManager().SetTimer(TimerHandle, [PrimComp]()
-					{
-						PrimComp->SetEnableGravity(true);
-					}, 5.0f, false);
+					FTimerHandle TimerHandle;
+					GetWorld()->GetTimerManager().SetTimer(TimerHandle, [PrimComp]()
+						{
+							PrimComp->SetEnableGravity(true);
+						}, 5.0f, false);
 
-				// Debugging: Log information about the actor
-				UE_LOG(LogTemp, Warning, TEXT("Disabling gravity for %s"), *Actor->GetName());
+					UE_LOG(LogTemp, Warning, TEXT("Disabled gravity (physics) for %s"), *Actor->GetName());
+				}
 			}
-			else
+
+			// Handle characters (like AI enemies)
+			if (ACharacter* AffectedCharacter = Cast<ACharacter>(Actor))
 			{
-				// Debugging: Log if the primitive component is null or not simulating physics
-				if (!PrimComp)
+				UCharacterMovementComponent* MoveComp = AffectedCharacter->GetCharacterMovement();
+				if (MoveComp)
 				{
-					UE_LOG(LogTemp, Warning, TEXT("No primitive component found on %s"), *Actor->GetName());
+					MoveComp->GravityScale = 0.0f;
+					bEffectApplied = true;
+
+					FTimerHandle TimerHandle;
+					GetWorld()->GetTimerManager().SetTimer(TimerHandle, [MoveComp]()
+						{
+							MoveComp->GravityScale = 1.0f;
+						}, 5.0f, false);
+
+					UE_LOG(LogTemp, Warning, TEXT("Disabled gravity (character) for %s"), *Actor->GetName());
 				}
-				else if (!PrimComp->IsSimulatingPhysics())
-				{
-					UE_LOG(LogTemp, Warning, TEXT("Primitive component is not simulating physics on %s"), *Actor->GetName());
-				}
+			}
+
+			if (!bEffectApplied)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("No anti-gravity effect applied to %s"), *Actor->GetName());
 			}
 		}
 	}
@@ -615,6 +630,12 @@ void UTP_WeaponComponent::ImpulseMode()
 	for (AActor* Actor : OverlappingActors)
 	{
 		if (!Actor || Actor == Character) continue;
+
+		// Check if this actor is the RaphaelBossCharacter
+		if (Actor->IsA(ARaphaelBossCharacter::StaticClass()))
+		{
+			continue; // Skip the boss
+		}
 
 		ACharacter* AffectedCharacter = Cast<ACharacter>(Actor);
 		if (AffectedCharacter && FVector::Dist(AffectedCharacter->GetActorLocation(), ImpactLocation) <= ImpulseRadius)
