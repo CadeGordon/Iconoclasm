@@ -3,6 +3,8 @@
 
 #include "GruntEnemyCharacter.h"
 #include "GruntAIController.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
 
 // Sets default values
 AGruntEnemyCharacter::AGruntEnemyCharacter()
@@ -33,6 +35,21 @@ AGruntEnemyCharacter::AGruntEnemyCharacter()
 void AGruntEnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Get the player character
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (!PlayerCharacter) return;
+
+	// Get direction to player
+	FVector DirectionToPlayer = PlayerCharacter->GetActorLocation() - GetActorLocation();
+	DirectionToPlayer.Z = 0.0f; // Ignore vertical difference
+
+	if (!DirectionToPlayer.IsNearlyZero())
+	{
+		FRotator TargetRotation = DirectionToPlayer.Rotation();
+		FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 5.0f); // 5.0f = rotation speed
+		SetActorRotation(NewRotation);
+	}
 
 }
 

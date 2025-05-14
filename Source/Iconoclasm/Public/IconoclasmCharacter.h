@@ -258,6 +258,10 @@ public:
 
 	int32 CurrentWeaponIndex;
 
+	bool bCanMelee = true;
+	FTimerHandle MeleeCooldownTimerHandle;
+	float MeleeCooldownDuration = 1.0f;
+
 	UPROPERTY()
 	UDashHUD* DashHUD;
 

@@ -690,31 +690,41 @@ bool AIconoclasmCharacter::HasWeaponEquipped() const
 void AIconoclasmCharacter::PerformMelee()
 {
 
+	if (!bCanMelee)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Melee is on cooldown."));
+		return;
+	}
+
+	// Start cooldown
+	bCanMelee = false;
+	GetWorldTimerManager().SetTimer(MeleeCooldownTimerHandle, [this]()
+		{
+			bCanMelee = true;
+			UE_LOG(LogTemp, Log, TEXT("Melee cooldown reset."));
+		}, MeleeCooldownDuration, false);
+
+	// === Your existing melee logic ===
+
 	float MeleeDamage = 20.0f;
 
-	// Get the start and end points of the trace
 	FVector Start = FirstPersonCameraComponent->GetComponentLocation();
 	FVector ForwardVector = FirstPersonCameraComponent->GetForwardVector();
 	FVector End = Start + (ForwardVector * MeleeRange);
 
-	// Trace parameters
 	FHitResult HitResult;
 	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(this); // Ignore self
+	QueryParams.AddIgnoredActor(this);
 
-	// Perform the line trace
 	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
 
-	// Visualize the trace for debugging
 	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 1.0f, 0, 1.0f);
 
 	if (bHit)
 	{
 		AActor* HitActor = HitResult.GetActor();
-
 		if (HitActor)
 		{
-			// Apply knockback
 			UPrimitiveComponent* HitComponent = HitResult.GetComponent();
 			if (HitComponent && HitComponent->IsSimulatingPhysics())
 			{
@@ -722,23 +732,19 @@ void AIconoclasmCharacter::PerformMelee()
 				HitComponent->AddImpulse(KnockbackDirection * KnockbackStrength, NAME_None, true);
 			}
 
-			// Apply damage to the hit actor
 			UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, UDamageType::StaticClass());
 
-			// Check if the hit actor has a health component
 			UHealthComponent* EnemyHealthComp = HitActor->FindComponentByClass<UHealthComponent>();
 			if (EnemyHealthComp)
 			{
-				// Heal the player by a fraction of the melee damage
 				UHealthComponent* PlayerHealthComp = FindComponentByClass<UHealthComponent>();
 				if (PlayerHealthComp)
 				{
-					float HealAmount = MeleeDamage * 0.5f; // Heal 50% of the melee damage dealt
+					float HealAmount = MeleeDamage * 0.5f;
 					PlayerHealthComp->Heal(HealAmount);
 				}
 			}
 
-			// Log the hit
 			UE_LOG(LogTemp, Log, TEXT("Melee hit: %s"), *HitActor->GetName());
 		}
 	}

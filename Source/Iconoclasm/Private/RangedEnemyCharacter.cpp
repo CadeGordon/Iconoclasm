@@ -46,6 +46,21 @@ void ARangedEnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Get the player character
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (!PlayerCharacter) return;
+
+	// Get the direction to the player
+	FVector DirectionToPlayer = PlayerCharacter->GetActorLocation() - GetActorLocation();
+	DirectionToPlayer.Z = 0.0f; // Ignore vertical difference to rotate only on the yaw axis
+
+	if (!DirectionToPlayer.IsNearlyZero())
+	{
+		FRotator TargetRotation = DirectionToPlayer.Rotation();
+		FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 3.0f); // Smooth rotation
+		SetActorRotation(NewRotation);
+	}
+
 }
 
 void ARangedEnemyCharacter::FireWeapon(const FVector& Direction)

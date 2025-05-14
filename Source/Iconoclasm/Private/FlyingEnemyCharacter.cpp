@@ -11,6 +11,7 @@
 #include "IconoclasmProjectile.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AFlyingEnemyCharacter::AFlyingEnemyCharacter()
@@ -53,12 +54,36 @@ void AFlyingEnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Get the player character
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (!PlayerCharacter) return;
+
+	// Get the direction to the player
+	FVector DirectionToPlayer = PlayerCharacter->GetActorLocation() - GetActorLocation();
+
+	// Optional: ignore Z axis if you only want yaw rotation (like a turret)
+	// DirectionToPlayer.Z = 0.0f;
+
+	if (!DirectionToPlayer.IsNearlyZero())
+	{
+		FRotator TargetRotation = DirectionToPlayer.Rotation();
+
+		// Optional: restrict to yaw only
+		// TargetRotation.Pitch = 0.0f;
+		// TargetRotation.Roll = 0.0f;
+
+		FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 3.0f); // 3.0f is rotation speed
+		SetActorRotation(NewRotation);
+	}
+
 }
 
 // Called to bind functionality to input
 void AFlyingEnemyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+
 
 }
 
