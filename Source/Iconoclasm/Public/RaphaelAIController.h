@@ -193,6 +193,7 @@ private:
     float AbilityDuration = 5.0f;  // Set a default duration for each ability
 
     bool IsAbilityActive = false;
+    bool bIsDelaying = false;
 
     FTimerHandle AbilityTimerHandle;
 

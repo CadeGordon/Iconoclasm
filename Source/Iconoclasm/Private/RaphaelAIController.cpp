@@ -652,20 +652,23 @@ void ARaphaelAIController::OnPlayerEnterTrigger(UPrimitiveComponent* OverlappedC
 {
     ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 
-    if (OtherActor == PlayerCharacter && !bIsActivated)
+    if (OtherActor == PlayerCharacter && !bIsActivated && !bIsDelaying)
     {
-        bIsActivated = true;
+        bIsDelaying = true; // We're now in the delay period, but not activated yet
 
         // Start a timer for activation delay
         GetWorld()->GetTimerManager().SetTimer(DelayTimerHandle, this, &ARaphaelAIController::ActivateBoss, ActivationDelay, false);
 
         // Optional: Trigger animation or dialogue here
-        UE_LOG(LogTemp, Warning, TEXT("Player entered trigger zone. Performing ability after delay..."));
+        UE_LOG(LogTemp, Warning, TEXT("Player entered trigger zone. Activating boss in %f seconds..."), ActivationDelay);
     }
 }
 
 void ARaphaelAIController::ActivateBoss()
 {
+    bIsActivated = true; // Now we're fully activated
+    bIsDelaying = false; // No longer in delay period
+
     UE_LOG(LogTemp, Warning, TEXT("Boss activated. Starting behavior."));
 
     // Enable AI behavior
