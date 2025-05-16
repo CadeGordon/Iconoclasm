@@ -189,6 +189,8 @@ private:
 
     void ResetAbility();
 
+    
+
     // You can define durations like this (or set them per ability if necessary)
     float AbilityDuration = 5.0f;  // Set a default duration for each ability
 
@@ -225,4 +227,8 @@ private:
 
     // Tracks the active rain area centers
     TArray<FVector> ActiveRainAreas;
+
+    public:
+        // Method to stop all abilities when boss dies
+        void StopAllAbilities();
 };

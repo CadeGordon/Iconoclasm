@@ -681,6 +681,43 @@ void ARaphaelAIController::ActivateBoss()
 
 
 
+void ARaphaelAIController::StopAllAbilities()
+{
+    // Clear all timers
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        // Stop JacobsLadder ability
+        World->GetTimerManager().ClearTimer(DelayTimerHandle);
+        World->GetTimerManager().ClearTimer(TelegraphTimerHandle);
+        World->GetTimerManager().ClearTimer(BeamTimerHandle);
+
+        // Stop BurstShoot ability
+        World->GetTimerManager().ClearTimer(ShotTimerHandle);
+        World->GetTimerManager().ClearTimer(BurstTimerHandle);
+
+        // Stop ThrowAbility
+        World->GetTimerManager().ClearTimer(ThrowChargeTimerHandle);
+
+        // Stop JudgementGaze ability
+        World->GetTimerManager().ClearTimer(JudgementGazeTimerHandle);
+        World->GetTimerManager().ClearTimer(JudgementGazeDurationTimerHandle);
+        PlayerPositionHistory.Empty();
+
+        // Stop HeavenRain ability
+        World->GetTimerManager().ClearTimer(HeavenRainTimerHandle);
+
+        // Stop main ability timer
+        World->GetTimerManager().ClearTimer(AbilityTimerHandle);
+    }
+
+    // Reset state flags
+    IsAbilityActive = false;
+    bIsActivated = false;
+    bIsDelaying = false;
+
+    UE_LOG(LogTemp, Warning, TEXT("All boss abilities stopped due to death"));
+}
 
 
 

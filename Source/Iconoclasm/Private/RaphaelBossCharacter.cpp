@@ -14,6 +14,7 @@
 #include "Components/ProgressBar.h"
 #include "Blueprint/UserWidget.h"
 #include "HealthComponent.h"
+#include "RaphaelAIController.h"
 
 
 // Sets default values
@@ -154,6 +155,14 @@ void ARaphaelBossCharacter::OnBossDeath()
 		BossHealthWidget->RemoveFromParent();
 		BossHealthWidget = nullptr;
 	}
+
+	// Stop all abilities in the AI controller
+	ARaphaelAIController* BossAI = Cast<ARaphaelAIController>(GetController());
+	if (BossAI)
+	{
+		BossAI->StopAllAbilities();
+	}
+
 }
 
 void ARaphaelBossCharacter::UpdateBossHealthUI(float CurrentHealth)
