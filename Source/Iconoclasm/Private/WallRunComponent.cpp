@@ -16,7 +16,7 @@ UWallRunComponent::UWallRunComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
-	WallRunSpeed = 1000.0f;
+	WallRunSpeed = 1800.0f;
 	
 	DescentRate = 200.0f;
 
@@ -47,12 +47,25 @@ void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 		return;
 	}
 
+	// Make sure we have a valid character and movement component
+	if (!OwningCharacter)
+	{
+		return;
+	}
+
+	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
+	if (!MovementComp)
+	{
+		return;
+	}
+
 	// Constantly check if the character can start wall running
 	FVector OutWallNormal, OutWallRunDirection;
 	bool DetectedWall = DetectWall(OutWallNormal, OutWallRunDirection);
+	bool bIsFalling = MovementComp->IsFalling();
 
 	// If a wall is detected and the character is not already wall running, start wall running
-	if (DetectedWall && !IsWallRunning)
+	if (DetectedWall && bIsFalling && !IsWallRunning)
 	{
 		StartWallRun();
 	}
@@ -64,8 +77,8 @@ void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 			// Continue wall running
 			WallNormal = OutWallNormal;
 			WallRunDirection = OutWallRunDirection;
-			FVector WallRunVelocity = WallRunDirection * WallRunSpeed;
-			OwningCharacter->LaunchCharacter(WallRunVelocity, false, false);
+			// Apply the fixed wall run velocity every frame
+			WallRun();
 		}
 		else
 		{
@@ -81,6 +94,8 @@ void UWallRunComponent::StartWallRun()
 	OwningCharacter->bUseControllerRotationYaw = false;
 	OwningCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
 
+	IsWallRunning = true;
+
 	FVector OutWallNormal, OutWallRunDirection;
 	if (DetectWall(OutWallNormal, OutWallRunDirection))
 	{
@@ -93,9 +108,8 @@ void UWallRunComponent::StartWallRun()
 		// Set a timer to stop wall running after the specified duration
 		GetWorld()->GetTimerManager().SetTimer(WallRunTimerHandle, this, &UWallRunComponent::EndWallRun, WallRunDuration, false);
 
-		// Call WallRun function every tick
-		//OwningCharacter->GetCharacterMovement()->StopMovementImmediately(); // Stop other movement
-		GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UWallRunComponent::WallRun);
+		// Apply the fixed wall run velocity immediately
+		WallRun();
 
 		// Reset jump count when wall running begins
 		if (AIconoclasmCharacter* IconoclasmChar = Cast<AIconoclasmCharacter>(OwningCharacter))
@@ -107,6 +121,8 @@ void UWallRunComponent::StartWallRun()
 
 void UWallRunComponent::StopWallRun()
 {
+	IsWallRunning = false;
+
 	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
 
 	// Save current wall run velocity before switching movement mode
@@ -130,40 +146,31 @@ void UWallRunComponent::StopWallRun()
 	FRotator ControlRot = OwningCharacter->GetControlRotation();
 	FRotator NewYaw = FRotator(0.f, ControlRot.Yaw, 0.f);
 	OwningCharacter->SetActorRotation(NewYaw);
+
+	// Clear the WallRun timer if it's still active
+	if (GetWorld()->GetTimerManager().IsTimerActive(WallRunTimerHandle))
+	{
+		GetWorld()->GetTimerManager().ClearTimer(WallRunTimerHandle);
+	}
 }
 
 void UWallRunComponent::WallRun()
 {
 	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
-	FVector CurrentVelocity = MovementComp->Velocity;
 
-	// Project current velocity onto wall run direction
-	float ForwardSpeed = FVector::DotProduct(CurrentVelocity, WallRunDirection);
+	// Create a fixed velocity using the wall run direction and speed
+	FVector NewVelocity = WallRunDirection * WallRunSpeed;
 
-	// If the forward speed is below desired wall run speed, boost it
-	if (ForwardSpeed < WallRunSpeed)
-	{
-		float SpeedBoost = WallRunSpeed - ForwardSpeed;
-		CurrentVelocity += WallRunDirection * SpeedBoost;
-	}
+	// Apply the constant descent rate
+	NewVelocity.Z = -DescentRate;
 
-	// Apply descent rate (Z component)
-	CurrentVelocity.Z = -DescentRate;
+	// Apply the fixed velocity directly
+	MovementComp->Velocity = NewVelocity;
 
-	// Set the velocity directly instead of using LaunchCharacter
-	MovementComp->Velocity = CurrentVelocity;
-
-	DrawDebugLine(GetWorld(), OwningCharacter->GetActorLocation(), OwningCharacter->GetActorLocation() + WallRunDirection * 100.0f, FColor::Green, false, 0.1f);
-
-	FVector OutWallNormal, OutWallRunDirection;
-	if (DetectWall(OutWallNormal, OutWallRunDirection))
-	{
-		GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UWallRunComponent::WallRun);
-	}
-	else
-	{
-		StopWallRun();
-	}
+	// Visual debug - shows the direction of wall running
+	DrawDebugLine(GetWorld(), OwningCharacter->GetActorLocation(),
+		OwningCharacter->GetActorLocation() + WallRunDirection * 100.0f,
+		FColor::Green, false, 0.1f);
 }
 
 
