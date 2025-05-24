@@ -570,8 +570,8 @@ void AIconoclasmCharacter::GroundSlam()
 	GetCharacterMovement()->Velocity = CancelVelocity;
 
 	// Perform a slam by launching the character straight down
-	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength; // Adjust the Z component for downward velocity
-	LaunchCharacter(LaunchVelocity, true, true); // Set bXYOverride to true to override XY movement
+	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength;
+	LaunchCharacter(LaunchVelocity, true, true);
 
 	// Create a collision sphere to detect nearby objects
 	TArray<AActor*> IgnoreActors;
@@ -581,20 +581,45 @@ void AIconoclasmCharacter::GroundSlam()
 	float SphereRadius = 1000.0f;
 
 	// Perform the collision sphere trace
-	bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(GetWorld(), SphereLocation, SphereLocation, SphereRadius, UEngineTypes::ConvertToTraceType(ECC_WorldDynamic), false, IgnoreActors, EDrawDebugTrace::None, HitResults, true);
+	bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(
+		GetWorld(),
+		SphereLocation,
+		SphereLocation,
+		SphereRadius,
+		UEngineTypes::ConvertToTraceType(ECC_WorldDynamic),
+		false,
+		IgnoreActors,
+		EDrawDebugTrace::None,
+		HitResults,
+		true
+	);
 
 	// Apply upward force to objects within the collision sphere
 	if (bHitSomething)
 	{
 		for (const FHitResult& HitResult : HitResults)
 		{
-			// Check if the hit actor is simulating physics
-			UPrimitiveComponent* HitComponent = HitResult.GetComponent();
-			if (HitComponent && HitComponent->IsSimulatingPhysics())
+			AActor* HitActor = HitResult.GetActor();
+			if (!HitActor) continue;
+
+			// Check if it's a character first
+			ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
+			if (HitCharacter)
 			{
-				// Apply upward impulse to the hit component
-				FVector UpwardImpulse = FVector(0.0f, 0.0f, 2000.0f);
-				HitComponent->AddImpulse(UpwardImpulse, NAME_None, true);
+				// Apply force to character using LaunchCharacter
+				FVector LaunchForce = FVector(0.0f, 0.0f, 2000.0f);
+				HitCharacter->LaunchCharacter(LaunchForce, false, true);
+			}
+			else
+			{
+				// Check if the hit actor has physics simulation for non-character objects
+				UPrimitiveComponent* HitComponent = HitResult.GetComponent();
+				if (HitComponent && HitComponent->IsSimulatingPhysics())
+				{
+					// Apply upward impulse to physics objects
+					FVector UpwardImpulse = FVector(0.0f, 0.0f, 2000.0f);
+					HitComponent->AddImpulse(UpwardImpulse, NAME_None, true);
+				}
 			}
 		}
 	}
