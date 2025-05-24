@@ -507,101 +507,112 @@ void ARaphaelAIController::PerformJudgementGaze()
     }
 }
 
-void ARaphaelAIController::SpawnHeavenRainTrace()
-{
-    if (APawn* BossPawn = GetPawn())
-    {
-        float MaxDamage = 100.0f;
-
-        FVector BossLocation = BossPawn->GetActorLocation();
-
-        // Generate a random point within the specified radius
-        float RandomRadius = FMath::FRandRange(0.0f, HeavenRainRadius);
-        float RandomAngle = FMath::FRandRange(0.0f, 360.0f);
-
-        FVector Offset = FVector(RandomRadius * FMath::Cos(FMath::DegreesToRadians(RandomAngle)),
-            RandomRadius * FMath::Sin(FMath::DegreesToRadians(RandomAngle)),
-            0.0f);
-
-        FVector TraceStart = BossLocation + Offset + FVector(0.0f, 0.0f, 5000.0f);
-        FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, 7000.0f);
-
-        // Perform the line trace
-        FHitResult Hit;
-        FCollisionQueryParams QueryParams;
-        QueryParams.AddIgnoredActor(BossPawn);
-
-        bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
-
-        // Draw debug cylinder
-        float CylinderRadius = 200.0f;
-        float CylinderHeight = (TraceStart - TraceEnd).Size();
-
-        DrawDebugCylinder(GetWorld(),
-            TraceStart,
-            TraceEnd,
-            CylinderRadius,
-            32,
-            FColor::Blue,
-            false,
-            2.0f,
-            0,
-            2.0f);
-
-        if (bHit)
-        {
-            FVector CylinderCenter = (TraceStart + TraceEnd) * 0.5f;
-
-            // Apply uniform radial damage
-            TArray<AActor*> IgnoredActors;
-            IgnoredActors.Add(BossPawn);
-
-            float DamageApplied = UGameplayStatics::ApplyRadialDamage(
-                GetWorld(),
-                MaxDamage,                     // Damage value
-                CylinderCenter,                // Center of the damage
-                CylinderRadius,                // Radius of the cylinder
-                UDamageType::StaticClass(),    // Damage type
-                IgnoredActors,                 // Actors to ignore
-                this,                          // Damage causer
-                BossPawn->GetController());    // Instigator (controller)
-
-            UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain damage applied. Hit actor: %s, Damage Applied: %f"),
-                Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("None"),
-                DamageApplied);
-        }
-
-        // Increment the trace count
-        CurrentRainTraceCount++;
-
-        // Stop the ability if the required number of traces is reached
-        if (CurrentRainTraceCount >= HeavenRainTraceCount)
-        {
-            EndHeavenRain();
-        }
-    }
-}
-
-void ARaphaelAIController::StartHeavenRain()
-{
-    CurrentRainTraceCount = 0;
-
-    // Start the timer to trigger each trace with an interval
-    GetWorld()->GetTimerManager().SetTimer(HeavenRainTimerHandle, this, &ARaphaelAIController::SpawnHeavenRainTrace, HeavenRainInterval, true);
-
-    
-}
-
-
-
-void ARaphaelAIController::EndHeavenRain()
-{
-
-    // Clear the timer to stop further traces
-    GetWorld()->GetTimerManager().ClearTimer(HeavenRainTimerHandle);
-
-    UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain ability ended."));
-}
+//void ARaphaelAIController::SpawnHeavenRainTrace()
+//{
+//    if (APawn* BossPawn = GetPawn())
+//    {
+//        float MaxDamage = 100.0f;
+//        FVector BossLocation = BossPawn->GetActorLocation();
+//        // Generate a random point within the specified radius
+//        float RandomRadius = FMath::FRandRange(0.0f, HeavenRainRadius);
+//        float RandomAngle = FMath::FRandRange(0.0f, 360.0f);
+//        FVector Offset = FVector(RandomRadius * FMath::Cos(FMath::DegreesToRadians(RandomAngle)),
+//            RandomRadius * FMath::Sin(FMath::DegreesToRadians(RandomAngle)),
+//            0.0f);
+//        FVector TraceStart = BossLocation + Offset + FVector(0.0f, 0.0f, 5000.0f);
+//        FVector TraceEnd = TraceStart - FVector(0.0f, 0.0f, 7000.0f);
+//        // Perform the line trace
+//        FHitResult Hit;
+//        FCollisionQueryParams QueryParams;
+//        QueryParams.AddIgnoredActor(BossPawn);
+//        bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+//        // Draw debug cylinder
+//        float CylinderRadius = 200.0f;
+//        float CylinderHeight = (TraceStart - TraceEnd).Size();
+//        DrawDebugCylinder(GetWorld(),
+//            TraceStart,
+//            TraceEnd,
+//            CylinderRadius,
+//            32,
+//            FColor::Blue,
+//            false,
+//            2.0f,
+//            0,
+//            2.0f);
+//        if (bHit)
+//        {
+//            FVector CylinderCenter = (TraceStart + TraceEnd) * 0.5f;
+//            // Get all pawns in the world (includes player and other characters)
+//            TArray<AActor*> AllPawns;
+//            UGameplayStatics::GetAllActorsOfClass(GetWorld(), APawn::StaticClass(), AllPawns);
+//
+//            // Check each pawn to see if it's within the cylinder
+//            for (AActor* Actor : AllPawns)
+//            {
+//                if (Actor == BossPawn || !Actor)
+//                    continue;
+//
+//                FVector ActorLocation = Actor->GetActorLocation();
+//
+//                // Check if actor is within cylinder height range
+//                float ActorZ = ActorLocation.Z;
+//                float CylinderTop = FMath::Max(TraceStart.Z, TraceEnd.Z);
+//                float CylinderBottom = FMath::Min(TraceStart.Z, TraceEnd.Z);
+//
+//                if (ActorZ >= CylinderBottom && ActorZ <= CylinderTop)
+//                {
+//                    // Check if actor is within cylinder radius (2D distance from cylinder axis)
+//                    FVector ActorLocation2D = FVector(ActorLocation.X, ActorLocation.Y, 0.0f);
+//                    FVector CylinderCenter2D = FVector(CylinderCenter.X, CylinderCenter.Y, 0.0f);
+//                    float Distance2D = FVector::Dist(ActorLocation2D, CylinderCenter2D);
+//
+//                    if (Distance2D <= CylinderRadius)
+//                    {
+//                        // Actor is within cylinder, apply damage
+//                        UGameplayStatics::ApplyDamage(
+//                            Actor,
+//                            MaxDamage,
+//                            BossPawn->GetController(),
+//                            this,
+//                            UDamageType::StaticClass()
+//                        );
+//
+//                        UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain damage applied to: %s, Damage: %f"),
+//                            *Actor->GetName(), MaxDamage);
+//                    }
+//                }
+//            }
+//        }
+//        // Increment the trace count
+//        CurrentRainTraceCount++;
+//        // Stop the ability if the required number of traces is reached
+//        if (CurrentRainTraceCount >= HeavenRainTraceCount)
+//        {
+//            EndHeavenRain();
+//        }
+//    }
+//}
+//
+//void ARaphaelAIController::StartHeavenRain()
+//{
+//    CurrentRainTraceCount = 0;
+//
+//    // Start the timer to trigger each trace with an interval
+//    GetWorld()->GetTimerManager().SetTimer(HeavenRainTimerHandle, this, &ARaphaelAIController::SpawnHeavenRainTrace, HeavenRainInterval, true);
+//
+//    
+//}
+//
+//
+//
+//void ARaphaelAIController::EndHeavenRain()
+//{
+//
+//    // Clear the timer to stop further traces
+//    GetWorld()->GetTimerManager().ClearTimer(HeavenRainTimerHandle);
+//
+//    UE_LOG(LogTemp, Warning, TEXT("Heaven's Rain ability ended."));
+//}
 
 void ARaphaelAIController::PerformAbility(EAbilityType AbilityType)
 {
@@ -631,10 +642,10 @@ void ARaphaelAIController::PerformAbility(EAbilityType AbilityType)
         GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, GazeDuration, false);
         break;
 
-    case EAbilityType::HeavenRain:
+   /* case EAbilityType::HeavenRain:
         StartHeavenRain();
         GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, RainDuration, false);
-        break;
+        break;*/
 
     default:
         IsAbilityActive = false;
@@ -675,7 +686,7 @@ void ARaphaelAIController::ActivateBoss()
     StartBurst();
     StartBeamSummonWithDelay();
     StartJudgementGaze();
-    StartHeavenRain();
+    //StartHeavenRain();
     GetWorld()->GetTimerManager().SetTimer(ThrowChargeTimerHandle, this, &ARaphaelAIController::StartThrowAbility, 10.0f, true);
 }
 

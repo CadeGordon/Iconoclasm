@@ -176,14 +176,14 @@ private:
     // Update the location of the JudgmentGaze collider behind the player
     void PerformJudgementGaze();
 
-    // Function to perform one Heaven's Rain line trace
-    void SpawnHeavenRainTrace();
+    //// Function to perform one Heaven's Rain line trace
+    //void SpawnHeavenRainTrace();
 
-    // Function to start the Heaven's Rain ability
-    void StartHeavenRain();
+    //// Function to start the Heaven's Rain ability
+    //void StartHeavenRain();
 
-    // Function to reset after Heaven's Rain is complete
-    void EndHeavenRain();
+    //// Function to reset after Heaven's Rain is complete
+    //void EndHeavenRain();
 
     void PerformAbility(EAbilityType AbilityType);
 
