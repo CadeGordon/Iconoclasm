@@ -67,7 +67,7 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	//Slide Varibales
 	IsSliding = false;
 	SlideSpeed = 2000.0f;
-	SlideJumpBoostStrength = 3500.0f;
+	SlideJumpBoostStrength = 2500.0f;
 	GroundSlamStrength = 200000.0f;
 
 	//DashUI
@@ -657,17 +657,42 @@ void AIconoclasmCharacter::EquipWeapon(UTP_WeaponComponent* Weapon)
 		// Check if weapon is already in the inventory
 		if (!WeaponInventory.Contains(Weapon))
 		{
+			// Hide the ground pickup before adding to inventory
+			AActor* WeaponOwner = Weapon->GetOwner();
+			if (WeaponOwner && !WeaponOwner->IsA<AIconoclasmCharacter>())
+			{
+				WeaponOwner->SetActorHiddenInGame(true);
+				WeaponOwner->SetActorEnableCollision(false);
+				UE_LOG(LogTemp, Warning, TEXT("Hidden weapon pickup %s from ground"), *Weapon->GetName());
+			}
+
+			// Unequip current weapon if one is equipped
+			if (CurrentWeaponIndex >= 0 && CurrentWeaponIndex < WeaponInventory.Num())
+			{
+				WeaponInventory[CurrentWeaponIndex]->DetachFromCharacter();
+				// Hide the previously equipped weapon's actor
+				if (WeaponInventory[CurrentWeaponIndex]->GetOwner())
+				{
+					WeaponInventory[CurrentWeaponIndex]->GetOwner()->SetActorHiddenInGame(true);
+				}
+				UE_LOG(LogTemp, Warning, TEXT("Unequipped previous weapon"));
+			}
+
 			// Add the weapon to the inventory
 			int32 NewWeaponIndex = WeaponInventory.Add(Weapon);
 			UE_LOG(LogTemp, Warning, TEXT("Weapon %s added to inventory at index %d"), *Weapon->GetName(), NewWeaponIndex);
 
-			// If no weapon is currently equipped, equip this one
-			if (WeaponInventory.Num() == 1)
+			// Always equip the newly picked up weapon
+			CurrentWeaponIndex = NewWeaponIndex;
+
+			// Make sure the weapon actor is visible when equipping
+			if (Weapon->GetOwner())
 			{
-				CurrentWeaponIndex = NewWeaponIndex;
-				Weapon->AttachWeapon(this);
-				UE_LOG(LogTemp, Warning, TEXT("Equipped weapon: %s"), *Weapon->GetName());
+				Weapon->GetOwner()->SetActorHiddenInGame(false);
 			}
+
+			Weapon->AttachWeapon(this);
+			UE_LOG(LogTemp, Warning, TEXT("Equipped weapon: %s"), *Weapon->GetName());
 		}
 		else
 		{
@@ -681,6 +706,15 @@ void AIconoclasmCharacter::AddWeaponToInventory(UTP_WeaponComponent* Weapon)
 	if (Weapon)
 	{
 		WeaponInventory.Add(Weapon);
+
+		// Hide the weapon pickup from the ground (only if it's not already attached to a character)
+		AActor* WeaponOwner = Weapon->GetOwner();
+		if (WeaponOwner && !WeaponOwner->IsA<AIconoclasmCharacter>())
+		{
+			WeaponOwner->SetActorHiddenInGame(true);
+			WeaponOwner->SetActorEnableCollision(false);
+			UE_LOG(LogTemp, Warning, TEXT("Hidden weapon pickup %s from ground"), *Weapon->GetName());
+		}
 	}
 }
 
@@ -691,6 +725,13 @@ void AIconoclasmCharacter::CycleWeapon()
 		// Detach the currently equipped weapon
 		UTP_WeaponComponent* CurrentWeapon = WeaponInventory[CurrentWeaponIndex];
 		CurrentWeapon->DetachFromCharacter();
+
+		// Hide the current weapon's actor
+		if (CurrentWeapon->GetOwner())
+		{
+			CurrentWeapon->GetOwner()->SetActorHiddenInGame(true);
+		}
+
 		UE_LOG(LogTemp, Warning, TEXT("Detached weapon: %s"), *CurrentWeapon->GetName());
 
 		// Move to the next weapon in the inventory
@@ -698,6 +739,13 @@ void AIconoclasmCharacter::CycleWeapon()
 
 		// Equip the new weapon
 		UTP_WeaponComponent* NewWeapon = WeaponInventory[CurrentWeaponIndex];
+
+		// Make the new weapon's actor visible
+		if (NewWeapon->GetOwner())
+		{
+			NewWeapon->GetOwner()->SetActorHiddenInGame(false);
+		}
+
 		NewWeapon->AttachWeapon(this);
 		UE_LOG(LogTemp, Warning, TEXT("Switched to weapon: %s"), *NewWeapon->GetName());
 	}
