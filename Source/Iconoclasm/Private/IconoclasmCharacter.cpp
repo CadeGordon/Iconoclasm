@@ -573,63 +573,14 @@ void AIconoclasmCharacter::GroundSlam()
 	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength;
 	LaunchCharacter(LaunchVelocity, true, true);
 
-	// Create a collision sphere to detect nearby objects
-	TArray<AActor*> IgnoreActors;
-	IgnoreActors.Add(this); // Ignore the player character
-	TArray<FHitResult> HitResults;
-	FVector SphereLocation = GetActorLocation();
-	float SphereRadius = 1000.0f;
-
-	// Perform the collision sphere trace
-	bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(
-		GetWorld(),
-		SphereLocation,
-		SphereLocation,
-		SphereRadius,
-		UEngineTypes::ConvertToTraceType(ECC_WorldDynamic),
-		false,
-		IgnoreActors,
-		EDrawDebugTrace::None,
-		HitResults,
-		true
+	// Set up timer to check for ground impact
+	GetWorld()->GetTimerManager().SetTimer(
+		GroundSlamTimerHandle,
+		this,
+		&AIconoclasmCharacter::CheckGroundSlamImpact,
+		0.1f, // Check every 0.1 seconds
+		true  // Loop
 	);
-
-	// Apply upward force to objects within the collision sphere
-	if (bHitSomething)
-	{
-		for (const FHitResult& HitResult : HitResults)
-		{
-			AActor* HitActor = HitResult.GetActor();
-			if (!HitActor) continue;
-
-			// Check if it's a character first
-			ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
-			if (HitCharacter)
-			{
-				// Apply force to character using LaunchCharacter
-				FVector LaunchForce = FVector(0.0f, 0.0f, 2000.0f);
-				HitCharacter->LaunchCharacter(LaunchForce, false, true);
-			}
-			else
-			{
-				// Check if the hit actor has physics simulation for non-character objects
-				UPrimitiveComponent* HitComponent = HitResult.GetComponent();
-				if (HitComponent && HitComponent->IsSimulatingPhysics())
-				{
-					// Apply upward impulse to physics objects
-					FVector UpwardImpulse = FVector(0.0f, 0.0f, 2000.0f);
-					HitComponent->AddImpulse(UpwardImpulse, NAME_None, true);
-				}
-			}
-		}
-	}
-
-	// Draw debug sphere for visualization
-	if (bHitSomething)
-	{
-		DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 12, FColor::Red, false, 1.0f, 0, 1.0f);
-	}
-	
 }
 
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
@@ -896,4 +847,70 @@ void AIconoclasmCharacter::ResetJumpCount()
 {
 	JumpCount = 0;
 	bHasLeftGround = false;
+}
+
+
+void AIconoclasmCharacter::CheckGroundSlamImpact()
+{
+	// Check if we're on the ground (or very close to it)
+	if (GetCharacterMovement()->IsMovingOnGround() ||
+		GetCharacterMovement()->IsFalling() == false)
+	{
+		// Clear the timer
+		GetWorld()->GetTimerManager().ClearTimer(GroundSlamTimerHandle);
+
+		// Now perform the collision detection and apply forces
+		TArray<AActor*> IgnoreActors;
+		IgnoreActors.Add(this); // Ignore the player character
+		TArray<FHitResult> HitResults;
+		FVector SphereLocation = GetActorLocation();
+		float SphereRadius = 1000.0f;
+
+		// Perform the collision sphere trace
+		bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(
+			GetWorld(),
+			SphereLocation,
+			SphereLocation,
+			SphereRadius,
+			UEngineTypes::ConvertToTraceType(ECC_WorldDynamic),
+			false,
+			IgnoreActors,
+			EDrawDebugTrace::None,
+			HitResults,
+			true
+		);
+
+		// Apply upward force to objects within the collision sphere
+		if (bHitSomething)
+		{
+			for (const FHitResult& HitResult : HitResults)
+			{
+				AActor* HitActor = HitResult.GetActor();
+				if (!HitActor) continue;
+
+				// Check if it's a character first
+				ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
+				if (HitCharacter)
+				{
+					// Apply force to character using LaunchCharacter
+					FVector LaunchForce = FVector(0.0f, 0.0f, 2000.0f);
+					HitCharacter->LaunchCharacter(LaunchForce, false, true);
+				}
+				else
+				{
+					// Check if the hit actor has physics simulation for non-character objects
+					UPrimitiveComponent* HitComponent = HitResult.GetComponent();
+					if (HitComponent && HitComponent->IsSimulatingPhysics())
+					{
+						// Apply upward impulse to physics objects
+						FVector UpwardImpulse = FVector(0.0f, 0.0f, 2000.0f);
+						HitComponent->AddImpulse(UpwardImpulse, NAME_None, true);
+					}
+				}
+			}
+
+			// Draw debug sphere for visualization
+			DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 12, FColor::Red, false, 1.0f, 0, 1.0f);
+		}
+	}
 }

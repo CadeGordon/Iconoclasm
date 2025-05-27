@@ -175,6 +175,9 @@ public:
 
 		void ResetJumpCount();
 
+		// And this function declaration:
+		void CheckGroundSlamImpact();
+
 		UFUNCTION()
 		UHealthComponent* GetHealthComponent() const;
 	
@@ -203,6 +206,8 @@ public:
 
 public:
 
+	UPROPERTY()
+	FTimerHandle GroundSlamTimerHandle;
 
 	FVector CheckpointLocation;
 	bool bCheckpointActive = false;
