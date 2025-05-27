@@ -39,6 +39,15 @@ private:
 
 	void ResetGrappleCooldown();
 
+	// Function declarations:
+	void CreateGrappleVisual();
+
+	void ShowGrappleVisual();
+
+	void HideGrappleVisual();
+
+	void UpdateGrappleVisual();
+
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleLength = 5000.0f;
@@ -66,6 +75,12 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	bool IsGrappleActive;
 
+
+	UPROPERTY()
+	class AStaticMeshActor* GrappleVisualActor;
+
+	UPROPERTY()
+	class UStaticMeshComponent* GrappleVisualMesh;
 
 private:
 

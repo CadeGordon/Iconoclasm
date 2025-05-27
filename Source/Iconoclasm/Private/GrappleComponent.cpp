@@ -11,6 +11,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/StaticMeshActor.h"
+#include "Components/StaticMeshComponent.h"
+
 
 // Sets default values for this component's properties
 UGrappleComponent::UGrappleComponent()
@@ -33,7 +35,8 @@ UGrappleComponent::UGrappleComponent()
     CurrentFOV = OriginalFOV;
     TargetFOV = OriginalFOV;
     
-    
+    // Initialize grapple visual component
+    GrappleVisualMesh = nullptr;
 
 	// ...
 }
@@ -66,6 +69,9 @@ void UGrappleComponent::BeginPlay()
             GrappleHUD->UpdateProgressBar(1.0f); // Set full progress initially
         }
     }
+
+    // Create grapple visual mesh component
+    CreateGrappleVisual();
 }
 
 void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -75,7 +81,7 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
     if (IsGrappleActive)
     {
         PullCharacterToLocation(GrappleLocation);
-        
+        UpdateGrappleVisual();
     }
 
     // Interpolate FOV
@@ -149,14 +155,15 @@ void UGrappleComponent::FireGrapple()
         {
             GrappleHUD->UpdateProgressBar(0.0f);
         }
+
+        // Show grapple visual
+        ShowGrappleVisual();
     }
     else
     {
         // If the line trace does not hit anything, do not fire the grapple
         IsGrappleActive = false;
     }
-
-    DrawDebugLine(GetWorld(), ViewPointLocation, GrappleLocation, FColor::Green, false, 5.0f, 0, 5.0f);
     
 }
 
@@ -165,6 +172,9 @@ void UGrappleComponent::ReleaseGrapple()
     IsGrappleActive = false;
 
     TargetFOV = OriginalFOV;
+
+    // Hide grapple visual
+    HideGrappleVisual();
 
 }
 
@@ -201,7 +211,88 @@ void UGrappleComponent::ResetGrappleCooldown()
     GrappleOnCooldown = false;
 }
 
+void UGrappleComponent::CreateGrappleVisual()
+{
+    if (!OwningCharacter || !GetWorld())
+    {
+        return;
+    }
 
+    // Create a static mesh actor for the grapple line
+    GrappleVisualActor = GetWorld()->SpawnActor<AStaticMeshActor>();
+    if (GrappleVisualActor)
+    {
+        GrappleVisualMesh = GrappleVisualActor->GetStaticMeshComponent();
+
+        // Load a default cylinder mesh (you can replace this with your own mesh)
+        UStaticMesh* CylinderMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+        if (CylinderMesh && GrappleVisualMesh)
+        {
+            GrappleVisualMesh->SetStaticMesh(CylinderMesh);
+
+            GrappleVisualMesh->SetMobility(EComponentMobility::Movable);
+
+            // Create a material for the grapple line (optional - you can set this in Blueprint)
+            // Make it thin like a rope/cable
+            GrappleVisualMesh->SetWorldScale3D(FVector(0.02f, 1.02f, 1.0f)); // Thin cylinder
+        }
+
+        // Initially hide the visual
+        GrappleVisualActor->SetActorHiddenInGame(true);
+        GrappleVisualActor->SetActorEnableCollision(false); // Disable collision for visual
+    }
+}
+
+void UGrappleComponent::ShowGrappleVisual()
+{
+    if (GrappleVisualActor)
+    {
+        GrappleVisualActor->SetActorHiddenInGame(false);
+        UpdateGrappleVisual();
+    }
+}
+
+void UGrappleComponent::HideGrappleVisual()
+{
+    if (GrappleVisualActor)
+    {
+        GrappleVisualActor->SetActorHiddenInGame(true);
+    }
+}
+
+void UGrappleComponent::UpdateGrappleVisual()
+{
+    if (!GrappleVisualActor || !GrappleVisualMesh || !OwningCharacter)
+    {
+        return;
+    }
+
+    // Get start and end points
+    FVector StartPoint = OwningCharacter->GetActorLocation();
+    FVector EndPoint = GrappleLocation;
+
+    // Calculate midpoint
+    FVector MidPoint = (StartPoint + EndPoint) * 0.5f;
+
+    // Calculate distance and direction
+    FVector Direction = EndPoint - StartPoint;
+    float Distance = Direction.Size();
+    Direction.Normalize();
+
+    // Position the visual at midpoint
+    GrappleVisualActor->SetActorLocation(MidPoint);
+
+    // Rotate to point from start to end
+    FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(StartPoint, EndPoint);
+    // Adjust rotation because cylinder's default orientation is Z-up, but we want it along the grapple line
+    FRotator AdjustedRotation = LookAtRotation + FRotator(90.0f, 0.0f, 0.0f);
+    GrappleVisualActor->SetActorRotation(AdjustedRotation);
+
+    // Scale the cylinder to match the distance
+    FVector Scale = GrappleVisualMesh->GetComponentScale();
+    Scale.Z = Distance / 100.0f; // Adjust the divisor based on your mesh size
+    GrappleVisualMesh->SetWorldScale3D(Scale);
+}
 
 
 
