@@ -72,6 +72,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<UUserWidget> BossHealthWidgetClass;
 
+	// Variable to track invulnerability state
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Boss State")
+	bool bIsInvulnerable = true; // Start as invulnerable
+
 	UFUNCTION()
 	void OnPlayerEnterBossArea(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -86,4 +90,12 @@ public:
 
 	UFUNCTION()
 	void OnBossDeath();
+
+	// Function to set invulnerability state
+	UFUNCTION(BlueprintCallable)
+	void SetInvulnerable(bool bShouldBeInvulnerable);
+
+	// Override the TakeDamage function to control when damage can be applied
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+		class AController* EventInstigator, AActor* DamageCauser) override;
 };

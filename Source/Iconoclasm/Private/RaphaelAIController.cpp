@@ -680,7 +680,13 @@ void ARaphaelAIController::ActivateBoss()
     bIsActivated = true; // Now we're fully activated
     bIsDelaying = false; // No longer in delay period
 
-    UE_LOG(LogTemp, Warning, TEXT("Boss activated. Starting behavior."));
+    // Make the boss vulnerable to damage now that it's activated
+    if (ARaphaelBossCharacter* BossCharacter = Cast<ARaphaelBossCharacter>(GetPawn()))
+    {
+        BossCharacter->SetInvulnerable(false);
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Boss activated. Starting behavior and making vulnerable to damage."));
 
     // Enable AI behavior
     StartBurst();

@@ -173,3 +173,31 @@ void ARaphaelBossCharacter::UpdateBossHealthUI(float CurrentHealth)
 		BossHealthWidget->UpdateHealthBar(HealthPercentage);
 	}
 }
+
+void ARaphaelBossCharacter::SetInvulnerable(bool bShouldBeInvulnerable)
+{
+	bIsInvulnerable = bShouldBeInvulnerable;
+
+	if (bIsInvulnerable)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Boss is now invulnerable"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Boss is now vulnerable to damage"));
+	}
+}
+
+float ARaphaelBossCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+	class AController* EventInstigator, AActor* DamageCauser)
+{
+	// If the boss is invulnerable, don't take any damage
+	if (bIsInvulnerable)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Boss is invulnerable - damage blocked!"));
+		return 0.0f; // No damage taken
+	}
+
+	// If not invulnerable, proceed with normal damage handling
+	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+}
