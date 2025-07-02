@@ -452,22 +452,24 @@ void UShotgun_WeaponComponent::AltTimeWarpMode()
 	{
 		return;
 	}
-
 	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
 	if (PlayerController)
 	{
 		FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
 		FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-		FVector EndLocation = StartLocation + (CameraRotation.Vector() * 10000.0f);
 
-		FHitResult HitResult;
-		FVector ImpactLocation;
+		// Calculate knockback direction (opposite of camera forward)
+		FVector KnockbackDirection = -CameraRotation.Vector();
 
-		PerformTeleportHitscan(ImpactLocation, HitResult);
+		// Set knockback force (adjust this value to control strength)
+		float KnockbackForce = 3000.0f;
+		FVector KnockbackVelocity = KnockbackDirection * KnockbackForce;
 
-		if (HitResult.GetActor())
+		// Apply knockback to character
+		if (Character->GetCharacterMovement())
 		{
-			TeleportPlayer(HitResult.Location);
+			// Launch the character in the knockback direction
+			Character->LaunchCharacter(KnockbackVelocity, true, true);
 		}
 
 		// Play fire sound
@@ -482,7 +484,6 @@ void UShotgun_WeaponComponent::AltTimeWarpMode()
 			AltTimeWarpProgress = 0.0f;
 			GetWorld()->GetTimerManager().SetTimer(
 				AltTimeWarpTimerHandle, this, &UShotgun_WeaponComponent::UpdateCooldowns, 0.1f, true);
-
 			// Show TimeWarp progress bar
 			if (ShotgunHUDInstance)
 			{

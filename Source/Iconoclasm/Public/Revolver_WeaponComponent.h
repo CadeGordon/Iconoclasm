@@ -91,8 +91,8 @@ private:
 	bool bCanFireGunslinger = true;
 	bool bCanFireHellfire = true;
 
-	float GunslingerCooldown = 2.0f;
-	float HellfireCooldown = 2.0f;
+	float GunslingerCooldown = 0.5f;
+	float HellfireCooldown = 0.5f;
 
 	// Timers for cooldowns
 	FTimerHandle TimerHandle_AltGunslingerCooldown;
@@ -127,4 +127,7 @@ private:
 	void ResetGunslingerCooldown();
 
 	void ResetHellfireCooldown();
+
+	UFUNCTION()
+	TArray<AActor*> FindNearestEnemies(const FVector& Location, int32 MaxEnemies);
 };

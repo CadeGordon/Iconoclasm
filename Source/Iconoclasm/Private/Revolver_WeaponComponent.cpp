@@ -425,7 +425,7 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 
 void URevolver_WeaponComponent::HellfireMode()
 {
-	HitscanCount = 3; // Set the number of hitscans to fire
+	HitscanCount = 1; // Set the number of hitscans to fire
 
 	auto FireHitscan = [this]()
 		{
@@ -512,93 +512,136 @@ void URevolver_WeaponComponent::AltHellfireMode()
 
 	bCanFireAltHellfire = false; // Set to false to trigger cooldown
 
-	HellfireDuration = 5.0f;
-	float FlameRadius = 300.0f; // Radius of the flame effect
-	float DamageAmount = 20.0f; // Damage dealt per tick
+	float BaseDamage = 5000.0f; // Base damage for initial line trace
+	float SplitDamage = 30000.0f; // Damage for each split trace
+	float MaxRange = 200000.0f; // Maximum range for initial trace
+	float SplitRange = 100000.0f; // Maximum range for split traces
 
-	// Trigger the particle effect
-	if (AltHellfireParticle && Character)
+	// Initial line trace
+	FVector StartLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+	FVector ForwardVector = Character->GetControlRotation().Vector();
+	FVector EndLocation = StartLocation + (ForwardVector * MaxRange);
+
+	FHitResult InitialHitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(Character);
+
+	// Perform initial sphere trace (thicker line trace)
+	float TraceRadius = 50.0f; // Thickness of the trace
+	FCollisionShape TraceSphere = FCollisionShape::MakeSphere(TraceRadius);
+
+	bool bInitialHit = GetWorld()->SweepSingleByChannel(
+		InitialHitResult,
+		StartLocation,
+		EndLocation,
+		FQuat::Identity,
+		ECC_Pawn,
+		TraceSphere,
+		QueryParams
+	);
+
+	FVector ImpactLocation;
+	if (bInitialHit)
 	{
-		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
-		FRotator CameraRotation = Character->GetControlRotation();
+		ImpactLocation = InitialHitResult.Location;
 
-		NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AltHellfireParticle, MuzzleLocation);
-
-		if (NiagaraComp)
+		// Apply damage to the initially hit actor
+		if (InitialHitResult.GetActor())
 		{
-			NiagaraComp->SetWorldRotation(CameraRotation);
+			UGameplayStatics::ApplyDamage(
+				InitialHitResult.GetActor(),
+				BaseDamage,
+				Character->GetController(),
+				Character,
+				UDamageType::StaticClass()
+			);
+		}
+	}
+	else
+	{
+		// If no hit, use the end location as impact point
+		ImpactLocation = EndLocation;
+	}
+
+	// Find the two nearest enemies from the impact location
+	TArray<AActor*> NearestEnemies = FindNearestEnemies(ImpactLocation, 2);
+
+	// Fire split traces to the nearest enemies
+	for (AActor* Enemy : NearestEnemies)
+	{
+		if (Enemy)
+		{
+			FVector SplitEndLocation = Enemy->GetActorLocation();
+			FHitResult SplitHitResult;
+
+			// Perform split sphere trace (thicker line trace)
+			float SplitTraceRadius = 30.0f; // Slightly smaller radius for split traces
+			FCollisionShape SplitTraceSphere = FCollisionShape::MakeSphere(SplitTraceRadius);
+
+			bool bSplitHit = GetWorld()->SweepSingleByChannel(
+				SplitHitResult,
+				ImpactLocation,
+				SplitEndLocation,
+				FQuat::Identity,
+				ECC_Pawn,
+				SplitTraceSphere,
+				QueryParams
+			);
+
+			if (bSplitHit && SplitHitResult.GetActor())
+			{
+				// Apply damage to the hit actor
+				UGameplayStatics::ApplyDamage(
+					SplitHitResult.GetActor(),
+					SplitDamage,
+					Character->GetController(),
+					Character,
+					UDamageType::StaticClass()
+				);
+			}
+
+			// Optional: Draw debug line for split traces
+			DrawDebugLine(
+				GetWorld(),
+				ImpactLocation,
+				SplitEndLocation,
+				FColor::Orange,
+				false,
+				2.0f,
+				0,
+				3.0f
+			);
 		}
 	}
 
-	// Hellfire effect function
-	auto HellfireEffect = [this, FlameRadius, DamageAmount]()
-		{
-			if (Character)
-			{
-				FVector ForwardVector = Character->GetControlRotation().Vector();
-				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
-
-				float DistanceFromPlayer = 500.0f;
-				FVector StartLocation = MuzzleLocation + (ForwardVector * DistanceFromPlayer);
-				FVector EndLocation = StartLocation + (ForwardVector * 100.0f);
-
-				DrawDebugCylinder(
-					GetWorld(),
-					StartLocation,
-					EndLocation,
-					FlameRadius,
-					32,
-					FColor::Red,
-					false,
-					0.1f
-				);
-
-				TArray<FHitResult> HitResults;
-				FCollisionShape FlameSphere = FCollisionShape::MakeSphere(FlameRadius);
-
-				if (GetWorld()->SweepMultiByChannel(
-					HitResults,
-					StartLocation,
-					EndLocation,
-					FQuat::Identity,
-					ECC_Visibility,
-					FlameSphere))
-				{
-					for (const FHitResult& Hit : HitResults)
-					{
-						if (Hit.GetActor() && Hit.GetActor() != Character)
-						{
-							UGameplayStatics::ApplyDamage(
-								Hit.GetActor(),
-								DamageAmount,
-								Character->GetController(),
-								Character,
-								UDamageType::StaticClass()
-							);
-						}
-					}
-				}
-			}
-		};
-
-	// Start the Hellfire effect
-	GetWorld()->GetTimerManager().SetTimer(
-		TimerHandle_HellfireEffect,
-		HellfireEffect,
-		0.1f,
-		true
+	// Optional: Draw debug line for initial trace
+	DrawDebugLine(
+		GetWorld(),
+		StartLocation,
+		ImpactLocation,
+		FColor::Red,
+		false,
+		2.0f,
+		0,
+		5.0f
 	);
 
-	// Stop the Hellfire effect after HellfireDuration
-	GetWorld()->GetTimerManager().SetTimer(
-		TimerHandle_HellfireStop,
-		[this]()
+
+	// Play fire sound
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+
+	// Play fire animation
+	if (FireAnimation != nullptr)
+	{
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
 		{
-			GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HellfireEffect);
-		},
-		HellfireDuration,
-		false
-	);
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
+		}
+	}
 
 	// Set the cooldown timer for AltHellfire
 	GetWorld()->GetTimerManager().SetTimer(
@@ -625,6 +668,47 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		0.01f, // Update the progress every 0.01 seconds
 		true
 	);
+}
+
+// Helper function to find nearest enemies
+TArray<AActor*> URevolver_WeaponComponent::FindNearestEnemies(const FVector& Location, int32 MaxEnemies)
+{
+	TArray<AActor*> NearestEnemies;
+	TArray<AActor*> AllPawns;
+
+	// Get all pawns in the world
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APawn::StaticClass(), AllPawns);
+
+	// Structure to hold distance and actor pairs
+	TArray<TPair<float, AActor*>> EnemyDistances;
+
+	for (AActor* Pawn : AllPawns)
+	{
+		// Skip if it's the player character or null
+		if (!Pawn || Pawn == Character)
+		{
+			continue;
+		}
+
+		// Calculate distance
+		float Distance = FVector::Dist(Location, Pawn->GetActorLocation());
+		EnemyDistances.Add(TPair<float, AActor*>(Distance, Pawn));
+	}
+
+	// Sort by distance (closest first)
+	EnemyDistances.Sort([](const TPair<float, AActor*>& A, const TPair<float, AActor*>& B)
+		{
+			return A.Key < B.Key;
+		});
+
+	// Get the closest enemies up to MaxEnemies
+	int32 Count = FMath::Min(MaxEnemies, EnemyDistances.Num());
+	for (int32 i = 0; i < Count; i++)
+	{
+		NearestEnemies.Add(EnemyDistances[i].Value);
+	}
+
+	return NearestEnemies;
 }
 
 void URevolver_WeaponComponent::HandleGunslingerAltCooldown()
