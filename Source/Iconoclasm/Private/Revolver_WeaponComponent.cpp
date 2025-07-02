@@ -147,6 +147,9 @@ void URevolver_WeaponComponent::AttachWeapon(AIconoclasmCharacter* TargetCharact
 			// Fire
 			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &URevolver_WeaponComponent::Fire);
 			EnhancedInputComponent->BindAction(AltFireAction, ETriggerEvent::Triggered, this, &URevolver_WeaponComponent::AltFire);
+			// Alt Fire - bind to both Started and Completed events for charge system
+			EnhancedInputComponent->BindAction(AltFireAction, ETriggerEvent::Started, this, &URevolver_WeaponComponent::OnAltFirePressed);
+			EnhancedInputComponent->BindAction(AltFireAction, ETriggerEvent::Completed, this, &URevolver_WeaponComponent::OnAltFireReleased);
 			EnhancedInputComponent->BindAction(SwitchFireModeAction, ETriggerEvent::Triggered, this, &URevolver_WeaponComponent::SwitchFireMode);
 		}
 	}
@@ -339,89 +342,10 @@ void URevolver_WeaponComponent::AltGunslingerMode()
 		return; // Prevent firing if the cooldown is active
 	}
 
-	bCanFireAltGunslinger = false; // Set to false to trigger cooldown
-
-	// Set the cooldown and drain the progress bar to 0% immediately when AltFire is used
-	ElapsedTime = 0.0f; // Reset the elapsed time to zero when AltFire is used
-	if (RevolverHUD != nullptr)
-	{
-		RevolverHUD->UpdateAltFireCooldownProgress(0.0f); // Set the progress bar to 0% immediately
-	}
-
-	HitscanCount = 6; // Set the number of hitscans to fire
-
-	auto FireHitscan = [this]()
-		{
-			if (HitscanCount <= 0)
-			{
-				GetWorld()->GetTimerManager().ClearTimer(TimerHandle_HellfireEffect);
-				return;
-			}
-
-			FVector ImpactLocation;
-			PerformHitscan(ImpactLocation);
-
-			// Perform a line trace to detect hit actor and apply damage
-			FHitResult HitResult;
-			FVector StartLocation = Character->GetActorLocation();
-			FVector EndLocation = ImpactLocation;
-
-			FCollisionQueryParams QueryParams;
-			QueryParams.AddIgnoredActor(Character); // Ignore the player
-			QueryParams.bTraceComplex = true;       // Trace against complex collision
-			
-
-			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
-			{
-				AActor* HitActor = HitResult.GetActor();
-				if (HitActor)
-				{
-					float DamageAmount = 100.0f; // Set the damage amount
-					UGameplayStatics::ApplyDamage(
-						HitActor,
-						DamageAmount,
-						Character->GetController(),
-						Character,
-						UDamageType::StaticClass()
-					);
-				}
-			}
-
-			if (FireSound != nullptr)
-			{
-				UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
-			}
-
-			if (FireAnimation != nullptr)
-			{
-				UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
-				if (AnimInstance != nullptr)
-				{
-					AnimInstance->Montage_Play(FireAnimation, 1.f);
-				}
-			}
-
-			if (AltGunslingerParticle && Character)
-			{
-				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
-				FRotator CameraRotation = Character->GetControlRotation();
-
-				NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AltGunslingerParticle, MuzzleLocation);
-
-				if (NiagaraComp)
-				{
-					NiagaraComp->SetWorldRotation(CameraRotation);
-				}
-			}
-
-			HitscanCount--;
-		};
-
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle_HellfireEffect, FireHitscan, 0.1f, true);
-
-	// Start cooldown and update the progress bar during cooldown
-	GetWorld()->GetTimerManager().SetTimer(CooldownTimerHandle, this, &URevolver_WeaponComponent::HandleGunslingerAltCooldown, 0.01f, true);
+	// Start charging the shot
+	StartChargingShot();
 }
+
 
 void URevolver_WeaponComponent::HellfireMode()
 {
@@ -762,5 +686,259 @@ void URevolver_WeaponComponent::ResetHellfireCooldown()
 }
 
 
+void URevolver_WeaponComponent::StartChargingShot()
+{
+	if (bIsChargingShot)
+		return;
 
+	bIsChargingShot = true;
+	ChargeStartTime = GetWorld()->GetTimeSeconds();
+	CurrentChargeLevel = 0.0f;
+
+	// Start charge timer
+	GetWorld()->GetTimerManager().SetTimer(ChargeTimerHandle, this, &URevolver_WeaponComponent::UpdateCharge, 0.02f, true);
+
+	// Start visual trace timer
+	GetWorld()->GetTimerManager().SetTimer(TraceVisualizationHandle, this, &URevolver_WeaponComponent::UpdateChargeTrace, 0.02f, true);
+}
+
+void URevolver_WeaponComponent::UpdateCharge()
+{
+	if (!bIsChargingShot)
+		return;
+
+	float ElapsedChargeTime = GetWorld()->GetTimeSeconds() - ChargeStartTime;
+	CurrentChargeLevel = FMath::Clamp(ElapsedChargeTime / MaxChargeTime, 0.0f, 1.0f);
+
+	// Update HUD to show charge level
+	if (RevolverHUD != nullptr)
+	{
+		RevolverHUD->UpdateAltFireCooldownProgress(CurrentChargeLevel);
+	}
+
+	// Stop charging at 100%
+	if (CurrentChargeLevel >= 1.0f)
+	{
+		CurrentChargeLevel = 1.0f;
+		GetWorld()->GetTimerManager().ClearTimer(ChargeTimerHandle);
+	}
+}
+
+void URevolver_WeaponComponent::UpdateChargeTrace()
+{
+	if (!bIsChargingShot || !Character)
+		return;
+
+	// Calculate trace endpoints
+	FVector StartLocation = Character->GetActorLocation();
+	FVector ForwardVector = Character->GetControlRotation().Vector();
+	FVector EndLocation = StartLocation + (ForwardVector * 10000.0f); // Long range trace
+
+	// Determine trace color based on charge level
+	FLinearColor TraceColor = GetChargeTraceColor(CurrentChargeLevel);
+
+	// Draw debug line (you might want to replace this with a more sophisticated visual system)
+	DrawDebugLine(
+		GetWorld(),
+		StartLocation,
+		EndLocation,
+		TraceColor.ToFColor(true),
+		false,
+		0.05f, // Duration slightly longer than update frequency
+		0,
+		3.0f // Thickness
+	);
+}
+
+FLinearColor URevolver_WeaponComponent::GetChargeTraceColor(float ChargePercent)
+{
+	if (ChargePercent < 0.25f)
+	{
+		// 0-25%: White to Blue
+		float Alpha = ChargePercent / 0.25f;
+		return FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Blue, Alpha);
+	}
+	else if (ChargePercent < 0.50f)
+	{
+		// 25-50%: Blue to Green
+		float Alpha = (ChargePercent - 0.25f) / 0.25f;
+		return FLinearColor::LerpUsingHSV(FLinearColor::Blue, FLinearColor::Green, Alpha);
+	}
+	else if (ChargePercent < 0.75f)
+	{
+		// 50-75%: Green to Yellow
+		float Alpha = (ChargePercent - 0.50f) / 0.25f;
+		return FLinearColor::LerpUsingHSV(FLinearColor::Green, FLinearColor::Yellow, Alpha);
+	}
+	else
+	{
+		// 75-100%: Yellow to Orange
+		float Alpha = (ChargePercent - 0.75f) / 0.25f;
+		return FLinearColor::LerpUsingHSV(FLinearColor::Yellow, FLinearColor(1.0f, 0.5f, 0.0f), Alpha);
+	}
+}
+
+void URevolver_WeaponComponent::ReleaseChargedShot()
+{
+	if (!bIsChargingShot)
+		return;
+
+	// Stop charging
+	bIsChargingShot = false;
+	GetWorld()->GetTimerManager().ClearTimer(ChargeTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(TraceVisualizationHandle);
+
+	// Calculate damage multiplier based on charge level
+	float DamageMultiplier = GetDamageMultiplier(CurrentChargeLevel);
+	float BaseDamage = 50.0f;
+	float FinalDamage = BaseDamage * DamageMultiplier;
+
+	// Fire the charged shot
+	FireChargedShot(FinalDamage);
+
+	// Start cooldown
+	bCanFireAltGunslinger = false;
+	ElapsedTime = 0.0f;
+
+	if (RevolverHUD != nullptr)
+	{
+		RevolverHUD->UpdateAltFireCooldownProgress(0.0f);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer(CooldownTimerHandle, this, &URevolver_WeaponComponent::HandleGunslingerAltCooldown, 0.01f, true);
+}
+
+float URevolver_WeaponComponent::GetDamageMultiplier(float ChargePercent)
+{
+	if (ChargePercent < 0.25f)
+	{
+		return 1.25f; // 25% increase
+	}
+	else if (ChargePercent < 0.50f)
+	{
+		return 1.50f; // 50% increase
+	}
+	else if (ChargePercent < 0.75f)
+	{
+		return 1.75f; // 75% increase
+	}
+	else
+	{
+		return 2.00f; // 100% increase
+	}
+}
+
+void URevolver_WeaponComponent::FireChargedShot(float DamageAmount)
+{
+	FVector ImpactLocation;
+	PerformHitscan(ImpactLocation);
+
+	// Show red firing trace
+	if (Character)
+	{
+		FVector StartLocation = Character->GetActorLocation();
+		DrawDebugLine(
+			GetWorld(),
+			StartLocation,
+			ImpactLocation,
+			FColor::Red,
+			false,
+			1.0f, // Show for 1 second
+			0,
+			5.0f // Thicker line for the actual shot
+		);
+	}
+
+	// Perform damage trace
+	FHitResult HitResult;
+	FVector StartLocation = Character->GetActorLocation();
+	FVector EndLocation = ImpactLocation;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(Character);
+	QueryParams.bTraceComplex = true;
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
+	{
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor)
+		{
+			UGameplayStatics::ApplyDamage(
+				HitActor,
+				DamageAmount,
+				Character->GetController(),
+				Character,
+				UDamageType::StaticClass()
+			);
+		}
+	}
+
+	// Play enhanced effects based on charge level
+	PlayChargedShotEffects(CurrentChargeLevel);
+}
+
+void URevolver_WeaponComponent::PlayChargedShotEffects(float ChargeLevel)
+{
+	// Play sound (could vary based on charge level)
+	if (FireSound != nullptr)
+	{
+		float VolumeMultiplier = 1.0f + (ChargeLevel * 0.5f); // Louder for higher charges
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation(), VolumeMultiplier);
+	}
+
+	// Play animation
+	if (FireAnimation != nullptr)
+	{
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			float AnimSpeed = 1.0f + (ChargeLevel * 0.3f); // Faster animation for higher charges
+			AnimInstance->Montage_Play(FireAnimation, AnimSpeed);
+		}
+	}
+
+	// Spawn enhanced particle effect
+	if (AltGunslingerParticle && Character)
+	{
+		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+		FRotator CameraRotation = Character->GetControlRotation();
+		NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AltGunslingerParticle, MuzzleLocation);
+
+		if (NiagaraComp)
+		{
+			NiagaraComp->SetWorldRotation(CameraRotation);
+
+			// Scale particle effect based on charge level
+			float EffectScale = 1.0f + (ChargeLevel * 1.0f);
+			NiagaraComp->SetWorldScale3D(FVector(EffectScale));
+
+			// You could also set Niagara parameters based on charge level
+			// NiagaraComp->SetFloatParameter(TEXT("ChargeLevel"), ChargeLevel);
+		}
+	}
+}
+
+// Add these functions to handle input - call from your input binding
+void URevolver_WeaponComponent::OnAltFirePressed()
+{
+	// Only start charging if we're in Gunslinger mode
+	if (CurrentWeaponMode == ERevolverMode::RevolverMode1) // Gunslinger mode
+	{
+		AltGunslingerMode(); // This starts charging
+	}
+	else
+	{
+		// Call the original AltFire function for other modes (like Hellfire)
+		AltFire();
+	}
+}
+
+void URevolver_WeaponComponent::OnAltFireReleased()
+{
+	// Only release charged shot if we're in Gunslinger mode and actually charging
+	if (CurrentWeaponMode == ERevolverMode::RevolverMode1 && bIsChargingShot)
+	{
+		ReleaseChargedShot(); // This fires the shot
+	}
+	// For other modes, do nothing on release since they fire immediately on press
+}
 

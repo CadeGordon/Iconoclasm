@@ -111,6 +111,25 @@ private:
 	FTimerHandle TimerHandle_AltHellfire;
 	float HellfireDuration;
 
+	// Charging system variables
+	UPROPERTY()
+	bool bIsChargingShot = false;
+
+	UPROPERTY()
+	float ChargeStartTime = 0.0f;
+
+	UPROPERTY()
+	float CurrentChargeLevel = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Charging", meta = (AllowPrivateAccess = "true"))
+	float MaxChargeTime = 3.0f; // Time to reach 100% charge
+
+	UPROPERTY()
+	FTimerHandle ChargeTimerHandle;
+
+	UPROPERTY()
+	FTimerHandle TraceVisualizationHandle;
+
 	UFUNCTION(BlueprintCallable)
 	void GunslingerMode();
 	UFUNCTION(BlueprintCallable)
@@ -130,4 +149,39 @@ private:
 
 	UFUNCTION()
 	TArray<AActor*> FindNearestEnemies(const FVector& Location, int32 MaxEnemies);
+
+	// Private helper functions
+	void StartChargingShot();
+
+	void UpdateCharge();
+
+	void UpdateChargeTrace();
+
+	FLinearColor GetChargeTraceColor(float ChargePercent);
+
+	void ReleaseChargedShot();
+
+	float GetDamageMultiplier(float ChargePercent);
+
+	void FireChargedShot(float DamageAmount);
+
+	void PlayChargedShotEffects(float ChargeLevel);
+
+	public:
+		// Input handling functions - call these from your input bindings
+		UFUNCTION(BlueprintCallable, Category = "Weapon")
+		void OnAltFirePressed();
+
+		UFUNCTION(BlueprintCallable, Category = "Weapon")
+		void OnAltFireReleased();
+
+		// Optional: Getter functions for blueprints
+		UFUNCTION(BlueprintPure, Category = "Weapon")
+		bool IsChargingShot() const { return bIsChargingShot; }
+
+		UFUNCTION(BlueprintPure, Category = "Weapon")
+		float GetCurrentChargeLevel() const { return CurrentChargeLevel; }
+
+		UFUNCTION(BlueprintPure, Category = "Weapon")
+		float GetChargePercentage() const { return CurrentChargeLevel * 100.0f; }
 };

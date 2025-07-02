@@ -176,6 +176,9 @@ void AIconoclasmCharacter::ToggleWeaponWheel()
 		}
 		else
 		{
+			// Add to viewport with highest Z-order to ensure it's on top
+			WeaponWheelWidget->AddToViewport(9999); // Very high Z-order value
+
 			// Show Weapon Wheel
 			WeaponWheelWidget->SetVisibility(ESlateVisibility::Visible);
 
@@ -339,8 +342,8 @@ void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 		EnhancedInputComponent->BindAction(MeleeAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::PerformMelee);
 
-		EnhancedInputComponent->BindAction(WheelAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::ToggleWeaponWheel);
-		//EnhancedInputComponent->BindAction(DisableWheelAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::DisableWeaponWheel);
+		//EnhancedInputComponent->BindAction(WheelAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::ToggleWeaponWheel);
+		//EnhancedInputComponent->BindAction(WheelAction, ETriggerEvent::Completed, this, &AIconoclasmCharacter::DisableWeaponWheel);
 
 	}
 	else
