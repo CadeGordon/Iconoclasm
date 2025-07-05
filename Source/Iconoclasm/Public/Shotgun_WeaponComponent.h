@@ -6,6 +6,7 @@
 #include "TP_WeaponComponent.h"
 #include "HealthComponent.h"
 #include "ShotgunHUD.h"
+#include "ShotgunProjectile.h"
 #include "Shotgun_WeaponComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -53,9 +54,18 @@ public:
 
 	virtual void DetachFromCharacter() override;
 
-protected:
+	void ApplyAltDefconDamage(const FVector& Origin, float Radius, float Damage);
+
+public:
 	
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
+	TSubclassOf<class AShotgunProjectile> ShotgunProjectileClass;
+
+	// Array to track active projectiles (limit to 4)
+	UPROPERTY()
+	TArray<TWeakObjectPtr<AShotgunProjectile>> ActiveProjectiles;
 
 private:
 

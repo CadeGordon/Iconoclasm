@@ -10,7 +10,9 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/DamageEvents.h"
 
 UShotgun_WeaponComponent::UShotgun_WeaponComponent()
 {
@@ -507,92 +509,99 @@ void UShotgun_WeaponComponent::DefconMode()
 {
 
 	
-
 	if (Character == nullptr || Character->GetController() == nullptr)
 	{
 		return;
 	}
 
-	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-	if (PlayerController)
+	// Try and fire a projectile
+	if (ShotgunProjectileClass != nullptr)
 	{
-		FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
-		FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-		FVector ForwardVector = CameraRotation.Vector();
-
-		// Define the cone angle in degrees
-		float ConeAngle = 10.0f;
-
-		// Perform multiple line traces within the cone
-		for (int32 i = 0; i < 8; ++i)
+		UWorld* const World = GetWorld();
+		if (World != nullptr)
 		{
-			FRotator SpreadRotation = CameraRotation;
-			SpreadRotation.Pitch += FMath::RandRange(-ConeAngle, ConeAngle);
-			SpreadRotation.Yaw += FMath::RandRange(-ConeAngle, ConeAngle);
+			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+			const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
 
-			FVector EndLocation = StartLocation + (SpreadRotation.Vector() * 10000.0f);
-			FHitResult HitResult;
-
-			// Perform the hitscan
-			FCollisionQueryParams Params;
-			Params.AddIgnoredActor(Character);
-
-			GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, Params);
-
-			// Draw debug line for visualization
-			DrawDebugLine(GetWorld(), StartLocation, EndLocation, FColor::Red, false, 2.0f, 0, 1.0f);
-
-			// Apply the launch force if we hit something
-			if (HitResult.GetActor())
+			// Get the actual muzzle location from the weapon mesh
+			FVector SpawnLocation;
+			if (GetOwner()->GetRootComponent())
 			{
-				// Apply launch force
-				if (ACharacter* HitCharacter = Cast<ACharacter>(HitResult.GetActor()))
+				// Try to get muzzle socket location first
+				if (USkeletalMeshComponent* WeaponMesh = Cast<USkeletalMeshComponent>(GetOwner()->GetRootComponent()))
 				{
-					FVector LaunchDirection = (HitResult.Location - HitResult.TraceStart).GetSafeNormal();
-					float LaunchStrength = 2000.0f; // Adjust as needed
-
-					HitCharacter->LaunchCharacter(LaunchDirection * LaunchStrength, true, true);
-				}
-				else if (UPrimitiveComponent* HitComponent = Cast<UPrimitiveComponent>(HitResult.GetComponent()))
-				{
-					FVector LaunchDirection = (HitResult.Location - HitResult.TraceStart).GetSafeNormal();
-					float LaunchStrength = 2000.0f; // Adjust as needed
-
-					if (HitComponent->IsSimulatingPhysics())
+					if (WeaponMesh->DoesSocketExist(FName("Muzzle")))
 					{
-						HitComponent->AddImpulse(LaunchDirection * LaunchStrength, NAME_None, true);
+						SpawnLocation = WeaponMesh->GetSocketLocation(FName("Muzzle"));
+					}
+					else
+					{
+						// Fall back to weapon location + offset
+						SpawnLocation = GetOwner()->GetActorLocation() + GetOwner()->GetActorForwardVector() * MuzzleOffset.X + GetOwner()->GetActorRightVector() * MuzzleOffset.Y + GetOwner()->GetActorUpVector() * MuzzleOffset.Z;
 					}
 				}
-
-				// Apply damage
-				float DamageAmount = 125.0f; // Example damage value
-				TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
-				AController* InstigatedByController = Character->GetController();
-
-				UGameplayStatics::ApplyDamage(
-					HitResult.GetActor(),
-					DamageAmount,
-					InstigatedByController,
-					Character,
-					DamageTypeClass
-				);
+				else
+				{
+					// Fall back to camera location + offset
+					SpawnLocation = PlayerController->PlayerCameraManager->GetCameraLocation() + SpawnRotation.RotateVector(MuzzleOffset);
+				}
 			}
-		}
-
-		// Play fire sound
-		if (FireSound != nullptr)
-		{
-			UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
-		}
-
-		// Play fire animation
-		if (FireAnimation != nullptr)
-		{
-			UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
-			if (AnimInstance != nullptr)
+			else
 			{
-				AnimInstance->Montage_Play(FireAnimation, 1.f);
+				// Final fallback
+				SpawnLocation = PlayerController->PlayerCameraManager->GetCameraLocation() + SpawnRotation.RotateVector(MuzzleOffset);
 			}
+
+			// Set Spawn Collision Handling Override
+			FActorSpawnParameters ActorSpawnParams;
+			ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+			// Clean up any destroyed projectiles from the array
+			ActiveProjectiles.RemoveAll([](const TWeakObjectPtr<AShotgunProjectile>& ProjectilePtr) {
+				return !ProjectilePtr.IsValid();
+				});
+
+			// If we have 4 projectiles, destroy the oldest one
+			if (ActiveProjectiles.Num() >= 4)
+			{
+				if (ActiveProjectiles[0].IsValid())
+				{
+					ActiveProjectiles[0]->Destroy();
+				}
+				ActiveProjectiles.RemoveAt(0);
+			}
+
+			// Spawn the projectile at the muzzle
+			AShotgunProjectile* SpawnedProjectile = World->SpawnActor<AShotgunProjectile>(ShotgunProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+
+			if (SpawnedProjectile)
+			{
+				// Set the player character reference to prevent self-damage
+				SpawnedProjectile->SetPlayerCharacter(Character);
+
+				// Set the projectile's initial trajectory
+				const FVector LaunchDirection = SpawnRotation.Vector();
+				SpawnedProjectile->ShotgunFireInDirection(LaunchDirection);
+
+				// Add to our tracking array
+				ActiveProjectiles.Add(SpawnedProjectile);
+			}
+		}
+	}
+
+	// Play fire sound
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+
+	// Play fire animation
+	if (FireAnimation != nullptr)
+	{
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
 		}
 	}
 }
@@ -604,63 +613,130 @@ void UShotgun_WeaponComponent::AltDefconMode()
 		return;
 	}
 
-
-
 	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
 	if (PlayerController)
 	{
-		FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+		FVector CameraLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
 		FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-		float ConeAngle = 10.0f;
-		FVector ImpactLocation;
 
-		// Perform hitscan to determine where to spawn the sphere
-		PerformHitscan(ImpactLocation);
+		// Perform hitscan to find the center point where player is looking
+		FVector CenterLocation;
+		FVector StartLocation = CameraLocation;
+		FVector EndLocation = StartLocation + (CameraRotation.Vector() * 10000.0f);
 
-		// Spawn a giant sphere to act as a nuclear blast
-		float BlastRadius = 5000.0f; // Adjust the radius as needed
-		FVector SphereLocation = ImpactLocation;
+		FHitResult HitResult;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(Character);
+		Params.bTraceComplex = true;
 
-		// Draw debug sphere (for visualization)
-		DrawDebugSphere(GetWorld(), SphereLocation, BlastRadius, 12, FColor::Green, false, 5.0f);
-
-		// Apply a radial force or damage in the area
-		float DamageAmount = 100.0f; // Example damage value
-		TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
-
-		UGameplayStatics::ApplyRadialDamage(
-			GetWorld(),
-			DamageAmount,
-			SphereLocation,
-			BlastRadius,
-			DamageTypeClass,
-			TArray<AActor*>(), // Ignore specific actors if needed
-			Character,         // Damage causer
-			Character->GetController(), // Instigated by
-			true               // Do full damage in the radius
-		);
-
-		// Optionally apply a force to physics objects
-		FCollisionShape CollisionShape;
-		CollisionShape.SetSphere(BlastRadius);
-
-		TArray<FHitResult> HitResults;
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(Character);
-
-		bool bHit = GetWorld()->SweepMultiByChannel(HitResults, SphereLocation, SphereLocation, FQuat::Identity, ECC_PhysicsBody, CollisionShape, QueryParams);
-
-		if (bHit)
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, Params))
 		{
-			for (const FHitResult& Hit : HitResults)
+			CenterLocation = HitResult.Location;
+		}
+		else
+		{
+			// If no hit, use a point in front of the player
+			CenterLocation = StartLocation + (CameraRotation.Vector() * 1000.0f);
+		}
+
+		// Clean up destroyed projectiles from our tracking array
+		ActiveProjectiles.RemoveAll([](const TWeakObjectPtr<AShotgunProjectile>& ProjectilePtr) {
+			return !ProjectilePtr.IsValid();
+			});
+
+		// Gather all active projectiles and move them to center
+		TArray<AShotgunProjectile*> ValidProjectiles;
+		for (const TWeakObjectPtr<AShotgunProjectile>& ProjectilePtr : ActiveProjectiles)
+		{
+			if (ProjectilePtr.IsValid())
 			{
-				UPrimitiveComponent* HitComponent = Hit.GetComponent();
-				if (HitComponent && HitComponent->IsSimulatingPhysics())
+				AShotgunProjectile* Projectile = ProjectilePtr.Get();
+				ValidProjectiles.Add(Projectile);
+
+				// Move projectile to center location
+				Projectile->SetActorLocation(CenterLocation);
+
+				// Stop the projectile's movement
+				if (Projectile->ShotgunProjectileMovement)
 				{
-					FVector ForceDirection = (Hit.Component->GetComponentLocation() - SphereLocation).GetSafeNormal();
-					HitComponent->AddRadialForce(SphereLocation, BlastRadius, 10000.0f, ERadialImpulseFalloff::RIF_Linear, true); // Adjust force as needed
+					Projectile->ShotgunProjectileMovement->Velocity = FVector::ZeroVector;
+					Projectile->ShotgunProjectileMovement->SetActive(false);
+				}
+
+				// Destroy the projectile after a short delay to show the convergence
+				FTimerHandle DestroyTimer;
+				GetWorld()->GetTimerManager().SetTimer(DestroyTimer, [Projectile]() {
+					if (IsValid(Projectile))
+					{
+						Projectile->Destroy();
+					}
+					}, 0.5f, false);
+			}
+		}
+
+		// Only create damage radius if we had projectiles to gather
+		if (ValidProjectiles.Num() > 0)
+		{
+			// Calculate damage radius based on number of projectiles
+			float BaseRadius = 500.0f;
+			float RadiusPerProjectile = 200.0f;
+			float TotalRadius = BaseRadius + (ValidProjectiles.Num() * RadiusPerProjectile);
+
+			// Calculate damage based on number of projectiles
+			float BaseDamage = 150.0f;
+			float DamagePerProjectile = 50.0f;
+			float TotalDamage = BaseDamage + (ValidProjectiles.Num() * DamagePerProjectile);
+
+			// Create visual effect - draw debug sphere
+			DrawDebugSphere(GetWorld(), CenterLocation, TotalRadius, 16, FColor::Red, false, 3.0f, 0, 5.0f);
+
+			// Apply damage using our own overlap detection (similar to projectile damage)
+			ApplyAltDefconDamage(CenterLocation, TotalRadius, TotalDamage);
+
+			// Apply physics impulse to nearby objects
+			FCollisionShape CollisionShape;
+			CollisionShape.SetSphere(TotalRadius);
+
+			TArray<FHitResult> HitResults;
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(Character);
+
+			bool bHit = GetWorld()->SweepMultiByChannel(
+				HitResults,
+				CenterLocation,
+				CenterLocation,
+				FQuat::Identity,
+				ECC_PhysicsBody,
+				CollisionShape,
+				QueryParams
+			);
+
+			if (bHit)
+			{
+				for (const FHitResult& Hit : HitResults)
+				{
+					if (UPrimitiveComponent* HitComponent = Hit.GetComponent())
+					{
+						if (HitComponent->IsSimulatingPhysics())
+						{
+							float ForceStrength = 5000.0f * ValidProjectiles.Num();
+							HitComponent->AddRadialForce(
+								CenterLocation,
+								TotalRadius,
+								ForceStrength,
+								ERadialImpulseFalloff::RIF_Linear,
+								true
+							);
+						}
+					}
 				}
 			}
+
+			// Clear our projectile tracking array since we destroyed them
+			ActiveProjectiles.Empty();
+
+			// Optional: Add screen shake or other effects
+			// UGameplayStatics::PlayWorldCameraShake(GetWorld(), CameraShakeClass, CenterLocation, 0.0f, TotalRadius);
 		}
 
 		// Play fire sound
@@ -679,14 +755,13 @@ void UShotgun_WeaponComponent::AltDefconMode()
 			}
 		}
 
+		// Handle cooldown progression
 		if (AltDefconProgress >= 1.0f)
 		{
-			// Activate the mode
 			AltDefconProgress = 0.0f;
 			GetWorld()->GetTimerManager().SetTimer(
 				AltDefconTimerHandle, this, &UShotgun_WeaponComponent::UpdateCooldowns, 0.1f, true);
 
-			// Show Defcon progress bar
 			if (ShotgunHUDInstance)
 			{
 				ShotgunHUDInstance->ShowAltDefconProgressBar();
@@ -700,7 +775,8 @@ void UShotgun_WeaponComponent::AltDefconMode()
 			AltDefconCooldownTimer,
 			[this]() { bCanUseAltDefcon = true; },
 			AltDefconCooldownDuration,
-			false);
+			false
+		);
 	}
 }
 
@@ -745,4 +821,52 @@ void UShotgun_WeaponComponent::ResetTimeWarpCooldown()
 void UShotgun_WeaponComponent::ResetDefconCooldown()
 {
 	bCanFireDefcon = true;
+}
+
+void UShotgun_WeaponComponent::ApplyAltDefconDamage(const FVector& Origin, float Radius, float Damage)
+{
+	// Get all actors within damage radius
+	TArray<AActor*> ActorsToIgnore;
+	ActorsToIgnore.Add(Character); // Ignore the player character
+
+	TArray<AActor*> HitActors;
+	bool bHit = UKismetSystemLibrary::SphereOverlapActors(
+		GetWorld(),
+		Origin,
+		Radius,
+		TArray<TEnumAsByte<EObjectTypeQuery>>(), // Empty array means all object types
+		APawn::StaticClass(), // Only get pawns (characters)
+		ActorsToIgnore,
+		HitActors
+	);
+
+	if (bHit)
+	{
+		for (AActor* HitActor : HitActors)
+		{
+			if (HitActor && HitActor->CanBeDamaged())
+			{
+				// Double-check that this isn't the player character
+				if (HitActor != Character)
+				{
+					// Check if this is a character
+					if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
+					{
+						// Calculate distance for falloff damage (optional)
+						float Distance = FVector::Dist(Origin, HitActor->GetActorLocation());
+						float DamageMultiplier = 1.0f - (Distance / Radius); // Linear falloff
+						DamageMultiplier = FMath::Clamp(DamageMultiplier, 0.1f, 1.0f); // Minimum 10% damage
+
+						float FinalDamage = Damage * DamageMultiplier;
+
+						// Apply damage
+						FDamageEvent DamageEvent;
+						HitActor->TakeDamage(FinalDamage, DamageEvent, Character->GetController(), Character);
+
+						UE_LOG(LogTemp, Warning, TEXT("AltDefcon applied %f damage to %s (Distance: %f)"), FinalDamage, *HitActor->GetName(), Distance);
+					}
+				}
+			}
+		}
+	}
 }
