@@ -143,10 +143,7 @@ void UTP_WeaponComponent::AltFire()
 	case EWeaponMode::Mode2: // AltImpulseMode
 		if (CurrentTime >= LastAltImpulseModeTime) // Only checks cooldown expiration
 		{
-			// Execute AltImpulseMode logic
-			FVector ImpactLocation;
-			PerformHitscan(ImpactLocation);
-			ImpulseEffect(ImpactLocation, 300.0f, 1500.0f); // Example radius and strength
+			AltImpulseMode();
 			UE_LOG(LogTemp, Warning, TEXT("AltImpulseMode activated!"));
 
 			// Start cooldown after execution
@@ -597,51 +594,36 @@ void UTP_WeaponComponent::AltlifeBloodMode()
 
 void UTP_WeaponComponent::ImpulseMode()
 {
-	FVector ImpactLocation;
-	PerformHitscan(ImpactLocation);
-
-	// Impulse effect
-	float ImpulseRadius = 300.0f;
-	float ImpulseStrength = 500000.0f;
-	ImpulseEffect(ImpactLocation, ImpulseRadius, ImpulseStrength);
-
-	// Apply radial damage
-	float Damage = 10.0f; // Set the damage value
-	TSubclassOf<UDamageType> DamageTypeClass = UDamageType::StaticClass();
-	AController* InstigatorController = Character->GetController(); // Assumes Character is valid
-	AActor* DamageCauser = Character;
-
-	UGameplayStatics::ApplyRadialDamage(
-		GetWorld(),
-		Damage,
-		ImpactLocation,
-		ImpulseRadius,
-		DamageTypeClass,
-		TArray<AActor*>(), // Optional array of actors to ignore
-		DamageCauser,
-		InstigatorController,
-		true // Whether to cause damage even if there’s no line of sight
-	);
-
-	// Apply impulse to characters
-	TArray<AActor*> OverlappingActors;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACharacter::StaticClass(), OverlappingActors);
-
-	for (AActor* Actor : OverlappingActors)
+	// Try to fire a projectile instead of hitscan
+	if (GrenadeProjectileClass != nullptr)
 	{
-		if (!Actor || Actor == Character) continue;
-
-		// Check if this actor is the RaphaelBossCharacter
-		if (Actor->IsA(ARaphaelBossCharacter::StaticClass()))
+		UWorld* const World = GetWorld();
+		if (World != nullptr)
 		{
-			continue; // Skip the boss
-		}
+			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+			if (PlayerController)
+			{
+				// Get the camera location and rotation for projectile spawn
+				const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
 
-		ACharacter* AffectedCharacter = Cast<ACharacter>(Actor);
-		if (AffectedCharacter && FVector::Dist(AffectedCharacter->GetActorLocation(), ImpactLocation) <= ImpulseRadius)
-		{
-			FVector LaunchDirection = (AffectedCharacter->GetActorLocation() - ImpactLocation).GetSafeNormal();
-			AffectedCharacter->LaunchCharacter(LaunchDirection * (ImpulseStrength / 100.0f), true, true); // Scale down to avoid overkill
+				// Transform the MuzzleOffset from local space to world space
+				const FVector SpawnLocation = PlayerController->PlayerCameraManager->GetCameraLocation() +
+					SpawnRotation.RotateVector(MuzzleOffset);
+
+				// Set Spawn Collision Handling Override
+				FActorSpawnParameters ActorSpawnParams;
+				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+				// Spawn the projectile at the muzzle
+				AGrenadeLauncherProjectile* Projectile = World->SpawnActor<AGrenadeLauncherProjectile>(GrenadeProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+
+				if (Projectile)
+				{
+					// Set the projectile's initial trajectory
+					const FVector LaunchDirection = SpawnRotation.Vector();
+					Projectile->GrenadeFireInDirection(LaunchDirection);
+				}
+			}
 		}
 	}
 
@@ -664,11 +646,40 @@ void UTP_WeaponComponent::ImpulseMode()
 
 void UTP_WeaponComponent::AltImpulseMode()
 {
-	FVector ImpactLocation;
-	PerformHitscan(ImpactLocation);
+	// Try to fire a projectile instead of hitscan
+	if (GrenadeProjectileClass != nullptr)
+	{
+		UWorld* const World = GetWorld();
+		if (World != nullptr)
+		{
+			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+			if (PlayerController)
+			{
+				// Get the camera location and rotation for projectile spawn
+				const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
 
-	// Apply anti-gravity effect
-	AntiGravity(ImpactLocation, 500.0f); // Example radius
+				// Transform the MuzzleOffset from local space to world space
+				const FVector SpawnLocation = PlayerController->PlayerCameraManager->GetCameraLocation() +
+					SpawnRotation.RotateVector(MuzzleOffset);
+
+				// Set Spawn Collision Handling Override
+				FActorSpawnParameters ActorSpawnParams;
+				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+				// Spawn the projectile at the muzzle
+				AGrenadeLauncherProjectile* Projectile = World->SpawnActor<AGrenadeLauncherProjectile>(GrenadeProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+
+				if (Projectile)
+				{
+					// Set the projectile's initial trajectory
+					const FVector LaunchDirection = SpawnRotation.Vector();
+					Projectile->GrenadeFireInDirection(LaunchDirection);
+
+					// Note: The projectile will handle its own AltOnHit explosion when it impacts
+				}
+			}
+		}
+	}
 
 	// Play fire sound
 	if (FireSound != nullptr)

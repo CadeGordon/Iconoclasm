@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "HealthComponent.h"
+#include "GrenadeLauncherProjectile.h"
 #include "TP_WeaponComponent.generated.h"
 
 class AIconoclasmCharacter;
@@ -22,9 +23,13 @@ class ICONOCLASM_API UTP_WeaponComponent : public USkeletalMeshComponent
 	GENERATED_BODY()
 
 public:
-	/** Projectile class to spawn */
-	UPROPERTY(EditDefaultsOnly, Category=Projectile)
-	TSubclassOf<class AIconoclasmProjectile> ProjectileClass;
+	///** Projectile class to spawn */
+	//UPROPERTY(EditDefaultsOnly, Category=Projectile)
+	//TSubclassOf<class AIconoclasmProjectile> ProjectileClass;
+
+	// Add this property in your class declaration (in the public or protected section)
+	UPROPERTY(EditDefaultsOnly, Category = Projectile)
+	TSubclassOf<class AGrenadeLauncherProjectile> GrenadeProjectileClass;
 
 	/** Projectile class to spawn */
 	UPROPERTY(EditDefaultsOnly, Category=Projectile)
