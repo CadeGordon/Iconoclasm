@@ -52,6 +52,13 @@ public:
 	rection */
 	void GrenadeFireInDirection(const FVector& ShootDirection);
 
+	UPROPERTY(BlueprintReadWrite, Category = "Projectile")
+	bool bIsAltFire = false;
+
+	// Add this function declaration as well:
+	UFUNCTION(BlueprintCallable, Category = "Projectile")
+	void SetAltFireMode(bool bAltFire);
+
 	
 
 };

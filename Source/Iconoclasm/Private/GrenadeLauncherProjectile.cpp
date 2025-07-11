@@ -10,6 +10,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "PhysicsEngine/RadialForceComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "IconoclasmCharacter.h"
 
 // Sets default values
@@ -48,12 +49,21 @@ AGrenadeLauncherProjectile::AGrenadeLauncherProjectile()
 
 void AGrenadeLauncherProjectile::GrenadeOnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
+	// Check if this is alt fire mode
+	if (bIsAltFire)
+	{
+		// Call the alt fire hit function
+		GrenadeAltOnHit(HitComp, OtherActor, OtherComp, NormalImpulse, Hit);
+		return; // Exit early since alt fire handles everything
+	}
+
+	// NORMAL FIRE MODE - Your existing logic
 	// Get the hit location for damage radius center
 	FVector ExplosionLocation = Hit.Location;
 
 	// Define explosion parameters
-	float ExplosionRadius = 500.0f;
-	float BaseDamage = 100.0f;
+	float ExplosionRadius = 700.0f;
+	float BaseDamage = 10.0f;
 	float MinimumDamage = 20.0f;
 
 	// Apply radial damage to all actors within the explosion radius
@@ -70,15 +80,61 @@ void AGrenadeLauncherProjectile::GrenadeOnHit(UPrimitiveComponent* HitComp, AAct
 		ECollisionChannel::ECC_Visibility
 	);
 
-	//// Apply radial impulse to push objects away from explosion
-	//UGameplayStatics::ApplyRadialImpulse(
-	//	GetWorld(),
-	//	ExplosionLocation,
-	//	ExplosionRadius,
-	//	2000.0f, // Impulse strength
-	//	ERadialImpulseFalloff::RIF_Linear,
-	//	true // Velocity change
-	//);
+	// Shrapnel system - fire random line traces in all directions
+	int32 ShrapnelCount = 35; // Number of shrapnel traces
+	float ShrapnelRange = 1250.0f; // Maximum range of shrapnel
+	float ShrapnelDamage = 250.0f; // Damage per shrapnel hit
+
+	for (int32 i = 0; i < ShrapnelCount; i++)
+	{
+		// Generate a random direction vector
+		FVector RandomDirection = FVector(
+			FMath::RandRange(-1.0f, 1.0f),
+			FMath::RandRange(-1.0f, 1.0f),
+			FMath::RandRange(-1.0f, 1.0f)
+		).GetSafeNormal();
+
+		// Calculate start and end points for the line trace
+		FVector TraceStart = ExplosionLocation;
+		FVector TraceEnd = ExplosionLocation + (RandomDirection * ShrapnelRange);
+
+		// Perform the line trace
+		FHitResult ShrapnelHit;
+		FCollisionQueryParams ShrapnelParams;
+		ShrapnelParams.AddIgnoredActor(this); // Ignore the projectile itself
+		ShrapnelParams.bTraceComplex = true;
+
+		if (GetWorld()->LineTraceSingleByChannel(ShrapnelHit, TraceStart, TraceEnd, ECC_Pawn, ShrapnelParams))
+		{
+			// Hit something with shrapnel
+			if (AActor* HitActor = ShrapnelHit.GetActor())
+			{
+				// Apply damage to the hit actor
+				UGameplayStatics::ApplyDamage(
+					HitActor,
+					ShrapnelDamage,
+					GetInstigatorController(),
+					this,
+					UDamageType::StaticClass()
+				);
+
+				// Debug visualization of shrapnel hit
+				if (GEngine)
+				{
+					DrawDebugLine(GetWorld(), TraceStart, ShrapnelHit.Location, FColor::Yellow, false, 2.0f, 0, 1.0f);
+					DrawDebugPoint(GetWorld(), ShrapnelHit.Location, 5.0f, FColor::Orange, false, 2.0f);
+				}
+			}
+		}
+		else
+		{
+			// No hit - draw the full trace for debugging
+			if (GEngine)
+			{
+				DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Blue, false, 1.0f, 0, 0.5f);
+			}
+		}
+	}
 
 	// Spawn explosion visual effect if you have one
 	// UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionEffect, ExplosionLocation);
@@ -103,8 +159,10 @@ void AGrenadeLauncherProjectile::GrenadeAltOnHit(UPrimitiveComponent* HitComp, A
 
 	// Define alternative explosion parameters (could be different from normal hit)
 	float ExplosionRadius = 750.0f; // Larger radius for alt fire
-	float BaseDamage = 150.0f; // Higher damage for alt fire
+	float GrabRadius = 1250.0f; // Grab radius - larger than damage radius
+	float BaseDamage = 1.0f; // Higher damage for alt fire
 	float MinimumDamage = 30.0f;
+	float PullForce = 2000.0f; // Force to pull enemies toward center
 
 	// Apply radial damage to all actors within the explosion radius
 	UGameplayStatics::ApplyRadialDamage(
@@ -120,15 +178,79 @@ void AGrenadeLauncherProjectile::GrenadeAltOnHit(UPrimitiveComponent* HitComp, A
 		ECollisionChannel::ECC_Visibility
 	);
 
-	//// Apply stronger radial impulse for alt fire
-	//UGameplayStatics::ApplyRadialImpulse(
-	//	GetWorld(),
-	//	ExplosionLocation,
-	//	ExplosionRadius,
-	//	3000.0f, // Stronger impulse for alt fire
-	//	ERadialImpulseFalloff::RIF_Linear,
-	//	true // Velocity change
-	//);
+	// Find all actors within grab radius for pull effect
+	TArray<FOverlapResult> OverlapResults;
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(this);
+	CollisionParams.bTraceComplex = false;
+	CollisionParams.bReturnPhysicalMaterial = false;
+
+	// Perform sphere overlap to find actors in grab radius
+	bool bHasOverlap = GetWorld()->OverlapMultiByChannel(
+		OverlapResults,
+		ExplosionLocation,
+		FQuat::Identity,
+		ECollisionChannel::ECC_Pawn, // Target pawns/characters
+		FCollisionShape::MakeSphere(GrabRadius),
+		CollisionParams
+	);
+
+	if (bHasOverlap)
+	{
+		// Process each overlapped actor
+		for (const FOverlapResult& OverlapResult : OverlapResults)
+		{
+			AActor* TargetActor = OverlapResult.GetActor();
+			if (!TargetActor)
+				continue;
+
+			// Check if this is an enemy/valid target (you might want to add more filtering here)
+			APawn* TargetPawn = Cast<APawn>(TargetActor);
+			if (!TargetPawn)
+				continue;
+
+			// Get the actor's location
+			FVector TargetLocation = TargetActor->GetActorLocation();
+
+			// Calculate direction from target to explosion center
+			FVector PullDirection = (ExplosionLocation - TargetLocation).GetSafeNormal();
+
+			// Draw line trace from explosion center to grabbed enemy
+			DrawDebugLine(
+				GetWorld(),
+				ExplosionLocation,
+				TargetLocation,
+				FColor::Red,
+				false,
+				3.0f, // Duration
+				0,
+				5.0f // Thickness
+			);
+
+			// Apply pull force to the actor
+			UPrimitiveComponent* TargetPrimitive = TargetActor->FindComponentByClass<UPrimitiveComponent>();
+			if (TargetPrimitive && TargetPrimitive->IsSimulatingPhysics())
+			{
+				// For physics-based actors, apply impulse
+				FVector PullImpulse = PullDirection * PullForce;
+				TargetPrimitive->AddImpulse(PullImpulse, NAME_None, true);
+			}
+			else
+			{
+				// For character movement, try to use character movement component
+				ACharacter* TargetCharacter = Cast<ACharacter>(TargetPawn);
+				if (TargetCharacter && TargetCharacter->GetCharacterMovement())
+				{
+					// Apply velocity change to character movement
+					FVector PullVelocity = PullDirection * (PullForce / TargetCharacter->GetCharacterMovement()->Mass);
+					TargetCharacter->GetCharacterMovement()->AddImpulse(PullVelocity, true);
+				}
+			}
+
+			// Optional: Add visual effect on grabbed targets
+			// UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GrabEffect, TargetLocation);
+		}
+	}
 
 	// Spawn explosion visual effect if you have one
 	// UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), AltExplosionEffect, ExplosionLocation);
@@ -140,6 +262,8 @@ void AGrenadeLauncherProjectile::GrenadeAltOnHit(UPrimitiveComponent* HitComp, A
 	if (GEngine)
 	{
 		DrawDebugSphere(GetWorld(), ExplosionLocation, ExplosionRadius, 12, FColor::Blue, false, 3.0f);
+		// Debug visualization of grab radius (green)
+		DrawDebugSphere(GetWorld(), ExplosionLocation, GrabRadius, 16, FColor::Green, false, 3.0f);
 	}
 
 	// Destroy the projectile after explosion
@@ -160,6 +284,11 @@ void AGrenadeLauncherProjectile::GrenadeFireInDirection(const FVector& ShootDire
 		FRotator NewRotation = ShootDirection.Rotation();
 		SetActorRotation(NewRotation);
 	}
+}
+
+void AGrenadeLauncherProjectile::SetAltFireMode(bool bAltFire)
+{
+	bIsAltFire = bAltFire;
 }
 
 

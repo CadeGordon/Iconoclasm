@@ -657,36 +657,31 @@ void UTP_WeaponComponent::AltImpulseMode()
 			{
 				// Get the camera location and rotation for projectile spawn
 				const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-
 				// Transform the MuzzleOffset from local space to world space
 				const FVector SpawnLocation = PlayerController->PlayerCameraManager->GetCameraLocation() +
 					SpawnRotation.RotateVector(MuzzleOffset);
-
 				// Set Spawn Collision Handling Override
 				FActorSpawnParameters ActorSpawnParams;
 				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-
 				// Spawn the projectile at the muzzle
 				AGrenadeLauncherProjectile* Projectile = World->SpawnActor<AGrenadeLauncherProjectile>(GrenadeProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-
 				if (Projectile)
 				{
 					// Set the projectile's initial trajectory
 					const FVector LaunchDirection = SpawnRotation.Vector();
 					Projectile->GrenadeFireInDirection(LaunchDirection);
 
-					// Note: The projectile will handle its own AltOnHit explosion when it impacts
+					// SET ALT FIRE MODE - This is the key addition!
+					Projectile->SetAltFireMode(true);
 				}
 			}
 		}
 	}
-
 	// Play fire sound
 	if (FireSound != nullptr)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
 	}
-
 	// Play fire animation
 	if (FireAnimation != nullptr)
 	{
