@@ -14,6 +14,10 @@
 #include "HealthComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "RaphaelBossCharacter.h"
+#include "HealthComponent.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+#include "DrawDebugHelpers.h"
 
 // Sets default values for this component's properties
 UTP_WeaponComponent::UTP_WeaponComponent()
@@ -646,37 +650,39 @@ void UTP_WeaponComponent::ImpulseMode()
 
 void UTP_WeaponComponent::AltImpulseMode()
 {
-	// Try to fire a projectile instead of hitscan
-	if (GrenadeProjectileClass != nullptr)
-	{
-		UWorld* const World = GetWorld();
-		if (World != nullptr)
-		{
-			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-			if (PlayerController)
-			{
-				// Get the camera location and rotation for projectile spawn
-				const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-				// Transform the MuzzleOffset from local space to world space
-				const FVector SpawnLocation = PlayerController->PlayerCameraManager->GetCameraLocation() +
-					SpawnRotation.RotateVector(MuzzleOffset);
-				// Set Spawn Collision Handling Override
-				FActorSpawnParameters ActorSpawnParams;
-				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-				// Spawn the projectile at the muzzle
-				AGrenadeLauncherProjectile* Projectile = World->SpawnActor<AGrenadeLauncherProjectile>(GrenadeProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-				if (Projectile)
-				{
-					// Set the projectile's initial trajectory
-					const FVector LaunchDirection = SpawnRotation.Vector();
-					Projectile->GrenadeFireInDirection(LaunchDirection);
+	// Set teleport mark at current location before firing
+	SetTeleportMark();
 
-					// SET ALT FIRE MODE - This is the key addition!
-					Projectile->SetAltFireMode(true);
-				}
-			}
-		}
-	}
+	//// Try to fire a projectile instead of hitscan
+	//if (GrenadeProjectileClass != nullptr)
+	//{
+	//	UWorld* const World = GetWorld();
+	//	if (World != nullptr)
+	//	{
+	//		APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+	//		if (PlayerController)
+	//		{
+	//			// Get the camera location and rotation for projectile spawn
+	//			const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+	//			// Transform the MuzzleOffset from local space to world space
+	//			const FVector SpawnLocation = PlayerController->PlayerCameraManager->GetCameraLocation() +
+	//				SpawnRotation.RotateVector(MuzzleOffset);
+	//			// Set Spawn Collision Handling Override
+	//			FActorSpawnParameters ActorSpawnParams;
+	//			ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+	//			// Spawn the projectile at the muzzle
+	//			AGrenadeLauncherProjectile* Projectile = World->SpawnActor<AGrenadeLauncherProjectile>(GrenadeProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+	//			if (Projectile)
+	//			{
+	//				// Set the projectile's initial trajectory
+	//				const FVector LaunchDirection = SpawnRotation.Vector();
+	//				Projectile->GrenadeFireInDirection(LaunchDirection);
+	//				//// SET ALT FIRE MODE - This is the key addition!
+	//				//Projectile->SetAltFireMode(true);
+	//			}
+	//		}
+	//	}
+	//}
 	// Play fire sound
 	if (FireSound != nullptr)
 	{
@@ -747,4 +753,137 @@ void UTP_WeaponComponent::ResetLifeBloodCooldown()
 void UTP_WeaponComponent::ResetImpulseCooldown()
 {
 	bCanFireImpulse = true;
+}
+
+void UTP_WeaponComponent::SetTeleportMark()
+{
+	if (Character)
+	{
+		// Store current location
+		TeleportMarkLocation = Character->GetActorLocation();
+
+		// Store current health
+		if (UHealthComponent* HealthComp = Character->FindComponentByClass<UHealthComponent>())
+		{
+			TeleportMarkHealth = HealthComp->GetCurrentHealth();
+		}
+
+		bHasTeleportMark = true;
+
+		// Draw a line trace from current location upward to mark the spot
+		FVector LineStart = TeleportMarkLocation;
+		FVector LineEnd = TeleportMarkLocation + FVector(0, 0, 500.0f); // 500 units upward
+
+		// Draw the teleport mark line
+		if (GetWorld())
+		{
+			DrawDebugLine(
+				GetWorld(),
+				LineStart,
+				LineEnd,
+				FColor::Cyan,
+				false,
+				TeleportLineDuration, // Duration
+				0,
+				8.0f // Thickness
+			);
+
+			// Draw a sphere at the base to make it more visible
+			DrawDebugSphere(
+				GetWorld(),
+				TeleportMarkLocation,
+				50.0f,
+				12,
+				FColor::Cyan,
+				false,
+				TeleportLineDuration
+			);
+		}
+
+		// Start timer for auto-teleport
+		if (GetWorld())
+		{
+			GetWorld()->GetTimerManager().SetTimer(
+				TeleportTimerHandle,
+				this,
+				&UTP_WeaponComponent::OnTeleportTimerExpired,
+				TeleportDelay,
+				false
+			);
+		}
+
+		// Debug message
+		if (GEngine)
+		{
+			FString DebugMsg = FString::Printf(TEXT("Teleport mark set! Auto-teleport in %.1f seconds"), TeleportDelay);
+			GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Cyan, DebugMsg);
+		}
+	}
+}
+
+void UTP_WeaponComponent::TeleportToMark()
+{
+	if (bHasTeleportMark && Character)
+	{
+		// Teleport to marked location
+		Character->SetActorLocation(TeleportMarkLocation, false, nullptr, ETeleportType::TeleportPhysics);
+
+		// Restore health to what it was when mark was set
+		if (UHealthComponent* HealthComp = Character->FindComponentByClass<UHealthComponent>())
+		{
+			HealthComp->SetCurrentHealth(TeleportMarkHealth);
+		}
+
+		// Clear the teleport mark
+		bHasTeleportMark = false;
+
+		// Clear the timer if it's still running
+		if (GetWorld() && TeleportTimerHandle.IsValid())
+		{
+			GetWorld()->GetTimerManager().ClearTimer(TeleportTimerHandle);
+		}
+
+		// Visual effect at teleport destination
+		if (GetWorld())
+		{
+			// Spawn a brief visual effect at the teleport location
+			DrawDebugSphere(
+				GetWorld(),
+				TeleportMarkLocation,
+				100.0f,
+				16,
+				FColor::Purple,
+				false,
+				2.0f
+			);
+
+			// Upward burst effect
+			DrawDebugLine(
+				GetWorld(),
+				TeleportMarkLocation,
+				TeleportMarkLocation + FVector(0, 0, 300.0f),
+				FColor::Purple,
+				false,
+				2.0f,
+				0,
+				10.0f
+			);
+		}
+
+		// Play teleport sound if you have one
+		// UGameplayStatics::PlaySoundAtLocation(GetWorld(), TeleportSound, TeleportMarkLocation);
+
+		// Debug message
+		if (GEngine)
+		{
+			FString HealthMsg = FString::Printf(TEXT("Teleported back! Health restored to %.1f"), TeleportMarkHealth);
+			GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Purple, HealthMsg);
+		}
+	}
+}
+
+void UTP_WeaponComponent::OnTeleportTimerExpired()
+{
+	// Auto-teleport when timer expires
+	TeleportToMark();
 }

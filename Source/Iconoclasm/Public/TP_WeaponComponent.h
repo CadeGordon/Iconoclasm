@@ -160,4 +160,32 @@ private:
 	void ResetLifeBloodCooldown();
 
 	void ResetImpulseCooldown();
+
+	UPROPERTY()
+	FVector TeleportMarkLocation;
+
+	UPROPERTY()
+	float TeleportMarkHealth;
+
+	UPROPERTY()
+	bool bHasTeleportMark;
+
+	UPROPERTY()
+	FTimerHandle TeleportTimerHandle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport", meta = (AllowPrivateAccess = "true"))
+	float TeleportDelay = 3.0f; // Time before auto-teleport
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport", meta = (AllowPrivateAccess = "true"))
+	float TeleportLineDuration = 5.0f; // How long the line trace stays visible
+
+	// Add these function declarations to the public section:
+	UFUNCTION(BlueprintCallable, Category = "Teleport")
+	void SetTeleportMark();
+
+	UFUNCTION(BlueprintCallable, Category = "Teleport")
+	void TeleportToMark();
+
+	UFUNCTION()
+	void OnTeleportTimerExpired();
 };
