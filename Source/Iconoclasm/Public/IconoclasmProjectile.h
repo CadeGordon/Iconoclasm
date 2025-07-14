@@ -25,6 +25,20 @@ class AIconoclasmProjectile : public AActor
 public:
 	AIconoclasmProjectile();
 
+	// Tracking properties
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bullet Hell")
+	float TrackingStrength;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bullet Hell")
+	float MaxTrackingDistance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bullet Hell")
+	bool bCanTrackPlayer;
+
+	// Reference to the target player
+	UPROPERTY(BlueprintReadOnly, Category = "Bullet Hell")
+	class ACharacter* TargetPlayer;
+
 	/** called when projectile hits something */
 	UFUNCTION()
 	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
@@ -40,5 +54,22 @@ public:
 
 	/** Function to initialize the projectile's velocity in the shoot direction */
 	void FireInDirection(const FVector& ShootDirection);
+
+	// Override BeginPlay and Tick
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+
+	// Tracking functions
+	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
+	void FindTargetPlayer();
+
+	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
+	void UpdatePlayerTracking(float DeltaTime);
+
+	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
+	void SetTrackingEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
+	void SetTrackingStrength(float NewStrength);
 };
 
