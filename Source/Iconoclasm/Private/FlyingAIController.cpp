@@ -139,7 +139,7 @@ FVector AFlyingAIController::AvoidNearbyEnemies()
     FVector Avoidance = FVector::ZeroVector;
 
     // Define the radius to check for nearby enemies
-    float AvoidanceRadius = 300.0f;
+    float AvoidanceRadius = 700.0f;
 
     // Find all pawns (enemies) in the world
     TArray<AActor*> AllEnemies;
@@ -170,7 +170,7 @@ FVector AFlyingAIController::AvoidNearbyEnemies()
         Avoidance.Normalize();
     }
 
-    return Avoidance * 0.5f; // You can adjust the multiplier to control the strength of avoidance
+    return Avoidance * 2.5f; // You can adjust the multiplier to control the strength of avoidance
 }
 
 
