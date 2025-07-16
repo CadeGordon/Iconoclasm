@@ -15,7 +15,8 @@ enum class EAbilityType : uint8
     BurstShoot,
     ThrowAbility,
     HeavenRain,
-    JudgementGaze
+    JudgementGaze,
+    HaloArc
 };
 
 class AActor;
@@ -121,6 +122,20 @@ private:
 
     // Array to store player positions
     TArray<FVector> PlayerPositionHistory;
+
+    // Add these public properties (make sure they're UPROPERTY for editor access):
+    UPROPERTY(EditAnywhere, Category = "Halo Arc")
+    float HaloArcDuration = 3.0f;
+
+    UPROPERTY(EditAnywhere, Category = "Halo Arc")
+    float HaloArcProjectileInterval = 0.5f; // Time between each projectile spawn
+
+    UPROPERTY(EditAnywhere, Category = "Halo Arc")
+    int32 HaloArcProjectileCount = 3; // How many waves of projectiles to spawn
+
+    FTimerHandle HaloArcTimerHandle;
+    FTimerHandle HaloArcDurationTimerHandle;
+    int32 CurrentHaloArcCount = 0;
 
     
 
@@ -229,6 +244,19 @@ private:
     TArray<FVector> ActiveRainAreas;
 
     public:
-        // Method to stop all abilities when boss dies
+
+      // Method to stop all abilities when boss dies
         void StopAllAbilities();
+
+        // Add these public function declarations:
+        UFUNCTION()
+        void StartHaloArc();
+
+        UFUNCTION()
+        void SpawnHaloArcProjectiles();
+
+        UFUNCTION()
+        void EndHaloArc();
+
+
 };

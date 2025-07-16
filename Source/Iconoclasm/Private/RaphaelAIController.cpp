@@ -103,7 +103,7 @@ void ARaphaelAIController::Tick(float DeltaTime)
 
     if (!IsAbilityActive)
     {
-        int32 RandomIndex = FMath::RandRange(0, 4);
+        int32 RandomIndex = FMath::RandRange(0, 5);
         EAbilityType SelectedAbility = static_cast<EAbilityType>(RandomIndex);
         PerformAbility(SelectedAbility);
     }
@@ -148,14 +148,24 @@ void ARaphaelAIController::SpawnBeamColliderAtLocation(FVector Location)
         // Log for debugging
         UE_LOG(LogTemp, Warning, TEXT("Beam Collider Spawned at Player's Location"));
 
-        // Bind overlap event for the beam collider (use a weak pointer or this if applicable)
+        // Bind overlap event for the beam collider
         BeamCollider->OnComponentBeginOverlap.AddDynamic(this, &ARaphaelAIController::OnBeamOverlap);
 
+        // FIXED: Use a weak pointer and proper cleanup in the lambda
+        TWeakObjectPtr<UCapsuleComponent> WeakBeamCollider = BeamCollider;
+        TWeakObjectPtr<ARaphaelAIController> WeakThis = this;
+
         // Set a timer to destroy the beam collider after the beam duration
-        GetWorld()->GetTimerManager().SetTimer(BeamTimerHandle, [=]()
+        GetWorld()->GetTimerManager().SetTimer(BeamTimerHandle, [WeakThis, WeakBeamCollider]()
             {
-                BeamCollider->DestroyComponent();
-                UE_LOG(LogTemp, Warning, TEXT("Beam Collider Destroyed"));
+                // Check if both objects are still valid before accessing them
+                if (WeakThis.IsValid() && WeakBeamCollider.IsValid())
+                {
+                    // Unbind the overlap event before destroying to prevent dangling delegates
+                    WeakBeamCollider->OnComponentBeginOverlap.RemoveDynamic(WeakThis.Get(), &ARaphaelAIController::OnBeamOverlap);
+                    WeakBeamCollider->DestroyComponent();
+                    UE_LOG(LogTemp, Warning, TEXT("Beam Collider Destroyed"));
+                }
             }, BeamDuration, false);
     }
 }
@@ -647,6 +657,10 @@ void ARaphaelAIController::PerformAbility(EAbilityType AbilityType)
         GetWorld()->GetTimerManager().SetTimer(AbilityTimerHandle, this, &ARaphaelAIController::ResetAbility, RainDuration, false);
         break;*/
 
+    case EAbilityType::HaloArc:
+        StartHaloArc();
+        break;
+
     default:
         IsAbilityActive = false;
         break;
@@ -693,6 +707,7 @@ void ARaphaelAIController::ActivateBoss()
     StartBeamSummonWithDelay();
     StartJudgementGaze();
     //StartHeavenRain();
+    StartHaloArc();
     GetWorld()->GetTimerManager().SetTimer(ThrowChargeTimerHandle, this, &ARaphaelAIController::StartThrowAbility, 10.0f, true);
 }
 
@@ -726,6 +741,10 @@ void ARaphaelAIController::StopAllAbilities()
 
         // Stop main ability timer
         World->GetTimerManager().ClearTimer(AbilityTimerHandle);
+
+        // Stop Halo Arc ability
+        World->GetTimerManager().ClearTimer(HaloArcTimerHandle);
+        World->GetTimerManager().ClearTimer(HaloArcDurationTimerHandle);
     }
 
     // Reset state flags
@@ -733,7 +752,72 @@ void ARaphaelAIController::StopAllAbilities()
     bIsActivated = false;
     bIsDelaying = false;
 
+    // Reset Halo Arc count
+    CurrentHaloArcCount = 0;
+
     UE_LOG(LogTemp, Warning, TEXT("All boss abilities stopped due to death"));
+}
+
+void ARaphaelAIController::StartHaloArc()
+{
+    CurrentHaloArcCount = 0;
+
+    // Start spawning projectiles immediately, then continue with intervals
+    SpawnHaloArcProjectiles();
+
+    // Set timer for subsequent projectile spawns
+    GetWorld()->GetTimerManager().SetTimer(
+        HaloArcTimerHandle,
+        this,
+        &ARaphaelAIController::SpawnHaloArcProjectiles,
+        HaloArcProjectileInterval,
+        true
+    );
+
+    // Set timer to end the ability after the specified duration
+    GetWorld()->GetTimerManager().SetTimer(
+        HaloArcDurationTimerHandle,
+        this,
+        &ARaphaelAIController::EndHaloArc,
+        HaloArcDuration,
+        false
+    );
+
+    UE_LOG(LogTemp, Warning, TEXT("Halo Arc ability started"));
+}
+
+void ARaphaelAIController::SpawnHaloArcProjectiles()
+{
+    // Get the boss character
+    ARaphaelBossCharacter* BossCharacter = Cast<ARaphaelBossCharacter>(GetPawn());
+    if (!BossCharacter) return;
+
+    // Call the boss character's function to spawn projectiles from the configured points
+    BossCharacter->SpawnHaloArcProjectilesFromPoints();
+
+    // Increment the count
+    CurrentHaloArcCount++;
+
+    // Check if we've reached the maximum number of projectile waves
+    if (CurrentHaloArcCount >= HaloArcProjectileCount)
+    {
+        EndHaloArc();
+    }
+}
+
+void ARaphaelAIController::EndHaloArc()
+{
+    // Clear the timers
+    GetWorld()->GetTimerManager().ClearTimer(HaloArcTimerHandle);
+    GetWorld()->GetTimerManager().ClearTimer(HaloArcDurationTimerHandle);
+
+    // Reset the count
+    CurrentHaloArcCount = 0;
+
+    // Reset the ability state so the AI can pick a new ability
+    IsAbilityActive = false;
+
+    UE_LOG(LogTemp, Warning, TEXT("Halo Arc ability ended"));
 }
 
 

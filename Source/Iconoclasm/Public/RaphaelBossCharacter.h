@@ -98,4 +98,12 @@ public:
 	// Override the TakeDamage function to control when damage can be applied
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
 		class AController* EventInstigator, AActor* DamageCauser) override;
+
+	// In the public section, add these UPROPERTY declarations:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Halo Arc", meta = (MakeEditWidget = true))
+	TArray<FVector> HaloArcSpawnPoints;
+
+	// Add this public function declaration:
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void SpawnHaloArcProjectilesFromPoints();
 };

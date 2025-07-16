@@ -47,6 +47,17 @@ ARaphaelBossCharacter::ARaphaelBossCharacter()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 
 
+	// Initialize default Halo Arc spawn points (5 points in an arc around the boss)
+	HaloArcSpawnPoints.SetNum(5);
+
+	// Set up default positions - you can adjust these values or move them in the editor
+	HaloArcSpawnPoints[0] = FVector(300.0f, -400.0f, 100.0f);  // Left side
+	HaloArcSpawnPoints[1] = FVector(500.0f, -200.0f, 100.0f);  // Left-center
+	HaloArcSpawnPoints[2] = FVector(600.0f, 0.0f, 100.0f);     // Center
+	HaloArcSpawnPoints[3] = FVector(500.0f, 200.0f, 100.0f);   // Right-center
+	HaloArcSpawnPoints[4] = FVector(300.0f, 400.0f, 100.0f);   // Right side
+
+
 }
 
 void ARaphaelBossCharacter::SpawnProjectile(FVector LaunchDirection)
@@ -200,4 +211,46 @@ float ARaphaelBossCharacter::TakeDamage(float DamageAmount, struct FDamageEvent 
 
 	// If not invulnerable, proceed with normal damage handling
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+}
+
+void ARaphaelBossCharacter::SpawnHaloArcProjectilesFromPoints()
+{
+
+	if (!ProjectileClass) return;
+
+	// Get the player's current location for targeting
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (!PlayerCharacter) return;
+
+	FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+	FVector BossLocation = GetActorLocation();
+
+	// Spawn projectiles from each configured point
+	for (int32 i = 0; i < HaloArcSpawnPoints.Num(); i++)
+	{
+		// Calculate world position of spawn point relative to boss
+		FVector WorldSpawnLocation = BossLocation + HaloArcSpawnPoints[i];
+
+		// Calculate direction from spawn point to player
+		FVector DirectionToPlayer = (PlayerLocation - WorldSpawnLocation).GetSafeNormal();
+		FRotator SpawnRotation = DirectionToPlayer.Rotation();
+
+		// Spawn the projectile
+		FActorSpawnParameters SpawnParams;
+		AActor* SpawnedProjectile = GetWorld()->SpawnActor<AIconoclasmProjectile>(
+			ProjectileClass,
+			WorldSpawnLocation,
+			SpawnRotation,
+			SpawnParams
+		);
+
+		// Optional: Draw debug sphere to visualize spawn points
+		DrawDebugSphere(GetWorld(), WorldSpawnLocation, 20.0f, 12, FColor::Purple, false, 2.0f, 0, 2.0f);
+
+		// Optional: Draw debug line showing projectile direction
+		DrawDebugLine(GetWorld(), WorldSpawnLocation, WorldSpawnLocation + (DirectionToPlayer * 500.0f),
+			FColor::Purple, false, 2.0f, 0, 2.0f);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Halo Arc projectiles spawned from %d points"), HaloArcSpawnPoints.Num());
 }
