@@ -16,7 +16,8 @@ enum class EAbilityType : uint8
     ThrowAbility,
     HeavenRain,
     JudgementGaze,
-    HaloArc
+    HaloArc,
+    DeathRing
 };
 
 class AActor;
@@ -236,6 +237,49 @@ private:
     float RainDuration = 8.0f;
 
 
+    // Death Ring ability variables
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingDuration = 8.0f; // How long the rings take to close in
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingStartRadius = 2000.0f; // Starting radius of the outermost ring
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingEndRadius = 200.0f; // Final radius when rings reach the boss
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingHeight = 500.0f; // Height of the ring collision
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingThickness = 100.0f; // Thickness of each ring
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingSpacing = 300.0f; // Distance between rings
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingDamage = 50.0f; // Damage each ring deals
+
+    // Timer handles for Death Ring
+    FTimerHandle DeathRingTimerHandle;
+    FTimerHandle DeathRingUpdateTimerHandle;
+
+    // Add a damage cooldown system to prevent spam damage
+    UPROPERTY()
+    TMap<AActor*, float> DeathRingDamageCooldowns;
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingDamageCooldown = 0.5f; // Damage every 0.5 seconds
+
+
+    // Ring collision components
+    UPROPERTY()
+    TArray<class UCapsuleComponent*> DeathRingColliders;
+
+    // Ring tracking
+    bool bDeathRingActive = false;
+    float DeathRingStartTime = 0.0f;
+
+
     float TelegraphDuration = 1.5f;
 
     FTimerHandle TelegraphTimerHandle;
@@ -248,7 +292,7 @@ private:
       // Method to stop all abilities when boss dies
         void StopAllAbilities();
 
-        // Add these public function declarations:
+        
         UFUNCTION()
         void StartHaloArc();
 
@@ -257,6 +301,17 @@ private:
 
         UFUNCTION()
         void EndHaloArc();
+
+        
+        void StartDeathRing();
+        void UpdateDeathRings();
+        void EndDeathRing();
+        void CreateDeathRingColliders();
+        void DestroyDeathRingColliders();
+
+        UFUNCTION()
+        void OnDeathRingOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+            UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 
 };

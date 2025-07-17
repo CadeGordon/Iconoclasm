@@ -103,7 +103,7 @@ void ARaphaelAIController::Tick(float DeltaTime)
 
     if (!IsAbilityActive)
     {
-        int32 RandomIndex = FMath::RandRange(0, 5);
+        int32 RandomIndex = FMath::RandRange(0, 6);
         EAbilityType SelectedAbility = static_cast<EAbilityType>(RandomIndex);
         PerformAbility(SelectedAbility);
     }
@@ -661,6 +661,10 @@ void ARaphaelAIController::PerformAbility(EAbilityType AbilityType)
         StartHaloArc();
         break;
 
+    case EAbilityType::DeathRing:
+        StartDeathRing();
+        break;
+
     default:
         IsAbilityActive = false;
         break;
@@ -745,15 +749,23 @@ void ARaphaelAIController::StopAllAbilities()
         // Stop Halo Arc ability
         World->GetTimerManager().ClearTimer(HaloArcTimerHandle);
         World->GetTimerManager().ClearTimer(HaloArcDurationTimerHandle);
+
+        // Stop Death Ring ability
+        World->GetTimerManager().ClearTimer(DeathRingTimerHandle);
+        World->GetTimerManager().ClearTimer(DeathRingUpdateTimerHandle);
     }
 
     // Reset state flags
     IsAbilityActive = false;
     bIsActivated = false;
     bIsDelaying = false;
+    bDeathRingActive = false;  // Add this line
 
     // Reset Halo Arc count
     CurrentHaloArcCount = 0;
+
+    // Clean up Death Ring colliders
+    DestroyDeathRingColliders();  // Add this line
 
     UE_LOG(LogTemp, Warning, TEXT("All boss abilities stopped due to death"));
 }
@@ -818,6 +830,249 @@ void ARaphaelAIController::EndHaloArc()
     IsAbilityActive = false;
 
     UE_LOG(LogTemp, Warning, TEXT("Halo Arc ability ended"));
+}
+
+void ARaphaelAIController::StartDeathRing()
+{
+    if (bDeathRingActive) return; // Don't start if already active
+
+    bDeathRingActive = true;
+    DeathRingStartTime = GetWorld()->GetTimeSeconds();
+
+    // Create the ring colliders
+    CreateDeathRingColliders();
+
+    // Start updating the rings every frame
+    GetWorld()->GetTimerManager().SetTimer(
+        DeathRingUpdateTimerHandle,
+        this,
+        &ARaphaelAIController::UpdateDeathRings,
+        0.02f, // Update every 0.02 seconds for smooth movement
+        true
+    );
+
+    // End the ability after the duration
+    GetWorld()->GetTimerManager().SetTimer(
+        DeathRingTimerHandle,
+        this,
+        &ARaphaelAIController::EndDeathRing,
+        DeathRingDuration,
+        false
+    );
+
+    UE_LOG(LogTemp, Warning, TEXT("Death Ring ability started"));
+}
+
+void ARaphaelAIController::UpdateDeathRings()
+{
+    if (!bDeathRingActive || DeathRingColliders.Num() == 0) return;
+
+    APawn* ControlledPawn = GetPawn();
+    if (!ControlledPawn) return;
+
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    float ElapsedTime = CurrentTime - DeathRingStartTime;
+    float Progress = FMath::Clamp(ElapsedTime / DeathRingDuration, 0.0f, 1.0f);
+
+    FVector BossLocation = ControlledPawn->GetActorLocation();
+
+    // Update each ring
+    for (int32 i = 0; i < DeathRingColliders.Num(); i++)
+    {
+        if (DeathRingColliders[i] && IsValid(DeathRingColliders[i]))
+        {
+            // Calculate the current radius for this ring
+            float InitialRadius = DeathRingStartRadius + (i * DeathRingSpacing);
+            float CurrentRadius = FMath::Lerp(InitialRadius, DeathRingEndRadius, Progress);
+
+            // Update the capsule size
+            DeathRingColliders[i]->SetCapsuleSize(CurrentRadius, DeathRingHeight / 2.0f);
+
+            // Update position to stay centered on boss
+            DeathRingColliders[i]->SetWorldLocation(BossLocation);
+
+            // Draw debug visualization
+            DrawDebugCylinder(
+                GetWorld(),
+                BossLocation - FVector(0, 0, DeathRingHeight / 2),
+                BossLocation + FVector(0, 0, DeathRingHeight / 2),
+                CurrentRadius,
+                32,
+                FColor::Purple,
+                false,
+                0.1f,
+                0,
+                3.0f
+            );
+
+            // Draw inner boundary for thickness visualization
+            float InnerRadius = FMath::Max(CurrentRadius - DeathRingThickness, 0.0f);
+            DrawDebugCylinder(
+                GetWorld(),
+                BossLocation - FVector(0, 0, DeathRingHeight / 2),
+                BossLocation + FVector(0, 0, DeathRingHeight / 2),
+                InnerRadius,
+                32,
+                FColor::Red,
+                false,
+                0.1f,
+                0,
+                2.0f
+            );
+        }
+    }
+}
+
+void ARaphaelAIController::EndDeathRing()
+{
+    bDeathRingActive = false;
+
+    // Clear the update timer
+    GetWorld()->GetTimerManager().ClearTimer(DeathRingUpdateTimerHandle);
+
+    // Clear damage cooldowns
+    DeathRingDamageCooldowns.Empty();
+
+    // Destroy all ring colliders
+    DestroyDeathRingColliders();
+
+    // Reset ability state
+    IsAbilityActive = false;
+
+    UE_LOG(LogTemp, Warning, TEXT("Death Ring ability ended"));
+}
+
+void ARaphaelAIController::CreateDeathRingColliders()
+{
+    // Clean up any existing colliders first
+    DestroyDeathRingColliders();
+
+    APawn* ControlledPawn = GetPawn();
+    if (!ControlledPawn) return;
+
+    UE_LOG(LogTemp, Warning, TEXT("Creating Death Ring Colliders"));
+
+    // Create 3 ring colliders
+    for (int32 i = 0; i < 3; i++)
+    {
+        UCapsuleComponent* RingCollider = NewObject<UCapsuleComponent>(this, UCapsuleComponent::StaticClass());
+        if (RingCollider)
+        {
+            // Calculate initial radius for this ring
+            float InitialRadius = DeathRingStartRadius + (i * DeathRingSpacing);
+
+            // Initialize the capsule size (radius, half-height)
+            RingCollider->InitCapsuleSize(InitialRadius, DeathRingHeight / 2.0f);
+
+            // Set collision properties - THIS IS CRUCIAL
+            RingCollider->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+            RingCollider->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+            RingCollider->SetCollisionResponseToChannel(ECC_Pawn, ECollisionResponse::ECR_Overlap);
+
+            // IMPORTANT: Also set collision object type
+            RingCollider->SetCollisionObjectType(ECC_WorldDynamic);
+
+            // Set world location to boss position
+            FVector BossLocation = ControlledPawn->GetActorLocation();
+            RingCollider->SetWorldLocation(BossLocation);
+
+            // Register the component
+            RingCollider->RegisterComponent();
+
+            // Bind overlap event
+            RingCollider->OnComponentBeginOverlap.AddDynamic(this, &ARaphaelAIController::OnDeathRingOverlap);
+
+            // Add to our array
+            DeathRingColliders.Add(RingCollider);
+
+            UE_LOG(LogTemp, Warning, TEXT("Created Death Ring %d with radius %f"), i, InitialRadius);
+        }
+    }
+}
+
+void ARaphaelAIController::DestroyDeathRingColliders()
+{
+    for (UCapsuleComponent* RingCollider : DeathRingColliders)
+    {
+        if (RingCollider && IsValid(RingCollider))
+        {
+            // Unbind the overlap event
+            RingCollider->OnComponentBeginOverlap.RemoveDynamic(this, &ARaphaelAIController::OnDeathRingOverlap);
+
+            // Destroy the component
+            RingCollider->DestroyComponent();
+        }
+    }
+
+    // Clear the array
+    DeathRingColliders.Empty();
+}
+
+void ARaphaelAIController::OnDeathRingOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    UE_LOG(LogTemp, Warning, TEXT("Death Ring Overlap Event Triggered with actor: %s"),
+        OtherActor ? *OtherActor->GetName() : TEXT("NULL"));
+
+    // Check if the overlapped actor is the player
+    ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+    if (OtherActor && OtherActor == PlayerCharacter)
+    {
+        // Get the ring collider that was hit
+        UCapsuleComponent* HitRing = Cast<UCapsuleComponent>(OverlappedComponent);
+        if (!HitRing)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to cast to UCapsuleComponent"));
+            return;
+        }
+
+        // Check damage cooldown
+        float CurrentTime = GetWorld()->GetTimeSeconds();
+        float LastDamageTime = DeathRingDamageCooldowns.FindRef(PlayerCharacter);
+
+        if (CurrentTime - LastDamageTime < DeathRingDamageCooldown)
+        {
+            return; // Still in cooldown
+        }
+
+        // Check if player is actually inside the ring (not in the safe center)
+        FVector PlayerLocation = PlayerCharacter->GetActorLocation();
+        FVector RingCenter = HitRing->GetComponentLocation();
+        float DistanceFromCenter = FVector::Dist2D(PlayerLocation, RingCenter);
+
+        float RingRadius = HitRing->GetScaledCapsuleRadius();
+        float InnerRadius = FMath::Max(RingRadius - DeathRingThickness, 0.0f);
+
+        UE_LOG(LogTemp, Warning, TEXT("Player distance from center: %f, Inner radius: %f, Outer radius: %f"),
+            DistanceFromCenter, InnerRadius, RingRadius);
+
+        // Player is in danger zone if they're between inner and outer radius
+        bool bPlayerInDangerZone = (DistanceFromCenter > InnerRadius && DistanceFromCenter < RingRadius);
+
+        if (bPlayerInDangerZone)
+        {
+            // Apply damage to the player
+            UGameplayStatics::ApplyDamage(
+                OtherActor,
+                DeathRingDamage,
+                GetPawn()->GetController(),
+                GetPawn(),
+                UDamageType::StaticClass()
+            );
+
+            // Update cooldown
+            DeathRingDamageCooldowns.Add(PlayerCharacter, CurrentTime);
+
+            // Visual feedback
+            GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red,
+                FString::Printf(TEXT("Death Ring Hit! Damage: %f"), DeathRingDamage));
+
+            UE_LOG(LogTemp, Warning, TEXT("Player damaged by Death Ring for %f damage"), DeathRingDamage);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Player in safe zone - no damage applied"));
+        }
+    }
 }
 
 
