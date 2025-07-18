@@ -11,6 +11,8 @@
 #include "Components/SphereComponent.h"
 #include "HomingProjectile.h"
 #include "DrawDebugHelpers.h" // For debugging hit traces
+#include "Engine/DamageEvents.h"
+
 
 
 ARaphaelAIController::ARaphaelAIController()
@@ -888,14 +890,17 @@ void ARaphaelAIController::UpdateDeathRings()
             // Update the capsule size
             DeathRingColliders[i]->SetCapsuleSize(CurrentRadius, DeathRingHeight / 2.0f);
 
-            // Update position to stay centered on boss
-            DeathRingColliders[i]->SetWorldLocation(BossLocation);
+            // Update position to stay centered on boss X,Y but maintain different heights
+            float RingHeight = BossLocation.Z + DeathRingBaseOffset + (i * DeathRingVerticalSpacing);
+            FVector RingLocation = FVector(BossLocation.X, BossLocation.Y, RingHeight);
+            DeathRingColliders[i]->SetWorldLocation(RingLocation);
 
-            // Draw debug visualization
+            // Draw debug visualization for each ring at its specific height
+            FVector RingCenter = RingLocation;
             DrawDebugCylinder(
                 GetWorld(),
-                BossLocation - FVector(0, 0, DeathRingHeight / 2),
-                BossLocation + FVector(0, 0, DeathRingHeight / 2),
+                RingCenter - FVector(0, 0, DeathRingHeight / 2),
+                RingCenter + FVector(0, 0, DeathRingHeight / 2),
                 CurrentRadius,
                 32,
                 FColor::Purple,
@@ -909,8 +914,8 @@ void ARaphaelAIController::UpdateDeathRings()
             float InnerRadius = FMath::Max(CurrentRadius - DeathRingThickness, 0.0f);
             DrawDebugCylinder(
                 GetWorld(),
-                BossLocation - FVector(0, 0, DeathRingHeight / 2),
-                BossLocation + FVector(0, 0, DeathRingHeight / 2),
+                RingCenter - FVector(0, 0, DeathRingHeight / 2),
+                RingCenter + FVector(0, 0, DeathRingHeight / 2),
                 InnerRadius,
                 32,
                 FColor::Red,
@@ -919,6 +924,23 @@ void ARaphaelAIController::UpdateDeathRings()
                 0,
                 2.0f
             );
+
+            // Optional: Draw a line connecting the rings to show the layered structure
+            if (i > 0)
+            {
+                FVector PreviousRingHeight = FVector(BossLocation.X, BossLocation.Y,
+                    BossLocation.Z + DeathRingBaseOffset + ((i - 1) * DeathRingVerticalSpacing));
+                DrawDebugLine(
+                    GetWorld(),
+                    PreviousRingHeight,
+                    RingCenter,
+                    FColor::Yellow,
+                    false,
+                    0.1f,
+                    0,
+                    2.0f
+                );
+            }
         }
     }
 }
@@ -952,7 +974,7 @@ void ARaphaelAIController::CreateDeathRingColliders()
 
     UE_LOG(LogTemp, Warning, TEXT("Creating Death Ring Colliders"));
 
-    // Create 3 ring colliders
+    // Create 3 ring colliders at different heights
     for (int32 i = 0; i < 3; i++)
     {
         UCapsuleComponent* RingCollider = NewObject<UCapsuleComponent>(this, UCapsuleComponent::StaticClass());
@@ -972,9 +994,14 @@ void ARaphaelAIController::CreateDeathRingColliders()
             // IMPORTANT: Also set collision object type
             RingCollider->SetCollisionObjectType(ECC_WorldDynamic);
 
-            // Set world location to boss position
+            // Set world location to boss position with different heights
             FVector BossLocation = ControlledPawn->GetActorLocation();
-            RingCollider->SetWorldLocation(BossLocation);
+
+            // Calculate height for this ring (bottom = 0, middle = 1, top = 2)
+            float RingHeight = BossLocation.Z + DeathRingBaseOffset + (i * DeathRingVerticalSpacing);
+            FVector RingLocation = FVector(BossLocation.X, BossLocation.Y, RingHeight);
+
+            RingCollider->SetWorldLocation(RingLocation);
 
             // Register the component
             RingCollider->RegisterComponent();
@@ -985,7 +1012,7 @@ void ARaphaelAIController::CreateDeathRingColliders()
             // Add to our array
             DeathRingColliders.Add(RingCollider);
 
-            UE_LOG(LogTemp, Warning, TEXT("Created Death Ring %d with radius %f"), i, InitialRadius);
+            UE_LOG(LogTemp, Warning, TEXT("Created Death Ring %d with radius %f at height %f"), i, InitialRadius, RingHeight);
         }
     }
 }
@@ -1015,63 +1042,118 @@ void ARaphaelAIController::OnDeathRingOverlap(UPrimitiveComponent* OverlappedCom
 
     // Check if the overlapped actor is the player
     ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-    if (OtherActor && OtherActor == PlayerCharacter)
+    if (!OtherActor || !PlayerCharacter)
     {
-        // Get the ring collider that was hit
-        UCapsuleComponent* HitRing = Cast<UCapsuleComponent>(OverlappedComponent);
-        if (!HitRing)
+        UE_LOG(LogTemp, Error, TEXT("OtherActor or PlayerCharacter is NULL"));
+        return;
+    }
+
+    if (OtherActor != PlayerCharacter)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Overlapped actor is not the player: %s"), *OtherActor->GetName());
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Player overlap confirmed!"));
+
+    // Get the ring collider that was hit
+    UCapsuleComponent* HitRing = Cast<UCapsuleComponent>(OverlappedComponent);
+    if (!HitRing)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to cast to UCapsuleComponent"));
+        return;
+    }
+
+    // Check damage cooldown
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    float LastDamageTime = DeathRingDamageCooldowns.FindRef(PlayerCharacter);
+
+    UE_LOG(LogTemp, Warning, TEXT("Current Time: %f, Last Damage Time: %f, Cooldown: %f"),
+        CurrentTime, LastDamageTime, DeathRingDamageCooldown);
+
+    if (CurrentTime - LastDamageTime < DeathRingDamageCooldown)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Still in damage cooldown - no damage applied"));
+        return; // Still in cooldown
+    }
+
+    // No safe zone - always apply damage when overlapping with ring
+    UE_LOG(LogTemp, Warning, TEXT("Player overlapped with death ring - applying damage"));
+
+    // Always apply damage (removed safe zone check)
+    {
+        // Get the controlled pawn (boss) for damage instigator
+        APawn* BossPawn = GetPawn();
+        if (!BossPawn)
         {
-            UE_LOG(LogTemp, Warning, TEXT("Failed to cast to UCapsuleComponent"));
+            UE_LOG(LogTemp, Error, TEXT("Boss pawn is NULL - cannot apply damage"));
             return;
         }
 
-        // Check damage cooldown
-        float CurrentTime = GetWorld()->GetTimeSeconds();
-        float LastDamageTime = DeathRingDamageCooldowns.FindRef(PlayerCharacter);
-
-        if (CurrentTime - LastDamageTime < DeathRingDamageCooldown)
+        // Get the player's health component
+        UHealthComponent* PlayerHealthComponent = PlayerCharacter->FindComponentByClass<UHealthComponent>();
+        if (!PlayerHealthComponent)
         {
-            return; // Still in cooldown
+            UE_LOG(LogTemp, Error, TEXT("Player does not have a health component!"));
+            return;
         }
 
-        // Check if player is actually inside the ring (not in the safe center)
-        FVector PlayerLocation = PlayerCharacter->GetActorLocation();
-        FVector RingCenter = HitRing->GetComponentLocation();
-        float DistanceFromCenter = FVector::Dist2D(PlayerLocation, RingCenter);
+        // Log player's health before damage
+        float HealthBeforeDamage = PlayerHealthComponent->GetCurrentHealth();
+        UE_LOG(LogTemp, Warning, TEXT("Player health before damage: %f"), HealthBeforeDamage);
 
-        float RingRadius = HitRing->GetScaledCapsuleRadius();
-        float InnerRadius = FMath::Max(RingRadius - DeathRingThickness, 0.0f);
+        UE_LOG(LogTemp, Warning, TEXT("Attempting to apply %f damage to player"), DeathRingDamage);
 
-        UE_LOG(LogTemp, Warning, TEXT("Player distance from center: %f, Inner radius: %f, Outer radius: %f"),
-            DistanceFromCenter, InnerRadius, RingRadius);
+        // Method 1: Use your health component's TakeDamage function directly
+        PlayerHealthComponent->TakeDamage(DeathRingDamage);
 
-        // Player is in danger zone if they're between inner and outer radius
-        bool bPlayerInDangerZone = (DistanceFromCenter > InnerRadius && DistanceFromCenter < RingRadius);
+        // Method 2: Alternative - use UGameplayStatics::ApplyDamage which should trigger OnTakeAnyDamage
+        float DamageApplied = UGameplayStatics::ApplyDamage(
+            PlayerCharacter,           // Target
+            DeathRingDamage,          // Damage amount
+            this,                     // Damage causer controller
+            BossPawn,                 // Damage causer pawn
+            UDamageType::StaticClass() // Damage type
+        );
 
-        if (bPlayerInDangerZone)
+        UE_LOG(LogTemp, Warning, TEXT("UGameplayStatics::ApplyDamage returned: %f"), DamageApplied);
+
+        // Method 3: Directly call the player's TakeDamage function
+        FDamageEvent DamageEvent;
+        DamageEvent.DamageTypeClass = UDamageType::StaticClass();
+
+        float PlayerDamageApplied = PlayerCharacter->TakeDamage(
+            DeathRingDamage,
+            DamageEvent,
+            this,
+            BossPawn
+        );
+
+        UE_LOG(LogTemp, Warning, TEXT("PlayerCharacter->TakeDamage returned: %f"), PlayerDamageApplied);
+
+        // Check if damage was actually applied
+        float HealthAfterDamage = PlayerHealthComponent->GetCurrentHealth();
+        UE_LOG(LogTemp, Warning, TEXT("Player health after damage: %f"), HealthAfterDamage);
+
+        if (HealthAfterDamage < HealthBeforeDamage)
         {
-            // Apply damage to the player
-            UGameplayStatics::ApplyDamage(
-                OtherActor,
-                DeathRingDamage,
-                GetPawn()->GetController(),
-                GetPawn(),
-                UDamageType::StaticClass()
-            );
-
-            // Update cooldown
-            DeathRingDamageCooldowns.Add(PlayerCharacter, CurrentTime);
-
-            // Visual feedback
-            GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red,
-                FString::Printf(TEXT("Death Ring Hit! Damage: %f"), DeathRingDamage));
-
-            UE_LOG(LogTemp, Warning, TEXT("Player damaged by Death Ring for %f damage"), DeathRingDamage);
+            UE_LOG(LogTemp, Warning, TEXT("SUCCESS: Damage was applied! Health reduced by %f"),
+                HealthBeforeDamage - HealthAfterDamage);
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("Player in safe zone - no damage applied"));
+            UE_LOG(LogTemp, Error, TEXT("FAILED: No damage was applied! Health unchanged"));
         }
+
+        // Update cooldown
+        DeathRingDamageCooldowns.Add(PlayerCharacter, CurrentTime);
+
+        // Enhanced visual feedback
+        GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red,
+            FString::Printf(TEXT("Death Ring Hit! Damage: %f, Health: %f->%f"),
+                DeathRingDamage, HealthBeforeDamage, HealthAfterDamage));
+
+        UE_LOG(LogTemp, Warning, TEXT("Player damaged by Death Ring for %f damage"), DeathRingDamage);
     }
 }
 

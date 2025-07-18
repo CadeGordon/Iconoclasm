@@ -257,7 +257,7 @@ private:
     float DeathRingSpacing = 300.0f; // Distance between rings
 
     UPROPERTY(EditAnywhere, Category = "Death Ring")
-    float DeathRingDamage = 50.0f; // Damage each ring deals
+    float DeathRingDamage = 5000000.0f; // Damage each ring deals
 
     // Timer handles for Death Ring
     FTimerHandle DeathRingTimerHandle;
@@ -269,6 +269,12 @@ private:
 
     UPROPERTY(EditAnywhere, Category = "Death Ring")
     float DeathRingDamageCooldown = 0.5f; // Damage every 0.5 seconds
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingVerticalSpacing = 1200.0f; // Distance between ring layers
+
+    UPROPERTY(EditAnywhere, Category = "Death Ring")
+    float DeathRingBaseOffset = -100.0f; // Offset from boss position for bottom ring
 
 
     // Ring collision components
