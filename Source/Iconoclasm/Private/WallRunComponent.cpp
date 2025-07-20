@@ -90,33 +90,35 @@ void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
 void UWallRunComponent::StartWallRun()
 {
-	// Unlock character rotation so camera can look independently
-	OwningCharacter->bUseControllerRotationYaw = false;
-	OwningCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
+	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
 
-	IsWallRunning = true;
+	// Get current horizontal speed
+	FVector CurrentVel = MovementComp->Velocity;
+	CurrentVel.Z = 0;
+	float CurrentHorizontalSpeed = CurrentVel.Size();
 
-	FVector OutWallNormal, OutWallRunDirection;
-	if (DetectWall(OutWallNormal, OutWallRunDirection))
-	{
-		WallNormal = OutWallNormal;
-		WallRunDirection = OutWallRunDirection;
+	// Calculate momentum-based wall run speed
+	float MomentumWallRunSpeed = FMath::Max(
+		CurrentHorizontalSpeed * MomentumMultiplier,
+		BaseWallRunSpeed
+	);
 
-		// Capture the player's initial velocity when the wall run starts
-		InitialVelocity = OwningCharacter->GetCharacterMovement()->Velocity;
+	// Cap the speed to prevent excessive wall running
+	MomentumWallRunSpeed = FMath::Min(MomentumWallRunSpeed, 4000.0f);
 
-		// Set a timer to stop wall running after the specified duration
-		GetWorld()->GetTimerManager().SetTimer(WallRunTimerHandle, this, &UWallRunComponent::EndWallRun, WallRunDuration, false);
+	// Create velocity using the wall run direction and momentum-based speed
+	FVector NewVelocity = WallRunDirection * MomentumWallRunSpeed;
 
-		// Apply the fixed wall run velocity immediately
-		WallRun();
+	// Apply the constant descent rate
+	NewVelocity.Z = -DescentRate;
 
-		// Reset jump count when wall running begins
-		if (AIconoclasmCharacter* IconoclasmChar = Cast<AIconoclasmCharacter>(OwningCharacter))
-		{
-			IconoclasmChar->ResetJumpCount();
-		}
-	}
+	// Apply the velocity
+	MovementComp->Velocity = NewVelocity;
+
+	// Visual debug
+	DrawDebugLine(GetWorld(), OwningCharacter->GetActorLocation(),
+		OwningCharacter->GetActorLocation() + WallRunDirection * 100.0f,
+		FColor::Green, false, 0.1f);
 }
 
 void UWallRunComponent::StopWallRun()
@@ -125,29 +127,28 @@ void UWallRunComponent::StopWallRun()
 
 	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
 
-	// Save current wall run velocity before switching movement mode
+	// Save current wall run velocity to preserve momentum
 	FVector ExitVelocity = MovementComp->Velocity;
 
-	// Reset movement mode (back to walking)
+	// Reset movement mode
 	MovementComp->SetMovementMode(EMovementMode::MOVE_Walking);
 
-	// Reapply momentum after mode change (Unreal zeroes it out otherwise)
+	// Preserve momentum with slight reduction
+	ExitVelocity *= 0.9f; // Small momentum loss on exit
 	MovementComp->Velocity = ExitVelocity;
 
-	// Set the cooldown timer
+	// Set cooldown and restore control
 	WallRunCooldownActive = true;
 	GetWorld()->GetTimerManager().SetTimer(WallRunCooldownTimerHandle, this, &UWallRunComponent::ResetWallRunCooldown, WallRunCooldownDuration, false);
 
-	// Re-lock camera and character rotation
 	OwningCharacter->bUseControllerRotationYaw = true;
 	OwningCharacter->GetCharacterMovement()->bOrientRotationToMovement = true;
 
-	// Optional: Snap character to camera rotation
+	// Smooth rotation transition
 	FRotator ControlRot = OwningCharacter->GetControlRotation();
 	FRotator NewYaw = FRotator(0.f, ControlRot.Yaw, 0.f);
 	OwningCharacter->SetActorRotation(NewYaw);
 
-	// Clear the WallRun timer if it's still active
 	if (GetWorld()->GetTimerManager().IsTimerActive(WallRunTimerHandle))
 	{
 		GetWorld()->GetTimerManager().ClearTimer(WallRunTimerHandle);

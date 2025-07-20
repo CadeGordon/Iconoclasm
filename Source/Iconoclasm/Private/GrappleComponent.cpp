@@ -187,7 +187,7 @@ void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
 
     FVector CharacterLocation = OwningCharacter->GetActorLocation();
     float DistanceToLocationSquared = FVector::DistSquared(CharacterLocation, Location);
-    float DistanceThresholdSquared = GrappleEndThreshold * GrappleEndThreshold; // Adjust this threshold as needed
+    float DistanceThresholdSquared = GrappleEndThreshold * GrappleEndThreshold;
 
     if (DistanceToLocationSquared <= DistanceThresholdSquared)
     {
@@ -195,15 +195,27 @@ void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
         return;
     }
 
+    // Calculate momentum-based grapple speed
+    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
+    if (!CharacterMovement) return;
+
+    FVector CurrentVel = CharacterMovement->Velocity;
+    CurrentVel.Z = 0; // Only consider horizontal momentum
+    float CurrentHorizontalSpeed = CurrentVel.Size();
+
+    float MomentumGrappleSpeed = FMath::Max(
+        CurrentHorizontalSpeed * GrappleMomentumMultiplier,
+        BaseGrappleSpeed
+    );
+
+    // Cap grapple speed
+    MomentumGrappleSpeed = FMath::Min(MomentumGrappleSpeed, 5000.0f);
+
     FVector Direction = Location - CharacterLocation;
     Direction.Normalize();
-    FVector Force = Direction * GrappleSpeed;
+    FVector Force = Direction * MomentumGrappleSpeed;
 
-    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
-    if (CharacterMovement)
-    {
-        CharacterMovement->Launch(Force);
-    }
+    CharacterMovement->Launch(Force);
 }
 
 void UGrappleComponent::ResetGrappleCooldown()

@@ -109,6 +109,13 @@ private:
 
 	float CooldownProgress;
 
+	// Add these to your GrappleComponent header:
+	
+	float BaseGrappleSpeed = 2000.0f; // Reduced from hard-coded value
+
+	
+	float GrappleMomentumMultiplier = 1.5f; // Grapple should be fast!
+
 
 	
 
