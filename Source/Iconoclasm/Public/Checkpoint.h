@@ -6,6 +6,13 @@
 #include "GameFramework/Actor.h"
 #include "Checkpoint.generated.h"
 
+class UBoxComponent;
+class AIconoclasmCharacter;
+class ARangedEnemyCharacter;
+class AFlyingEnemyCharacter;
+class AGruntEnemyCharacter;
+class ARaphaelBossCharacter;
+
 UCLASS()
 class ICONOCLASM_API ACheckpoint : public AActor
 {
@@ -25,5 +32,8 @@ protected:
 	UFUNCTION()
 	void OnCheckpointOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+private:
+	void DestroyEnemyCharacters();
 
 };
