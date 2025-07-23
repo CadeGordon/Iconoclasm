@@ -24,7 +24,6 @@
 #include "Blueprint/UserWidget.h"
 #include "HealthComponent.h"
 #include "DeathScreenHUD.h"
-#include "GrappleComponent.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -395,7 +394,7 @@ void AIconoclasmCharacter::DoubleJump()
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 
-	if (WallRunComponent && WallRunComponent->IsWallRunning)
+	if (WallRunComponent && WallRunComponent->IsWallRunning) 
 	{
 		WallRunComponent->StopWallRun();
 	}
@@ -419,21 +418,9 @@ void AIconoclasmCharacter::DoubleJump()
 		}
 		else
 		{
-			// Preserve horizontal momentum for double jump
-			FVector CurrentVelocity = MoveComp->Velocity;
-			CurrentVelocity.Z = 1400.0f; // Set jump height
-
-			// If we had significant horizontal speed, maintain it
-			float HorizontalSpeed = GetCurrentHorizontalSpeed();
-			if (HorizontalSpeed > MinimumMovementSpeed)
-			{
-				LaunchCharacter(CurrentVelocity, true, false);
-			}
-			else
-			{
-				LaunchCharacter(FVector(0, 0, 1400.0f), false, true);
-			}
+			LaunchCharacter(FVector(0, 0, 1400.0f), false, true); // Apply manual jump force
 		}
+
 		JumpCount++;
 	}
 }
@@ -443,32 +430,23 @@ void AIconoclasmCharacter::Dash()
 	if ((CanDash || CanDashAgain) && DashCharges > 0)
 	{
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
+
 		if (!DashDirection.IsNearlyZero())
 		{
 			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f);
+
 			IsDashing = true;
-
-			// Get current horizontal speed and calculate momentum-based dash speed
-			float CurrentSpeed = GetCurrentHorizontalSpeed();
-			float BaseDashSpeed = GetCharacterMovement()->IsMovingOnGround() ? GroundDash : AirDash;
-			float MomentumDashSpeed = CalculateMomentumSpeed(BaseDashSpeed, CurrentSpeed);
-
-			// Preserve vertical velocity component if in air
-			FVector CurrentVelocity = GetCharacterMovement()->Velocity;
-			float VerticalVelocity = CurrentVelocity.Z;
-
-			GetCharacterMovement()->Velocity = DashDirection * MomentumDashSpeed;
-
-			// Restore vertical velocity if we were falling/jumping
-			if (!GetCharacterMovement()->IsMovingOnGround() && VerticalVelocity > 0)
-			{
-				GetCharacterMovement()->Velocity.Z = VerticalVelocity * 0.5f; // Reduce but don't eliminate
-			}
+			float DashSpeed = GetCharacterMovement()->IsMovingOnGround() ? GroundDash : AirDash;
+			GetCharacterMovement()->Velocity = DashDirection * DashSpeed;
 
 			DashCharges--;
+
+			// Set target progress based on charges
 			TargetDashProgress = static_cast<float>(DashCharges) / 3.0f;
+
 			StartDashCooldown();
 		}
+
 		CanDashAgain = (DashCharges > 0);
 	}
 }
@@ -531,13 +509,11 @@ void AIconoclasmCharacter::UpdateSlide()
 	{
 		if (GetCharacterMovement()->IsMovingOnGround())
 		{
-			// Calculate momentum-based slide speed
-			float CurrentSpeed = GetCurrentHorizontalSpeed();
-			float BaseSlideSpeed = 3000.0f; // Reduced from 5000 to allow momentum scaling
-			float MomentumSlideSpeed = CalculateMomentumSpeed(BaseSlideSpeed, CurrentSpeed);
+			// Adjust the slide speed
+			SlideSpeed = 5000.0f; 
 
-			// Set the character's velocity with momentum consideration
-			FVector SlideVelocity = SlideDirection * MomentumSlideSpeed;
+			// Set the character's velocity directly for smooth movement on the ground
+			FVector SlideVelocity = SlideDirection * SlideSpeed;
 			GetCharacterMovement()->Velocity = SlideVelocity;
 
 			// Rotate the character based on the controller input
@@ -545,6 +521,15 @@ void AIconoclasmCharacter::UpdateSlide()
 			const FRotator ControlYawRotation(0, ControlRotation.Yaw, 0);
 			SetActorRotation(ControlYawRotation);
 		}
+		else
+		{
+			//Can be used to launch player when sliding off a ledge not sure if want to use it
+			//// If sliding off a ledge, use LaunchCharacter with a set value
+			//FVector LaunchVelocity = SlideDirection * 100.0f; 
+			//LaunchCharacter(LaunchVelocity, false, false);
+		}
+
+		// Additional logic for updating slide
 	}
 
 }
@@ -572,16 +557,10 @@ void AIconoclasmCharacter::SlideJump()
 {
 	if (IsSliding)
 	{
-		// Preserve horizontal momentum when slide jumping
-		FVector CurrentVelocity = GetCharacterMovement()->Velocity;
-		float HorizontalSpeed = GetCurrentHorizontalSpeed();
-
-		// Create launch velocity that preserves horizontal momentum
-		FVector LaunchVelocity = CurrentVelocity;
-		LaunchVelocity.Z = SlideJumpBoostStrength; // Set vertical component
-
-		LaunchCharacter(LaunchVelocity, true, false); // Override Z but keep XY
-		StopSlide();
+		// Perform a boost when jumping while sliding
+		FVector LaunchVelocity = FVector(0.0f, 0.0f, 1.0f) * SlideJumpBoostStrength; // Adjust the Z component for upward boost
+		LaunchCharacter(LaunchVelocity, false, false);
+		StopSlide(); // Stop sliding when jumping
 	}
 }
 
@@ -865,72 +844,6 @@ void AIconoclasmCharacter::RestoreFullHealth()
 UHealthComponent* AIconoclasmCharacter::GetHealthComponent() const
 {
 	return FindComponentByClass<UHealthComponent>();
-}
-
-float AIconoclasmCharacter::GetCurrentHorizontalSpeed()
-{
-	FVector CurrentVelocity = GetCharacterMovement()->Velocity;
-	CurrentVelocity.Z = 0; // Remove vertical component
-	return CurrentVelocity.Size();
-}
-
-float AIconoclasmCharacter::CalculateMomentumSpeed(float BaseSpeed, float CurrentSpeed)
-{
-	float MomentumSpeed = FMath::Max(CurrentSpeed * MomentumRetentionFactor, BaseSpeed);
-	return FMath::Clamp(MomentumSpeed, MinimumMovementSpeed, MaximumMovementSpeed);
-}
-
-void AIconoclasmCharacter::DecayMomentum()
-{
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	if (!MoveComp) return;
-
-	// Only decay if we're not using any movement abilities
-	bool IsUsingAbility = (IsSliding || IsDashing ||
-		(WallRunComponent && WallRunComponent->IsWallRunning) ||
-		(GrappleComponent && GrappleComponent->IsGrappleActive));
-
-	if (IsUsingAbility) return;
-
-	// Only decay momentum above normal walking speed
-	float CurrentSpeed = GetCurrentHorizontalSpeed();
-	if (CurrentSpeed <= MomentumDecayThreshold) return;
-
-	// Calculate new speed after decay
-	float DecayedSpeed = CurrentSpeed * MomentumDecayRate;
-	float TargetSpeed = FMath::Max(DecayedSpeed, NormalWalkSpeed);
-
-	// Apply the decayed speed while preserving direction
-	FVector CurrentVelocity = MoveComp->Velocity;
-	FVector HorizontalVelocity = CurrentVelocity;
-	HorizontalVelocity.Z = 0;
-
-	if (!HorizontalVelocity.IsNearlyZero())
-	{
-		FVector Direction = HorizontalVelocity.GetSafeNormal();
-		FVector NewVelocity = Direction * TargetSpeed;
-		NewVelocity.Z = CurrentVelocity.Z; // Preserve vertical velocity
-
-		MoveComp->Velocity = NewVelocity;
-
-		// Update max walk speed to match current momentum
-		MoveComp->MaxWalkSpeed = FMath::Max(TargetSpeed, NormalWalkSpeed);
-	}
-}
-
-void AIconoclasmCharacter::StartMomentumDecayTimer()
-{
-	// Decay momentum every 0.1 seconds for smooth reduction
-	GetWorld()->GetTimerManager().SetTimer(MomentumDecayTimerHandle,
-		this, &AIconoclasmCharacter::DecayMomentum, 0.1f, true);
-}
-
-void AIconoclasmCharacter::StopMomentumDecayTimer()
-{
-	if (GetWorld() && GetWorld()->GetTimerManager().IsTimerActive(MomentumDecayTimerHandle))
-	{
-		GetWorld()->GetTimerManager().ClearTimer(MomentumDecayTimerHandle);
-	}
 }
 
 void AIconoclasmCharacter::ResetJumpCount()

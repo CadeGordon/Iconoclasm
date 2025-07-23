@@ -69,13 +69,6 @@ private:
 	float WallJumpCooldownDuration = 0.2f;
 	FTimerHandle WallJumpCooldownHandle;
 
-	// Add these to your WallRunComponent header:
-	
-	float BaseWallRunSpeed = 1200.0f; // Reduced from 1800 to allow momentum scaling
-
-	
-	float MomentumMultiplier = 1.2f; // How much to boost speed based on entry momentum
-
 
 		
 };

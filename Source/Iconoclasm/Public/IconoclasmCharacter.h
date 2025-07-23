@@ -8,7 +8,6 @@
 #include "Logging/LogMacros.h"
 #include "TP_WeaponComponent.h"
 #include "DashHUD.h"
-#include "GrappleComponent.h"
 #include "IconoclasmCharacter.generated.h"
 
 class UInputComponent;
@@ -181,16 +180,6 @@ public:
 
 		UFUNCTION()
 		UHealthComponent* GetHealthComponent() const;
-
-		float GetCurrentHorizontalSpeed();
-
-		float CalculateMomentumSpeed(float BaseSpeed, float CurrentSpeed);
-
-		void DecayMomentum();
-
-		void StartMomentumDecayTimer();
-
-		void StopMomentumDecayTimer();
 	
 	
 
@@ -264,33 +253,10 @@ public:
 	float DashFOV = 120.0f;
 	float DashInterp = 5.0f;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Movement")
-	float MinimumMovementSpeed = 800.0f; // Base minimum speed for all abilities
-
-	UPROPERTY(BlueprintReadWrite, Category = "Movement")
-	float MaximumMovementSpeed = 6000.0f; // Cap to prevent excessive speeds
-
-	UPROPERTY(BlueprintReadWrite, Category = "Movement")
-	float MomentumRetentionFactor = 0.8f; // How much momentum to keep when switching abilities
-
-	UPROPERTY(BlueprintReadWrite, Category = "Movement")
-	float MomentumDecayRate = 0.95f; // How fast momentum decays per second (0.95 = 5% loss per second)
-
-	UPROPERTY(BlueprintReadWrite, Category = "Movement")
-	float NormalWalkSpeed = 1600.0f; // Target speed when no abilities are active
-
-	UPROPERTY(BlueprintReadWrite, Category = "Movement")
-	float MomentumDecayThreshold = 2000.0f; // Only decay momentum above this speed
-
-	// Timer for momentum decay
-	FTimerHandle MomentumDecayTimerHandle;
-
 
 	FVector SlideDirection;
 
 	UWallRunComponent* WallRunComponent;
-
-	UGrappleComponent* GrappleComponent;
 
 	UPROPERTY()
 	TArray<UTP_WeaponComponent*> WeaponInventory;
