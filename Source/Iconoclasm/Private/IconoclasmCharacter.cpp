@@ -76,6 +76,8 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	ProgressInterpSpeed = 5.0f; // Adjust this for smoother or faster interpolation
 
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+
+	ScoreComponent = CreateDefaultSubobject<UScoreComponent>(TEXT("ScoreComponent"));
 }
 
 void AIconoclasmCharacter::EquipRevolver()

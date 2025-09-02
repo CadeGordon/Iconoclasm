@@ -79,6 +79,10 @@ public:
 	UPROPERTY()
 	class UWheelHUD* WeaponWheelWidget;
 
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Score")
+	class UScoreComponent* ScoreComponent;
+
 	void EquipRevolver();
 
 	void EquipShotgun();

@@ -4,6 +4,7 @@
 #include "HealthComponent.h"
 #include "IconoclasmCharacter.h"
 #include "HealthPack.h"
+#include "ScoreComponent.h"
 
 // Sets default values for this component's properties
 UHealthComponent::UHealthComponent()
@@ -43,13 +44,10 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 	{
 		return;
 	}
-
 	// Apply damage
 	CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.0f, MaxHealth);
-
 	// Broadcast health change
 	OnHealthChanged.Broadcast(CurrentHealth);
-
 	// Check for death
 	if (CurrentHealth <= 0.0f)
 	{
@@ -64,13 +62,30 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 		}
 		else
 		{
+			// This is an enemy that died - award score to player
+			if (InstigatedBy && InstigatedBy->GetPawn())
+			{
+				// Get the player's score component
+				if (UScoreComponent* ScoreComp = InstigatedBy->GetPawn()->FindComponentByClass<UScoreComponent>())
+				{
+					// Get the enemy type from the actor's class name
+					FString EnemyType = GetOwner()->GetClass()->GetName();
+					// Remove the 'A' prefix that Unreal adds to actor class names
+					if (EnemyType.StartsWith(TEXT("A")))
+					{
+						EnemyType = EnemyType.RightChop(1);
+					}
+
+					ScoreComp->AddScoreForEnemy(EnemyType);
+				}
+			}
+
 			// Spawn health pack at actor's location
 			if (GetWorld() && HealthPackClass)
 			{
 				FActorSpawnParameters SpawnParams;
 				GetWorld()->SpawnActor<AHealthPack>(HealthPackClass, GetOwner()->GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
 			}
-
 			// Destroy any other actor that has a health component
 			AActor* Owner = GetOwner();
 			if (Owner)
@@ -79,6 +94,7 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 			}
 		}
 	}
+
 }
 
 float UHealthComponent::GetCurrentHealth() const
