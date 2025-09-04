@@ -86,20 +86,45 @@ void UScoreComponent::AddScore(int32 Points)
 
 void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 {
-	// Check if we have a score value for this enemy type
+	int32 Points = 0;
+	FString KillMessage = TEXT("+Kill");
+	FLinearColor KillColor = FLinearColor::Green;
+
+	// Get base points
 	if (EnemyScoreValues.Contains(EnemyType))
 	{
-		int32 Points = EnemyScoreValues[EnemyType];
-		AddScore(Points);
-
-		UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Points awarded: %d"), *EnemyType, Points);
+		Points = EnemyScoreValues[EnemyType];
 	}
 	else
 	{
-		// Default score if enemy type not found
-		AddScore(100);
-		UE_LOG(LogTemp, Warning, TEXT("Unknown enemy type: %s, awarded default 100 points"), *EnemyType);
+		Points = 10;
+		UE_LOG(LogTemp, Warning, TEXT("Unknown enemy type: %s, awarded default %d points"), *EnemyType, Points);
 	}
+
+	// Check if airborne
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (OwnerPawn)
+	{
+		UCharacterMovementComponent* MoveComp = OwnerPawn->FindComponentByClass<UCharacterMovementComponent>();
+		if (MoveComp && MoveComp->IsFalling())
+		{
+			Points += 50;
+			KillMessage = TEXT("+AirKill");
+			KillColor = FLinearColor::Yellow;
+			UE_LOG(LogTemp, Log, TEXT("Air kill! +150 points added"));
+		}
+	}
+
+	// Add score
+	AddScore(Points);
+
+	// Update kill feed UI
+	if (ScoreWidgetInstance)
+	{
+		ScoreWidgetInstance->AddKillMessage(KillMessage, KillColor);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Points awarded: %d"), *EnemyType, Points);
 }
 
 void UScoreComponent::ResetScore()

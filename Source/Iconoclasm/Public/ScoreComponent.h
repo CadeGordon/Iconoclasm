@@ -67,6 +67,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score")
 	float MaxSpeedForMultiplier = 1200.0f; // adjust to your character’s max speed
 
+	// Extra points for special actions
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Settings")
+	int32 BaseKillPoints = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Settings")
+	int32 SlideKillBonus = 20;
+
 
 	// Internal decay tracking
 	FTimerHandle DecayDelayTimerHandle;
@@ -118,6 +125,7 @@ public:
 	void OnDecayDelayComplete();
 
 	void ApplyScoreDecay();
+
 
 private:
 	// Initialize default enemy score values

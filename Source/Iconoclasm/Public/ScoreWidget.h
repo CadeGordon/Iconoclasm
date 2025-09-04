@@ -42,6 +42,10 @@ protected:
     UPROPERTY(meta = (BindWidget))
     class UTextBlock* MultiplierText;
 
+    // Kill feed container (will hold a list of text widgets)
+    UPROPERTY(meta = (BindWidget))
+    class UVerticalBox* KillFeedBox;
+
     // Score thresholds for each tier
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Settings")
     TArray<int32> ScoreTierThresholds;
@@ -70,11 +74,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "UI")
     void UpdateMultiplier(float NewMultiplier);
 
+    // Adds a kill entry to the feed
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void AddKillMessage(const FString& Message, const FLinearColor& Color = FLinearColor::Green);
+
 private:
     // Internal function to determine tier based on score
     EScoreTier CalculateTier(int32 Score) const;
 
     // Update the visual elements
     void UpdateScoreDisplay();
+
+    
 	
 };

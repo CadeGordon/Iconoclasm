@@ -4,6 +4,7 @@
 #include "ScoreWidget.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
 
 
 void UScoreWidget::NativeConstruct()
@@ -125,5 +126,34 @@ void UScoreWidget::UpdateMultiplier(float NewMultiplier)
     {
         FString MultText = FString::Printf(TEXT("Multiplier: x%.1f"), NewMultiplier);
         MultiplierText->SetText(FText::FromString(MultText));
+    }
+}
+
+void UScoreWidget::AddKillMessage(const FString& Message, const FLinearColor& Color)
+{
+    if (!KillFeedBox) return;
+
+    // Create a new TextBlock
+    UTextBlock* KillText = NewObject<UTextBlock>(this, UTextBlock::StaticClass());
+    if (KillText)
+    {
+        KillText->SetText(FText::FromString(Message));
+        KillText->SetColorAndOpacity(FSlateColor(Color));
+        
+
+        // Insert at the top
+        KillFeedBox->InsertChildAt(0, KillText);
+
+        // Remove after 2 seconds
+        FTimerHandle RemoveHandle;
+        FTimerDelegate RemoveDelegate = FTimerDelegate::CreateLambda([this, KillText]()
+            {
+                if (KillFeedBox && KillText)
+                {
+                    KillFeedBox->RemoveChild(KillText);
+                }
+            });
+
+        GetWorld()->GetTimerManager().SetTimer(RemoveHandle, RemoveDelegate, 2.0f, false);
     }
 }
