@@ -39,6 +39,9 @@ protected:
     UPROPERTY(meta = (BindWidget))
     class UTextBlock* ScoreTierText;
 
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* MultiplierText;
+
     // Score thresholds for each tier
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Settings")
     TArray<int32> ScoreTierThresholds;
@@ -62,6 +65,10 @@ public:
     // Function to get progress to next tier (0.0 to 1.0)
     UFUNCTION(BlueprintPure, Category = "Score")
     float GetProgressToNextTier() const;
+
+    // Called by ScoreComponent
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void UpdateMultiplier(float NewMultiplier);
 
 private:
     // Internal function to determine tier based on score

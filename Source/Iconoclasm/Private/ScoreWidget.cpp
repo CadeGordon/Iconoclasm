@@ -118,3 +118,12 @@ void UScoreWidget::UpdateScoreDisplay()
         ScoreProgressBar->SetFillColorAndOpacity(BarColor);
     }
 }
+
+void UScoreWidget::UpdateMultiplier(float NewMultiplier)
+{
+    if (MultiplierText)
+    {
+        FString MultText = FString::Printf(TEXT("Multiplier: x%.1f"), NewMultiplier);
+        MultiplierText->SetText(FText::FromString(MultText));
+    }
+}

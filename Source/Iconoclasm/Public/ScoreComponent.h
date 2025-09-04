@@ -18,6 +18,8 @@ public:
 	// Sets default values for this component's properties
 	UScoreComponent();
 
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -36,6 +38,41 @@ protected:
 	// Score values for different enemy types
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Settings")
 	TMap<FString, int32> EnemyScoreValues;
+
+	// Score decay settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Decay", meta = (ClampMin = "0.1"))
+	float DecayDelayTime = 3.0f; // Time in seconds before decay starts
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Decay", meta = (ClampMin = "0.1"))
+	float DecayTickRate = 0.016f; // How often to apply decay (in seconds)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Decay", meta = (ClampMin = "1"))
+	int32 DecayAmount = 10; // Points to remove per decay tick
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Decay")
+	int32 MinimumScore = 0; // Minimum score (decay won't go below this)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Decay")
+	bool bEnableDecay = true; // Master switch for decay system
+
+	// Current score multiplier
+	UPROPERTY(BlueprintReadOnly, Category = "Score")
+	float CurrentMultiplier;
+
+	// Max multiplier (3x)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score")
+	float MaxMultiplier = 3.0f;
+
+	// Movement speed that equals max multiplier
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score")
+	float MaxSpeedForMultiplier = 1200.0f; // adjust to your character’s max speed
+
+
+	// Internal decay tracking
+	FTimerHandle DecayDelayTimerHandle;
+	FTimerHandle DecayTickTimerHandle;
+	float TimeSinceLastScore;
+	bool bIsDecaying;
 
 public:
 	// Event dispatcher for score changes
@@ -66,10 +103,29 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI")
 	UScoreWidget* GetScoreWidget() const { return ScoreWidgetInstance; }
 
+	// Score decay functions
+	UFUNCTION(BlueprintCallable, Category = "Score")
+	void StartScoreDecay();
+
+	UFUNCTION(BlueprintCallable, Category = "Score")
+	void StopScoreDecay();
+
+	UFUNCTION(BlueprintCallable, Category = "Score")
+	void SetDecaySettings(float InDecayDelay, float InDecayRate, int32 InDecayAmount);
+
+	void ResetDecayTimer();
+
+	void OnDecayDelayComplete();
+
+	void ApplyScoreDecay();
+
 private:
 	// Initialize default enemy score values
 	void InitializeDefaultScoreValues();
 
 	// Update the UI widget
 	void UpdateScoreWidget();
+
+	// Update the multiplier based on player movement speed
+	void UpdateScoreMultiplier();
 };

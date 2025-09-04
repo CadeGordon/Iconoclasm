@@ -5,6 +5,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values for this component's properties
 UScoreComponent::UScoreComponent()
@@ -13,7 +14,11 @@ UScoreComponent::UScoreComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
-	// ...
+	// Initialize decay variables
+	TimeSinceLastScore = 0.0f;
+	bIsDecaying = false;
+	CurrentScore = 0;
+	CurrentMultiplier = 0.0f;
 }
 
 
@@ -29,13 +34,44 @@ void UScoreComponent::BeginPlay()
 	{
 		CreateScoreWidget();
 	}
+
+	// Start the decay system if enabled
+	if (bEnableDecay)
+	{
+		ResetDecayTimer();
+	}
+}
+
+void UScoreComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Track time since last score gain for decay system
+	if (bEnableDecay && !bIsDecaying)
+	{
+		TimeSinceLastScore += DeltaTime;
+	}
+
+	if (ScoreWidgetInstance)
+	{
+		ScoreWidgetInstance->UpdateMultiplier(CurrentMultiplier);
+	}
+
+	UpdateScoreMultiplier();
 }
 
 void UScoreComponent::AddScore(int32 Points)
 {
 	if (Points > 0)
 	{
-		CurrentScore += Points;
+		int32 AdjustedPoints = FMath::RoundToInt(Points * CurrentMultiplier);
+		CurrentScore += AdjustedPoints;
+
+		// Reset decay timer when score is gained
+		if (bEnableDecay)
+		{
+			ResetDecayTimer();
+		}
 
 		// Broadcast the score change
 		OnScoreChanged.Broadcast(CurrentScore);
@@ -71,6 +107,59 @@ void UScoreComponent::ResetScore()
 	CurrentScore = 0;
 	OnScoreChanged.Broadcast(CurrentScore);
 	UpdateScoreWidget();
+
+	// Reset decay system
+	if (bEnableDecay)
+	{
+		ResetDecayTimer();
+	}
+}
+
+void UScoreComponent::StartScoreDecay()
+{
+	if (!bEnableDecay) return;
+
+	UWorld* World = GetWorld();
+	if (World && !bIsDecaying)
+	{
+		bIsDecaying = true;
+
+		// Start the decay tick timer
+		World->GetTimerManager().SetTimer(
+			DecayTickTimerHandle,
+			this,
+			&UScoreComponent::ApplyScoreDecay,
+			DecayTickRate,
+			true // Loop
+		);
+
+		UE_LOG(LogTemp, Log, TEXT("Score decay started"));
+	}
+}
+
+void UScoreComponent::StopScoreDecay()
+{
+	UWorld* World = GetWorld();
+	if (World && bIsDecaying)
+	{
+		bIsDecaying = false;
+		World->GetTimerManager().ClearTimer(DecayTickTimerHandle);
+		UE_LOG(LogTemp, Log, TEXT("Score decay stopped"));
+	}
+}
+
+void UScoreComponent::SetDecaySettings(float InDecayDelay, float InDecayRate, int32 InDecayAmount)
+{
+	DecayDelayTime = FMath::Max(0.1f, InDecayDelay);
+	DecayTickRate = FMath::Max(0.1f, InDecayRate);
+	DecayAmount = FMath::Max(1, InDecayAmount);
+
+	// If we're currently in a decay state, restart with new settings
+	if (bIsDecaying)
+	{
+		StopScoreDecay();
+		StartScoreDecay();
+	}
 }
 
 void UScoreComponent::CreateScoreWidget()
@@ -107,6 +196,82 @@ void UScoreComponent::UpdateScoreWidget()
 	if (ScoreWidgetInstance)
 	{
 		ScoreWidgetInstance->UpdateScore(CurrentScore);
+		ScoreWidgetInstance->UpdateMultiplier(CurrentMultiplier);
 	}
 }
 
+void UScoreComponent::ResetDecayTimer()
+{
+    if (!bEnableDecay) return;
+    
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        // Stop any existing decay
+        StopScoreDecay();
+        
+        // Reset the time counter
+        TimeSinceLastScore = 0.0f;
+        
+        // Clear any existing delay timer
+        World->GetTimerManager().ClearTimer(DecayDelayTimerHandle);
+        
+        // Start the delay timer
+        World->GetTimerManager().SetTimer(
+            DecayDelayTimerHandle,
+            this,
+            &UScoreComponent::OnDecayDelayComplete,
+            DecayDelayTime,
+            false // Don't loop
+        );
+    }
+}
+
+void UScoreComponent::OnDecayDelayComplete()
+{
+    // The delay period has passed without gaining score, start decay
+    StartScoreDecay();
+}
+
+void UScoreComponent::ApplyScoreDecay()
+{
+    if (CurrentScore <= MinimumScore)
+    {
+        // We've reached the minimum score, stop decaying
+        StopScoreDecay();
+        return;
+    }
+    
+    int32 OldScore = CurrentScore;
+    CurrentScore = FMath::Max(MinimumScore, CurrentScore - DecayAmount);
+    
+    // Only broadcast and update if the score actually changed
+    if (CurrentScore != OldScore)
+    {
+        OnScoreChanged.Broadcast(CurrentScore);
+        UpdateScoreWidget();
+        
+        UE_LOG(LogTemp, Log, TEXT("Score decayed: -%d, New Score: %d"), 
+               DecayAmount, CurrentScore);
+    }
+}
+
+void UScoreComponent::UpdateScoreMultiplier()
+{
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn) return;
+
+	UCharacterMovementComponent* MoveComp = OwnerPawn->FindComponentByClass<UCharacterMovementComponent>();
+	if (!MoveComp) return;
+
+	float Speed = MoveComp->Velocity.Size();
+
+	float TargetMultiplier = FMath::GetMappedRangeValueClamped(
+		FVector2D(0.0f, MaxSpeedForMultiplier),
+		FVector2D(0.0f, MaxMultiplier),
+		Speed
+	);
+
+	// Smoothly interpolate instead of snapping
+	CurrentMultiplier = FMath::FInterpTo(CurrentMultiplier, TargetMultiplier, GetWorld()->GetDeltaSeconds(), 5.0f);
+}
