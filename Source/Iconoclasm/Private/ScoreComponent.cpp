@@ -6,6 +6,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "IconoclasmCharacter.h"
+#include "GrappleComponent.h"
 
 // Sets default values for this component's properties
 UScoreComponent::UScoreComponent()
@@ -87,44 +89,73 @@ void UScoreComponent::AddScore(int32 Points)
 void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 {
 	int32 Points = 0;
-	FString KillMessage = TEXT("+Kill");
-	FLinearColor KillColor = FLinearColor::Green;
 
-	// Get base points
+	// Base points
 	if (EnemyScoreValues.Contains(EnemyType))
 	{
 		Points = EnemyScoreValues[EnemyType];
 	}
 	else
 	{
-		Points = 10;
+		Points = 100;
 		UE_LOG(LogTemp, Warning, TEXT("Unknown enemy type: %s, awarded default %d points"), *EnemyType, Points);
 	}
 
-	// Check if airborne
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	if (OwnerPawn)
+	AIconoclasmCharacter* OwnerCharacter = Cast<AIconoclasmCharacter>(GetOwner());
+	if (OwnerCharacter)
 	{
-		UCharacterMovementComponent* MoveComp = OwnerPawn->FindComponentByClass<UCharacterMovementComponent>();
+		UCharacterMovementComponent* MoveComp = OwnerCharacter->FindComponentByClass<UCharacterMovementComponent>();
+		TArray<FString> BonusMessages;
+		TArray<FLinearColor> BonusColors;
+
+		// ---- Normal Kill ----
+		BonusMessages.Add(TEXT("+Kill"));
+		BonusColors.Add(FLinearColor::Green);
+
+		// ---- Air Kill ----
 		if (MoveComp && MoveComp->IsFalling())
 		{
-			Points += 50;
-			KillMessage = TEXT("+AirKill");
-			KillColor = FLinearColor::Yellow;
-			UE_LOG(LogTemp, Log, TEXT("Air kill! +150 points added"));
+			Points += 150;
+			BonusMessages.Add(TEXT("+AirKill"));
+			BonusColors.Add(FLinearColor::Yellow);
+			UE_LOG(LogTemp, Log, TEXT("Air kill bonus applied"));
+		}
+
+		// ---- Slide Kill ----
+		if (OwnerCharacter->IsSliding)
+		{
+			Points += 200;
+			BonusMessages.Add(TEXT("+SlideKill"));
+			BonusColors.Add(FLinearColor::Blue);
+			UE_LOG(LogTemp, Log, TEXT("Slide kill bonus applied"));
+		}
+
+		// ---- Grapple Kill ----
+		if (UGrappleComponent* GrappleComp = OwnerCharacter->FindComponentByClass<UGrappleComponent>())
+		{
+			if (GrappleComp->IsGrappleActive)
+			{
+				Points += 250;
+				BonusMessages.Add(TEXT("+GrappleKill"));
+				BonusColors.Add(FLinearColor::White);
+				UE_LOG(LogTemp, Log, TEXT("Grapple kill bonus applied"));
+			}
+		}
+
+		// ---- Update UI with all messages ----
+		if (ScoreWidgetInstance)
+		{
+			for (int32 i = 0; i < BonusMessages.Num(); i++)
+			{
+				ScoreWidgetInstance->AddKillMessage(BonusMessages[i], BonusColors[i]);
+			}
 		}
 	}
 
-	// Add score
+	// ---- Apply score after all bonuses ----
 	AddScore(Points);
 
-	// Update kill feed UI
-	if (ScoreWidgetInstance)
-	{
-		ScoreWidgetInstance->AddKillMessage(KillMessage, KillColor);
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Points awarded: %d"), *EnemyType, Points);
+	UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Total Points awarded: %d"), *EnemyType, Points);
 }
 
 void UScoreComponent::ResetScore()
