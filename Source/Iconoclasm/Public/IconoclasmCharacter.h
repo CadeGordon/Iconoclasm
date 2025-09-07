@@ -257,6 +257,9 @@ public:
 	float DashFOV = 120.0f;
 	float DashInterp = 5.0f;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dash")
+	float LastDashTime = -999.f;  // initialized far in the past
+
 
 	FVector SlideDirection;
 

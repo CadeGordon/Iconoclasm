@@ -35,6 +35,8 @@ public:
 
 	void ResetWallRunCooldown();
 
+	bool GetIsWallRunning() const { return IsWallRunning; }
+
 private:
 	bool DetectWall(FVector& OutWallNormal, FVector& OutWallDirection);
 

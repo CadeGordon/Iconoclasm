@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "IconoclasmCharacter.h"
 #include "GrappleComponent.h"
+#include "WallRunComponent.h"
 
 // Sets default values for this component's properties
 UScoreComponent::UScoreComponent()
@@ -140,6 +141,28 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 				BonusColors.Add(FLinearColor::White);
 				UE_LOG(LogTemp, Log, TEXT("Grapple kill bonus applied"));
 			}
+		}
+
+		// ---- Dash Kill ----
+		if (OwnerCharacter->LastDashTime > 0.f)
+		{
+			float TimeSinceDash = GetWorld()->GetTimeSeconds() - OwnerCharacter->LastDashTime;
+			if (TimeSinceDash <= 1.0f) // within 1 second after dashing
+			{
+				Points += 175;
+				BonusMessages.Add(TEXT("+DashKill"));
+				BonusColors.Add(FLinearColor::White);
+				UE_LOG(LogTemp, Log, TEXT("Dash kill bonus applied"));
+			}
+		}
+
+		// ---- Wall Run Kill ----
+		if (OwnerCharacter->WallRunComponent && OwnerCharacter->WallRunComponent->GetIsWallRunning())
+		{
+			Points += 200;
+			BonusMessages.Add(TEXT("+WallRunKill"));
+			BonusColors.Add(FLinearColor::Yellow);
+			UE_LOG(LogTemp, Log, TEXT("Wall run kill bonus applied"));
 		}
 
 		// ---- Update UI with all messages ----

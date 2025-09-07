@@ -433,6 +433,8 @@ void AIconoclasmCharacter::Dash()
 	{
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
 
+		
+
 		if (!DashDirection.IsNearlyZero())
 		{
 			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f);
@@ -445,6 +447,8 @@ void AIconoclasmCharacter::Dash()
 
 			// Set target progress based on charges
 			TargetDashProgress = static_cast<float>(DashCharges) / 3.0f;
+
+			LastDashTime = GetWorld()->GetTimeSeconds();
 
 			StartDashCooldown();
 		}
@@ -735,7 +739,7 @@ void AIconoclasmCharacter::PerformMelee()
 
 	// === Your existing melee logic ===
 
-	float MeleeDamage = 20.0f;
+	float MeleeDamage = 1000000.0f;
 
 	FVector Start = FirstPersonCameraComponent->GetComponentLocation();
 	FVector ForwardVector = FirstPersonCameraComponent->GetForwardVector();
