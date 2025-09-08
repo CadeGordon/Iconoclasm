@@ -749,7 +749,7 @@ void AIconoclasmCharacter::PerformMelee()
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
 
-	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
+	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Pawn, QueryParams);
 
 	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 1.0f, 0, 1.0f);
 
@@ -765,6 +765,7 @@ void AIconoclasmCharacter::PerformMelee()
 				HitComponent->AddImpulse(KnockbackDirection * KnockbackStrength, NAME_None, true);
 			}
 
+			bLastAttackWasMelee = true;
 			UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, UDamageType::StaticClass());
 
 			UHealthComponent* EnemyHealthComp = HitActor->FindComponentByClass<UHealthComponent>();

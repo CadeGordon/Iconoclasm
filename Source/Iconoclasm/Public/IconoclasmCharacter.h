@@ -260,6 +260,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dash")
 	float LastDashTime = -999.f;  // initialized far in the past
 
+	bool bLastAttackWasMelee = false;
 
 	FVector SlideDirection;
 

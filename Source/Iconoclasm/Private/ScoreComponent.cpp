@@ -165,6 +165,15 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 			UE_LOG(LogTemp, Log, TEXT("Wall run kill bonus applied"));
 		}
 
+		// ---- Melee Kill ----
+		if (OwnerCharacter->bLastAttackWasMelee)
+		{
+			Points += 250; // melee bonus
+			BonusMessages.Add(TEXT("+MeleeKill"));
+			BonusColors.Add(FLinearColor::Red);
+			UE_LOG(LogTemp, Log, TEXT("Melee kill bonus applied"));
+		}
+
 		// ---- Update UI with all messages ----
 		if (ScoreWidgetInstance)
 		{
@@ -177,6 +186,8 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 
 	// ---- Apply score after all bonuses ----
 	AddScore(Points);
+
+	OwnerCharacter->bLastAttackWasMelee = false;
 
 	UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Total Points awarded: %d"), *EnemyType, Points);
 }
