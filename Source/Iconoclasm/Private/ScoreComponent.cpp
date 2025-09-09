@@ -174,6 +174,24 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 			UE_LOG(LogTemp, Log, TEXT("Melee kill bonus applied"));
 		}
 
+		// ---- ShatterShot Kill ----
+		if (OwnerCharacter->bLastAttackWasShatterShot)
+		{
+			Points += 300; // bonus value, tweak as needed
+			BonusMessages.Add(TEXT("+ShatterShotKill"));
+			BonusColors.Add(FLinearColor::White);
+			UE_LOG(LogTemp, Log, TEXT("Shatter Shot kill bonus applied"));
+		}
+
+		// ---- Charged Shot Kill ----
+		if (OwnerCharacter->bLastAttackWasChargedShot)
+		{
+			Points += 350; // bonus points, adjust as needed
+			BonusMessages.Add(TEXT("+ChargedShotKill"));
+			BonusColors.Add(FLinearColor::Yellow);
+			UE_LOG(LogTemp, Log, TEXT("Charged Shot kill bonus applied"));
+		}
+
 		// ---- Update UI with all messages ----
 		if (ScoreWidgetInstance)
 		{
@@ -188,6 +206,8 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 	AddScore(Points);
 
 	OwnerCharacter->bLastAttackWasMelee = false;
+
+	OwnerCharacter->bLastAttackWasShatterShot = false;
 
 	UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Total Points awarded: %d"), *EnemyType, Points);
 }

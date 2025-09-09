@@ -262,6 +262,10 @@ public:
 
 	bool bLastAttackWasMelee = false;
 
+	bool bLastAttackWasShatterShot = false;
+
+	bool bLastAttackWasChargedShot = false;
+
 	FVector SlideDirection;
 
 	UWallRunComponent* WallRunComponent;

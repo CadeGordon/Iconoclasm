@@ -472,6 +472,9 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		// Apply damage to the initially hit actor
 		if (InitialHitResult.GetActor())
 		{
+			// Before ApplyDamage
+			Character->bLastAttackWasShatterShot = true;
+
 			UGameplayStatics::ApplyDamage(
 				InitialHitResult.GetActor(),
 				BaseDamage,
@@ -514,6 +517,8 @@ void URevolver_WeaponComponent::AltHellfireMode()
 
 			if (bSplitHit && SplitHitResult.GetActor())
 			{
+				Character->bLastAttackWasShatterShot = true;
+
 				// Apply damage to the hit actor
 				UGameplayStatics::ApplyDamage(
 					SplitHitResult.GetActor(),
@@ -862,6 +867,8 @@ void URevolver_WeaponComponent::FireChargedShot(float DamageAmount)
 		AActor* HitActor = HitResult.GetActor();
 		if (HitActor)
 		{
+			Character->bLastAttackWasChargedShot = true;
+
 			UGameplayStatics::ApplyDamage(
 				HitActor,
 				DamageAmount,
