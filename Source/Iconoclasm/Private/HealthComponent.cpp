@@ -57,20 +57,32 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 		AIconoclasmCharacter* Player = Cast<AIconoclasmCharacter>(GetOwner());
 		if (Player)
 		{
-			// Player-specific logic (show death screen instead of destroying)
+			// Player specific logic show death screen instead of destroying
 			Player->ShowDeathScreen();
 		}
 		else
 		{
-			// This is an enemy that died - award score to player
+			// This is an enemy that died award score to player
 			if (InstigatedBy && InstigatedBy->GetPawn())
 			{
+				AActor* KillerActor = InstigatedBy->GetPawn();
+
+				// Check if the killer was the player
+				if (AIconoclasmCharacter* KillerCharacter = Cast<AIconoclasmCharacter>(KillerActor))
+				{
+					// If the last attack was a slam, mark this kill as a SlamKill
+					if (KillerCharacter->bLastAttackWasSlam)
+					{
+						KillerCharacter->bLastKillWasSlam = true;
+					}
+				}
+
 				// Get the player's score component
-				if (UScoreComponent* ScoreComp = InstigatedBy->GetPawn()->FindComponentByClass<UScoreComponent>())
+				if (UScoreComponent* ScoreComp = KillerActor->FindComponentByClass<UScoreComponent>())
 				{
 					// Get the enemy type from the actor's class name
 					FString EnemyType = GetOwner()->GetClass()->GetName();
-					// Remove the 'A' prefix that Unreal adds to actor class names
+					// Remove the  prefix that Unreal adds to actor class names
 					if (EnemyType.StartsWith(TEXT("A")))
 					{
 						EnemyType = EnemyType.RightChop(1);
@@ -84,8 +96,14 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 			if (GetWorld() && HealthPackClass)
 			{
 				FActorSpawnParameters SpawnParams;
-				GetWorld()->SpawnActor<AHealthPack>(HealthPackClass, GetOwner()->GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+				GetWorld()->SpawnActor<AHealthPack>(
+					HealthPackClass,
+					GetOwner()->GetActorLocation(),
+					FRotator::ZeroRotator,
+					SpawnParams
+				);
 			}
+
 			// Destroy any other actor that has a health component
 			AActor* Owner = GetOwner();
 			if (Owner)

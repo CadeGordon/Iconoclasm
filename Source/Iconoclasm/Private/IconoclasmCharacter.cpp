@@ -862,21 +862,19 @@ void AIconoclasmCharacter::ResetJumpCount()
 
 void AIconoclasmCharacter::CheckGroundSlamImpact()
 {
-	// Check if we're on the ground (or very close to it)
 	if (GetCharacterMovement()->IsMovingOnGround() ||
 		GetCharacterMovement()->IsFalling() == false)
 	{
-		// Clear the timer
+		// Stop the ground slam timer
 		GetWorld()->GetTimerManager().ClearTimer(GroundSlamTimerHandle);
 
-		// Now perform the collision detection and apply forces
+		// Trace setup
 		TArray<AActor*> IgnoreActors;
-		IgnoreActors.Add(this); // Ignore the player character
+		IgnoreActors.Add(this);
 		TArray<FHitResult> HitResults;
 		FVector SphereLocation = GetActorLocation();
 		float SphereRadius = 1000.0f;
 
-		// Perform the collision sphere trace
 		bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(
 			GetWorld(),
 			SphereLocation,
@@ -890,36 +888,49 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 			true
 		);
 
-		// Apply upward force to objects within the collision sphere
 		if (bHitSomething)
 		{
+			//  Track already damaged actors so we don’t hit them multiple times
+			TSet<AActor*> DamagedActors;
+
 			for (const FHitResult& HitResult : HitResults)
 			{
 				AActor* HitActor = HitResult.GetActor();
-				if (!HitActor) continue;
+				if (!HitActor || DamagedActors.Contains(HitActor)) continue;
 
-				// Check if it's a character first
-				ACharacter* HitCharacter = Cast<ACharacter>(HitActor);
-				if (HitCharacter)
+				DamagedActors.Add(HitActor);
+
+				
+
+				//  Deal damage
+				float DamageAmount = 50.0f; // tweak this as needed
+				bLastAttackWasSlam = true;
+
+				UGameplayStatics::ApplyDamage(
+					HitActor,
+					DamageAmount,
+					GetController(),   // Instigator
+					this,              // Damage causer
+					nullptr            // Damage type
+				);
+
+				//  Apply knockback/physics
+				if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
 				{
-					// Apply force to character using LaunchCharacter
 					FVector LaunchForce = FVector(0.0f, 0.0f, 2000.0f);
 					HitCharacter->LaunchCharacter(LaunchForce, false, true);
 				}
-				else
+				else if (UPrimitiveComponent* HitComponent = HitResult.GetComponent())
 				{
-					// Check if the hit actor has physics simulation for non-character objects
-					UPrimitiveComponent* HitComponent = HitResult.GetComponent();
-					if (HitComponent && HitComponent->IsSimulatingPhysics())
+					if (HitComponent->IsSimulatingPhysics())
 					{
-						// Apply upward impulse to physics objects
 						FVector UpwardImpulse = FVector(0.0f, 0.0f, 2000.0f);
 						HitComponent->AddImpulse(UpwardImpulse, NAME_None, true);
 					}
 				}
 			}
 
-			// Draw debug sphere for visualization
+			// Debug visualization
 			DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 12, FColor::Red, false, 1.0f, 0, 1.0f);
 		}
 	}

@@ -454,55 +454,64 @@ void UShotgun_WeaponComponent::AltTimeWarpMode()
 	{
 		return;
 	}
+
 	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-	if (PlayerController)
+	if (!PlayerController) return;
+
+	FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+	FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+
+	// Calculate knockback direction (opposite of camera forward)
+	FVector KnockbackDirection = -CameraRotation.Vector();
+
+	// Set knockback force
+	float KnockbackForce = 3000.0f;
+	FVector KnockbackVelocity = KnockbackDirection * KnockbackForce;
+
+	// Apply knockback to character
+	if (Character->GetCharacterMovement())
 	{
-		FVector StartLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
-		FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-
-		// Calculate knockback direction (opposite of camera forward)
-		FVector KnockbackDirection = -CameraRotation.Vector();
-
-		// Set knockback force (adjust this value to control strength)
-		float KnockbackForce = 3000.0f;
-		FVector KnockbackVelocity = KnockbackDirection * KnockbackForce;
-
-		// Apply knockback to character
-		if (Character->GetCharacterMovement())
-		{
-			// Launch the character in the knockback direction
-			Character->LaunchCharacter(KnockbackVelocity, true, true);
-		}
-
-		// Play fire sound
-		if (FireSound != nullptr)
-		{
-			UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
-		}
-
-		if (AltTimeWarpProgress >= 1.0f)
-		{
-			// Activate the mode
-			AltTimeWarpProgress = 0.0f;
-			GetWorld()->GetTimerManager().SetTimer(
-				AltTimeWarpTimerHandle, this, &UShotgun_WeaponComponent::UpdateCooldowns, 0.1f, true);
-			// Show TimeWarp progress bar
-			if (ShotgunHUDInstance)
-			{
-				ShotgunHUDInstance->ShowAltTimeWarpProgressBar();
-				ShotgunHUDInstance->UpdateCooldown(0.0f);
-			}
-		}
-
-		// Set cooldown
-		bCanUseAltTimeWarp = false;
-		GetWorld()->GetTimerManager().SetTimer(
-			AltTimeWarpCooldownTimer,
-			[this]() { bCanUseAltTimeWarp = true; },
-			AltTimeWarpCooldownDuration,
-			false
-		);
+		Character->LaunchCharacter(KnockbackVelocity, true, true);
 	}
+
+	// Play fire sound
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+
+	// Activate AltTimeWarp mode if fully charged
+	if (AltTimeWarpProgress >= 1.0f)
+	{
+		AltTimeWarpProgress = 0.0f;
+
+		// Start timer for cooldown updates
+		GetWorld()->GetTimerManager().SetTimer(
+			AltTimeWarpTimerHandle, this, &UShotgun_WeaponComponent::UpdateCooldowns, 0.1f, true);
+
+		// Show progress bar
+		if (ShotgunHUDInstance)
+		{
+			ShotgunHUDInstance->ShowAltTimeWarpProgressBar();
+			ShotgunHUDInstance->UpdateCooldown(0.0f);
+		}
+	}
+
+	// Mark that this is a BoomStick attack and store the time
+	if (AIconoclasmCharacter* IconoChar = Cast<AIconoclasmCharacter>(Character))
+	{
+		IconoChar->bLastAttackWasBoomStick = true;
+		IconoChar->LastBoomStickTime = GetWorld()->GetTimeSeconds();
+	}
+
+	// Set cooldown
+	bCanUseAltTimeWarp = false;
+	GetWorld()->GetTimerManager().SetTimer(
+		AltTimeWarpCooldownTimer,
+		[this]() { bCanUseAltTimeWarp = true; },
+		AltTimeWarpCooldownDuration,
+		false
+	);
 }
 
 void UShotgun_WeaponComponent::DefconMode()

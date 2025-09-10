@@ -683,6 +683,15 @@ void UTP_WeaponComponent::AltImpulseMode()
 	//		}
 	//	}
 	//}
+	
+	// Mark that the player is in TimeWarp mode for kill bonus
+	if (Character)
+	{
+		Character->bLastAttackWasTimeWarp = true;
+		Character->LastTimeWarpTime = GetWorld()->GetTimeSeconds();
+	}
+	
+	
 	// Play fire sound
 	if (FireSound != nullptr)
 	{

@@ -266,6 +266,18 @@ public:
 
 	bool bLastAttackWasChargedShot = false;
 
+	bool bLastAttackWasSlam = false;
+
+	bool bLastKillWasSlam = false;
+
+	bool bLastAttackWasBoomStick = false;
+	float BoomStickKillWindow = 2.0f; // Time window in seconds for bonus
+	float LastBoomStickTime = -10.0f; // Initialize outside the window
+
+	bool bLastAttackWasTimeWarp = false;  // Flag for grenade alt-fire kill
+	float TimeWarpKillWindow = 10.0f;     // Max duration before teleport expires
+	float LastTimeWarpTime = -10.0f;      // Stores the time AltImpulseMode was activated
+
 	FVector SlideDirection;
 
 	UWallRunComponent* WallRunComponent;

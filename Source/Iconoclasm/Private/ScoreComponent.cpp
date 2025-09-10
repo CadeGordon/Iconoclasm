@@ -192,6 +192,43 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 			UE_LOG(LogTemp, Log, TEXT("Charged Shot kill bonus applied"));
 		}
 
+		// ---- Slam Kill ----
+		if (OwnerCharacter->bLastAttackWasSlam)
+		{
+			Points += 400; // give slam bonus points
+			BonusMessages.Add(TEXT("+Slam"));
+			BonusColors.Add(FLinearColor::Red);
+			UE_LOG(LogTemp, Log, TEXT("Slam kill bonus applied"));
+		}
+
+		float CurrentTime = GetWorld()->GetTimeSeconds();// for boomstick
+
+		// ---- BoomStick Kill ----
+		if (OwnerCharacter->bLastAttackWasBoomStick)
+		{
+			if (CurrentTime - OwnerCharacter->LastBoomStickTime <= OwnerCharacter->BoomStickKillWindow)
+			{
+				Points += 400; // Bonus points, adjust as desired
+				BonusMessages.Add(TEXT("+BoomStickKill"));
+				BonusColors.Add(FLinearColor::White);
+				UE_LOG(LogTemp, Log, TEXT("BoomStick kill bonus applied"));
+			}
+		}
+
+		float TimeWarpTime = GetWorld()->GetTimeSeconds();
+
+		// ----- Timewarp Kill -------
+		if (OwnerCharacter->bLastAttackWasTimeWarp)
+		{
+			if (TimeWarpTime - OwnerCharacter->LastTimeWarpTime <= OwnerCharacter->TimeWarpKillWindow)
+			{
+				Points += 500;  // Bonus points for TimeWarp kill
+				BonusMessages.Add(TEXT("+TimeWarpKill"));
+				BonusColors.Add(FLinearColor::Red);
+				UE_LOG(LogTemp, Log, TEXT("TimeWarp kill bonus applied"));
+			}
+		}
+
 		// ---- Update UI with all messages ----
 		if (ScoreWidgetInstance)
 		{
@@ -208,6 +245,14 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 	OwnerCharacter->bLastAttackWasMelee = false;
 
 	OwnerCharacter->bLastAttackWasShatterShot = false;
+
+	OwnerCharacter->bLastAttackWasChargedShot = false;
+
+	OwnerCharacter->bLastAttackWasSlam = false;
+
+	OwnerCharacter->bLastKillWasSlam = false;
+
+	OwnerCharacter->bLastAttackWasBoomStick = false;
 
 	UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Total Points awarded: %d"), *EnemyType, Points);
 }
