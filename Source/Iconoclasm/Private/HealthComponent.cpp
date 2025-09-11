@@ -5,6 +5,7 @@
 #include "IconoclasmCharacter.h"
 #include "HealthPack.h"
 #include "ScoreComponent.h"
+#include "ScoreWidget.h"
 
 // Sets default values for this component's properties
 UHealthComponent::UHealthComponent()
@@ -48,6 +49,41 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 	CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.0f, MaxHealth);
 	// Broadcast health change
 	OnHealthChanged.Broadcast(CurrentHealth);
+
+	// --- Award points for hitting an enemy ---
+	if (InstigatedBy && InstigatedBy->GetPawn())
+	{
+		AActor* InstigatorActor = InstigatedBy->GetPawn();
+		if (AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(InstigatorActor))
+		{
+			if (UScoreComponent* ScoreComp = PlayerCharacter->FindComponentByClass<UScoreComponent>())
+			{
+				// Small score for hitting an enemy
+				int32 HitPoints = 25; // adjust as needed
+				ScoreComp->AddScore(HitPoints);
+
+				// Determine bonus message
+				FString HitMessage = TEXT("+Hit");
+				FLinearColor HitColor = FLinearColor::Gray;
+
+				if (PlayerCharacter->bLastAttackWasSlam)
+				{
+					HitPoints += 50; // extra points for slam hit
+					HitMessage = TEXT("+SlamHit");
+					HitColor = FLinearColor::Red;
+				}
+
+				// Show message in UI
+				if (ScoreComp->ScoreWidgetInstance)
+				{
+					ScoreComp->ScoreWidgetInstance->AddKillMessage(HitMessage, HitColor);
+				}
+
+				UE_LOG(LogTemp, Log, TEXT("Hit registered, awarded %d points: %s"), HitPoints, *HitMessage);
+			}
+		}
+	}
+
 	// Check for death
 	if (CurrentHealth <= 0.0f)
 	{

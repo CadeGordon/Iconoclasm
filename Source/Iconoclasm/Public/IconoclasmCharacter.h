@@ -278,6 +278,30 @@ public:
 	float TimeWarpKillWindow = 10.0f;     // Max duration before teleport expires
 	float LastTimeWarpTime = -10.0f;      // Stores the time AltImpulseMode was activated
 
+	bool bLastActionWasSlideJump = false;
+	float SlideJumpKillWindow = 2.0f;   // 2 seconds window for kill
+	float LastSlideJumpTime = -10.0f;   // Time double jump was performed
+
+	
+	bool bLastActionWasDoubleJump = false;
+	float DoubleJumpKillWindow = 2.0f;   // 2 seconds window for kill
+	float LastDoubleJumpTime = -10.0f;   // Time slide jump was performed
+
+	// --- Cycle Weapon Kill Tracking ---
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Kill Bonuses")
+	bool bLastActionWasCycleWeapon = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Kill Bonuses")
+	float LastCycleWeaponTime = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Kill Bonuses")
+	float CycleWeaponKillWindow = 2.0f; // 2-second window
+
+	// For AltDefcon kills
+	bool bLastAttackWasZeroPoint = false;
+
+
+
 	FVector SlideDirection;
 
 	UWallRunComponent* WallRunComponent;

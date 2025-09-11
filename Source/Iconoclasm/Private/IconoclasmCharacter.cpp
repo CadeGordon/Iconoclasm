@@ -421,9 +421,14 @@ void AIconoclasmCharacter::DoubleJump()
 		else
 		{
 			LaunchCharacter(FVector(0, 0, 1400.0f), false, true); // Apply manual jump force
+			// === Mark Double Jump Kill Window ===
+			bLastActionWasDoubleJump = true;
+			LastDoubleJumpTime = GetWorld()->GetTimeSeconds();
 		}
 
 		JumpCount++;
+
+		
 	}
 }
 
@@ -567,6 +572,10 @@ void AIconoclasmCharacter::SlideJump()
 		FVector LaunchVelocity = FVector(0.0f, 0.0f, 1.0f) * SlideJumpBoostStrength; // Adjust the Z component for upward boost
 		LaunchCharacter(LaunchVelocity, false, false);
 		StopSlide(); // Stop sliding when jumping
+
+		// === Mark Double Jump Kill Window ===
+		bLastActionWasSlideJump = true;
+		LastSlideJumpTime = GetWorld()->GetTimeSeconds();
 	}
 }
 
@@ -708,6 +717,10 @@ void AIconoclasmCharacter::CycleWeapon()
 
 		NewWeapon->AttachWeapon(this);
 		UE_LOG(LogTemp, Warning, TEXT("Switched to weapon: %s"), *NewWeapon->GetName());
+
+		// Mark cycle weapon action for scoring
+		bLastActionWasCycleWeapon = true;
+		LastCycleWeaponTime = GetWorld()->GetTimeSeconds();
 	}
 	else
 	{

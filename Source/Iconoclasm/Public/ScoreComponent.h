@@ -20,7 +20,7 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-protected:
+public:
 	virtual void BeginPlay() override;
 
 	// Current score

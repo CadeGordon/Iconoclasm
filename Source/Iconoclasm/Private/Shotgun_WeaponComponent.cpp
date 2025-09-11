@@ -834,6 +834,12 @@ void UShotgun_WeaponComponent::ResetDefconCooldown()
 
 void UShotgun_WeaponComponent::ApplyAltDefconDamage(const FVector& Origin, float Radius, float Damage)
 {
+	// Mark that the last attack is AltDefcon
+	if (Character)
+	{
+		Character->bLastAttackWasZeroPoint = true;
+	}
+
 	// Get all actors within damage radius
 	TArray<AActor*> ActorsToIgnore;
 	ActorsToIgnore.Add(Character); // Ignore the player character
@@ -858,19 +864,26 @@ void UShotgun_WeaponComponent::ApplyAltDefconDamage(const FVector& Origin, float
 				// Double-check that this isn't the player character
 				if (HitActor != Character)
 				{
-					// Check if this is a character
 					if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
 					{
-						// Calculate distance for falloff damage (optional)
-						float Distance = FVector::Dist(Origin, HitActor->GetActorLocation());
-						float DamageMultiplier = 1.0f - (Distance / Radius); // Linear falloff
-						DamageMultiplier = FMath::Clamp(DamageMultiplier, 0.1f, 1.0f); // Minimum 10% damage
+						// Temporary marker: store on the actor that it was hit by AltDefcon
+						HitActor->Tags.AddUnique(TEXT("ZeroPointPending"));
 
+						float Distance = FVector::Dist(Origin, HitActor->GetActorLocation());
+						float DamageMultiplier = 1.0f - (Distance / Radius);
+						DamageMultiplier = FMath::Clamp(DamageMultiplier, 0.1f, 1.0f);
 						float FinalDamage = Damage * DamageMultiplier;
 
-						// Apply damage
-						FDamageEvent DamageEvent;
-						HitActor->TakeDamage(FinalDamage, DamageEvent, Character->GetController(), Character);
+						// Proper damage event
+						FPointDamageEvent DamageEvent;
+						DamageEvent.Damage = FinalDamage;
+						DamageEvent.HitInfo.ImpactPoint = HitCharacter->GetActorLocation();
+						DamageEvent.ShotDirection = (HitCharacter->GetActorLocation() - Origin).GetSafeNormal();
+
+						// Pass Character's controller as InstigatedBy
+						AController* PlayerController = Character ? Character->GetController() : nullptr;
+
+						HitCharacter->TakeDamage(FinalDamage, DamageEvent, PlayerController, Character);
 
 						UE_LOG(LogTemp, Warning, TEXT("AltDefcon applied %f damage to %s (Distance: %f)"), FinalDamage, *HitActor->GetName(), Distance);
 					}
@@ -878,4 +891,7 @@ void UShotgun_WeaponComponent::ApplyAltDefconDamage(const FVector& Origin, float
 			}
 		}
 	}
+
+	// Reset the flag immediately after applying damage
+	Character->bLastAttackWasZeroPoint = false;
 }

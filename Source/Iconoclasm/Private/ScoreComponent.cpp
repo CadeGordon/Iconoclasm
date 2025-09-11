@@ -229,6 +229,62 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 			}
 		}
 
+		float DoubleJumpCurrentTime = GetWorld()->GetTimeSeconds();
+
+		// ---- Double Jump kill check ------
+		if (OwnerCharacter->bLastActionWasDoubleJump)
+		{
+			if (DoubleJumpCurrentTime - OwnerCharacter->LastDoubleJumpTime <= OwnerCharacter->DoubleJumpKillWindow)
+			{
+				Points += 500;  // Bonus points for Double Jump kill
+				BonusMessages.Add(TEXT("+DoubleJump Kill"));
+				BonusColors.Add(FLinearColor::Blue);
+				UE_LOG(LogTemp, Log, TEXT("Double Jump kill bonus applied"));
+			}
+			
+		}
+
+		float SlideJumpCurrentTime = GetWorld()->GetTimeSeconds();
+
+		// ------ Slide Jump kill check -------
+		if (OwnerCharacter->bLastActionWasSlideJump)
+		{
+			if (SlideJumpCurrentTime - OwnerCharacter->LastSlideJumpTime <= OwnerCharacter->SlideJumpKillWindow)
+			{
+				Points += 500;  // Bonus points for Double Jump kill
+				BonusMessages.Add(TEXT("+SlideJump Kill"));
+				BonusColors.Add(FLinearColor::Blue);
+				UE_LOG(LogTemp, Log, TEXT("Double Jump kill bonus applied"));
+			}
+			
+		}
+
+		float CycleWeaponCurrentTime = GetWorld()->GetTimeSeconds();
+
+		// ---- Cycle Weapon Kill ----
+		if (OwnerCharacter->bLastActionWasCycleWeapon)
+		{
+			if (CycleWeaponCurrentTime - OwnerCharacter->LastCycleWeaponTime <= OwnerCharacter->CycleWeaponKillWindow)
+			{
+				Points += 300;  // Adjust bonus value as needed
+				BonusMessages.Add(TEXT("+CycleWeapon Kill"));
+				BonusColors.Add(FLinearColor::White);
+				UE_LOG(LogTemp, Log, TEXT("Cycle Weapon kill bonus applied"));
+			}
+		}
+
+		// ZeroPoint Kill
+		if (OwnerCharacter->bLastAttackWasZeroPoint)
+		{
+			Points += 500; // Bonus points
+			BonusMessages.Add(TEXT("+ZeroPointKill"));
+			BonusColors.Add(FLinearColor::Red);
+			UE_LOG(LogTemp, Log, TEXT("ZeroPoint kill bonus applied"));
+
+			// Reset the flag so it only applies once per kill
+			OwnerCharacter->bLastAttackWasZeroPoint = false;
+		}
+
 		// ---- Update UI with all messages ----
 		if (ScoreWidgetInstance)
 		{
@@ -253,6 +309,12 @@ void UScoreComponent::AddScoreForEnemy(const FString& EnemyType)
 	OwnerCharacter->bLastKillWasSlam = false;
 
 	OwnerCharacter->bLastAttackWasBoomStick = false;
+
+	OwnerCharacter->bLastActionWasDoubleJump = false;
+
+	OwnerCharacter->bLastActionWasSlideJump = false;
+
+	OwnerCharacter->bLastActionWasCycleWeapon = false;
 
 	UE_LOG(LogTemp, Log, TEXT("Enemy killed: %s, Total Points awarded: %d"), *EnemyType, Points);
 }

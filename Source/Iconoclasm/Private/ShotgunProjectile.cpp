@@ -158,14 +158,21 @@ void AShotgunProjectile::ApplyDamageInRadius(const FVector& Origin)
                 // Double-check that this isn't the player character
                 if (HitActor != PlayerCharacter && HitActor != GetOwner())
                 {
-                    // Check if this is a character
-                    if (ACharacter* Character = Cast<ACharacter>(HitActor))
+                    if (ACharacter* CharacterHit = Cast<ACharacter>(HitActor))
                     {
-                        // Apply damage
-                        FDamageEvent DamageEvent;
-                        HitActor->TakeDamage(DamageAmount, DamageEvent, nullptr, this);
+                        // Proper damage event
+                        FPointDamageEvent DamageEvent;
+                        DamageEvent.Damage = DamageAmount;
+                        DamageEvent.HitInfo.ImpactPoint = CharacterHit->GetActorLocation();
+                        DamageEvent.ShotDirection = (CharacterHit->GetActorLocation() - Origin).GetSafeNormal();
 
-                        UE_LOG(LogTemp, Warning, TEXT("Applied %f damage to %s"), DamageAmount, *HitActor->GetName());
+                        // Get controller from player character
+                        AController* PlayerController = PlayerCharacter ? PlayerCharacter->GetController() : nullptr;
+
+                        // Apply damage
+                        CharacterHit->TakeDamage(DamageAmount, DamageEvent, PlayerController, this);
+
+                        UE_LOG(LogTemp, Warning, TEXT("Applied %f damage to %s"), DamageAmount, *CharacterHit->GetName());
                     }
                 }
             }
