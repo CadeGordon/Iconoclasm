@@ -81,6 +81,11 @@ public:
 	float TimeSinceLastScore;
 	bool bIsDecaying;
 
+	// Track total points earned without decay
+	int32 TotalPointsEarned;
+
+	int32 GetTotalPointsGained() const { return TotalPointsEarned; }
+
 public:
 	// Event dispatcher for score changes
 	UPROPERTY(BlueprintAssignable, Category = "Score")

@@ -21,6 +21,7 @@ UScoreComponent::UScoreComponent()
 	TimeSinceLastScore = 0.0f;
 	bIsDecaying = false;
 	CurrentScore = 0;
+	TotalPointsEarned = 0;
 	CurrentMultiplier = 0.0f;
 }
 
@@ -70,6 +71,9 @@ void UScoreComponent::AddScore(int32 Points)
 		int32 AdjustedPoints = FMath::RoundToInt(Points * CurrentMultiplier);
 		CurrentScore += AdjustedPoints;
 
+		// Track total points ignoring decay
+		TotalPointsEarned += AdjustedPoints;
+
 		// Reset decay timer when score is gained
 		if (bEnableDecay)
 		{
@@ -83,7 +87,7 @@ void UScoreComponent::AddScore(int32 Points)
 		UpdateScoreWidget();
 
 		// Optional: Log for debugging
-		UE_LOG(LogTemp, Log, TEXT("Score added: %d, Total Score: %d"), Points, CurrentScore);
+		UE_LOG(LogTemp, Log, TEXT("Score added: %d, Total Score: %d"), Points, CurrentScore, TotalPointsEarned);
 	}
 }
 
