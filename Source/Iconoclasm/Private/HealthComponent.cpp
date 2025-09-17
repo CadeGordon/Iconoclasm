@@ -125,6 +125,7 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 					}
 
 					ScoreComp->AddScoreForEnemy(EnemyType);
+					ScoreComp->AddKill();
 				}
 			}
 

@@ -44,4 +44,16 @@ UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Trigger")
     // Store the final score without decay
     int32 FinalScore;
 
+    // Store the time taken to reach the trigger
+    float CompletionTime;
+
+
+
+    // Function to calculate a rank based on time
+    FString GetTimeRank(float TimeInSeconds) const;
+
+    int32 FinalKills;
+    FString GetKillRank(int32 Kills) const;
+
+    FString CalculateFinalRank(float Score, float TimeInSeconds, int32 Kills) const;
 };

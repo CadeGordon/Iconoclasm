@@ -496,3 +496,9 @@ void UScoreComponent::UpdateScoreMultiplier()
 	// Smoothly interpolate instead of snapping
 	CurrentMultiplier = FMath::FInterpTo(CurrentMultiplier, TargetMultiplier, GetWorld()->GetDeltaSeconds(), 5.0f);
 }
+
+void UScoreComponent::AddKill()
+{
+	KillCount++;
+}
+

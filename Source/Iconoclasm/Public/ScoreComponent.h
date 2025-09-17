@@ -81,10 +81,17 @@ public:
 	float TimeSinceLastScore;
 	bool bIsDecaying;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Score")
+	int32 KillCount;
+
 	// Track total points earned without decay
 	int32 TotalPointsEarned;
 
 	int32 GetTotalPointsGained() const { return TotalPointsEarned; }
+
+	int32 GetKillCount() const { return KillCount; }
+
+	void AddKill();
 
 public:
 	// Event dispatcher for score changes
