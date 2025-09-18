@@ -51,7 +51,7 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
         if (ScoreComp)
         {
             // Capture the total points gained ignoring decay
-            FinalScore = ScoreComp->GetTotalPointsGained(); // We'll add this function
+            FinalScore = ScoreComp->GetTotalPointsGained();
 
             // --- Completion Time ---
             CompletionTime = UGameplayStatics::GetTimeSeconds(GetWorld());

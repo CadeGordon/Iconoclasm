@@ -72,7 +72,7 @@ public:
 	FVector SwingAxis;
 	float SwingSpeed = 100.0f;
 	
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool IsGrappleActive;
 
 

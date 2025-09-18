@@ -123,6 +123,7 @@ void UGrappleComponent::FireGrapple()
 {
     if (GrappleOnCooldown || !OwningCharacter)
     {
+        UE_LOG(LogTemp, Warning, TEXT("Peyton is still super fucking faggy"));
         return;
     }
 
