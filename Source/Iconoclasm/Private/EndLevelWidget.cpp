@@ -3,6 +3,7 @@
 
 #include "EndLevelWidget.h"
 #include "Components/TextBlock.h"
+#include "EndLevelTrigger.h"
 
 void UEndLevelWidget::NativeConstruct()
 {
@@ -14,7 +15,7 @@ void UEndLevelWidget::NativeConstruct()
     }
 }
 
-void UEndLevelWidget::SetEndLevelScore(int32 Score)
+void UEndLevelWidget::SetEndLevelScore(int32 Score, int32 MaxScore)
 {
     if (ScoreText)
     {
@@ -23,6 +24,15 @@ void UEndLevelWidget::SetEndLevelScore(int32 Score)
 
     if (RankText)
     {
+        // Dynamically calculate thresholds based on MaxScore
+        ScoreTierThresholds = {
+            0,                          // D
+            FMath::RoundToInt(MaxScore * 0.25f), // C
+            FMath::RoundToInt(MaxScore * 0.40f), // B
+            FMath::RoundToInt(MaxScore * 0.55f), // A
+            MaxScore                    // S
+        };
+
         FString Rank = TEXT("D");
         if (Score >= ScoreTierThresholds[4]) Rank = TEXT("S");
         else if (Score >= ScoreTierThresholds[3]) Rank = TEXT("A");

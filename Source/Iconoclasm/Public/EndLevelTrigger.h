@@ -19,6 +19,8 @@ public:
 	// Sets default values for this actor's properties
 	AEndLevelTrigger();
 
+
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -56,4 +58,50 @@ UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Trigger")
     FString GetKillRank(int32 Kills) const;
 
     FString CalculateFinalRank(float Score, float TimeInSeconds, int32 Kills) const;
+
+
+    // ----- Time Rank Thresholds (in seconds) -----
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Time")
+    float STimeThreshold = 60.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Time")
+    float ATimeThreshold = 120.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Time")
+    float BTimeThreshold = 180.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Time")
+    float CTimeThreshold = 300.0f;
+
+    // ----- Kill Rank Thresholds -----
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Kills")
+    int32 SKillThreshold = 50;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Kills")
+    int32 AKillThreshold = 35;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Kills")
+    int32 BKillThreshold = 20;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Kills")
+    int32 CKillThreshold = 10;
+
+    // ----- Final Rank Calculation -----
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Final Rank")
+    float MaxScore = 10000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Final Rank")
+    float FastestTime = 60.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Final Rank")
+    int32 MaxKills = 50;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Final Rank")
+    float ScoreWeight = 0.4f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Final Rank")
+    float TimeWeight = 0.3f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Final Rank")
+    float KillWeight = 0.3f;
 };

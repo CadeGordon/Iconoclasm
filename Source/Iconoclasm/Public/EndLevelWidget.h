@@ -20,7 +20,7 @@ class ICONOCLASM_API UEndLevelWidget : public UUserWidget
 public:
     // Call this to update the score and optionally the rank
     UFUNCTION(BlueprintCallable)
-    void SetEndLevelScore(int32 Score);
+    void SetEndLevelScore(int32 Score, int32 MaxScore);
 
     UFUNCTION(BlueprintCallable, Category = "UI")
     void SetEndLevelTime(float TimeInSeconds, const FString& TimeRank);

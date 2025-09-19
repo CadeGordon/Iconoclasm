@@ -71,7 +71,7 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
                 if (WidgetInstance)
                 {
                     WidgetInstance->AddToViewport();
-                    WidgetInstance->SetEndLevelScore(FinalScore);
+                    WidgetInstance->SetEndLevelScore(FinalScore, MaxScore);
 
                     // Send time + rank
                     WidgetInstance->SetEndLevelTime(CompletionTime, TimeRank);
@@ -90,55 +90,30 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
 
 FString AEndLevelTrigger::GetTimeRank(float TimeInSeconds) const
 {
-    if (TimeInSeconds <= 60.0f) // under 1 min
-        return TEXT("S");
-    else if (TimeInSeconds <= 120.0f) // under 2 min
-        return TEXT("A");
-    else if (TimeInSeconds <= 180.0f) // under 3 min
-        return TEXT("B");
-    else if (TimeInSeconds <= 300.0f) // under 5 min
-        return TEXT("C");
-    else
-        return TEXT("D");
+    if (TimeInSeconds <= STimeThreshold) return TEXT("S");
+    else if (TimeInSeconds <= ATimeThreshold) return TEXT("A");
+    else if (TimeInSeconds <= BTimeThreshold) return TEXT("B");
+    else if (TimeInSeconds <= CTimeThreshold) return TEXT("C");
+    else return TEXT("D");
 }
 
 FString AEndLevelTrigger::GetKillRank(int32 Kills) const
 {
-    if (Kills >= 50)
-        return TEXT("S");
-    else if (Kills >= 35)
-        return TEXT("A");
-    else if (Kills >= 20)
-        return TEXT("B");
-    else if (Kills >= 10)
-        return TEXT("C");
-    else
-        return TEXT("D");
+    if (Kills >= SKillThreshold) return TEXT("S");
+    else if (Kills >= AKillThreshold) return TEXT("A");
+    else if (Kills >= BKillThreshold) return TEXT("B");
+    else if (Kills >= CKillThreshold) return TEXT("C");
+    else return TEXT("D");
 }
 
 FString AEndLevelTrigger::CalculateFinalRank(float Score, float TimeInSeconds, int32 Kills) const
 {
-    // ---- Config ----
-    const float MaxScore = 10000.0f;      // Adjust to your level's max score
-    const float FastestTime = 60.0f;      // Best possible time in seconds
-    const int32 MaxKills = 50;            // Total enemies in level
-
-    const float ScoreWeight = 0.4f;
-    const float TimeWeight = 0.3f;
-    const float KillWeight = 0.3f;
-
-    // ---- Normalize ----
     float NormalizedScore = FMath::Clamp(Score / MaxScore, 0.0f, 1.0f);
-
-    // For time, lower is better
     float NormalizedTime = FMath::Clamp(FastestTime / TimeInSeconds, 0.0f, 1.0f);
-
     float NormalizedKills = FMath::Clamp(static_cast<float>(Kills) / MaxKills, 0.0f, 1.0f);
 
-    // ---- Weighted sum ----
     float CombinedScore = (NormalizedScore * ScoreWeight + NormalizedTime * TimeWeight + NormalizedKills * KillWeight) * 100.0f;
 
-    // ---- Determine Rank ----
     if (CombinedScore >= 95.0f) return TEXT("SSS");
     else if (CombinedScore >= 85.0f) return TEXT("SS");
     else if (CombinedScore >= 70.0f) return TEXT("S");
