@@ -6,20 +6,19 @@
 #include "GameFramework/SaveGame.h"
 #include "BestResultsSave.generated.h"
 
-
 USTRUCT(BlueprintType)
-struct FLevelBestResult
+struct FLevelResult
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float BestTime = 0.0f;
+    UPROPERTY(VisibleAnywhere)
+    int32 Score = 0;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 BestScore = 0;
+    UPROPERTY(VisibleAnywhere)
+    float CompletionTime = 0.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FString BestRank = TEXT("D");
+    UPROPERTY(VisibleAnywhere)
+    FString Rank = TEXT("D");
 };
 
 
@@ -32,8 +31,9 @@ class ICONOCLASM_API UBestResultsSave : public USaveGame
 	GENERATED_BODY()
 	
 public:
-    // Map level names to their best results
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap<FString, FLevelBestResult> LevelResults;
+    UPROPERTY(VisibleAnywhere, Category = "Results")
+    TMap<FName, FLevelResult> LevelResults; // key = LevelName
+
+    
 
 };

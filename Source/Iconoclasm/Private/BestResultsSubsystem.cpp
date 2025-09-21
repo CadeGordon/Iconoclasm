@@ -2,17 +2,63 @@
 
 
 #include "BestResultsSubsystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "BestResultsSave.h"
 
-void UBestResultsSubsystem::UpdateResults(int32 NewScore, float NewTime, const FString& NewRank)
+void UBestResultsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-    if (NewScore > BestScore)
+    Super::Initialize(Collection);
+    LoadFromDisk();
+}
+
+void UBestResultsSubsystem::Deinitialize()
+{
+    SaveToDisk();
+    Super::Deinitialize();
+}
+
+void UBestResultsSubsystem::SaveLevelResult(FName LevelName, int32 Score, float CompletionTime, const FString& Rank)
+{
+    if (!CurrentSaveGame) return;
+
+    FLevelResult& Existing = CurrentSaveGame->LevelResults.FindOrAdd(LevelName);
+
+    // Only update if better
+    if (Score > Existing.Score) Existing.Score = Score;
+    if (CompletionTime < Existing.CompletionTime || Existing.CompletionTime == 0.0f) Existing.CompletionTime = CompletionTime;
+    if (Rank < Existing.Rank) Existing.Rank = Rank; // customize comparison if needed
+
+    SaveToDisk();
+}
+
+FLevelResult UBestResultsSubsystem::GetLevelResult(FName LevelName) const
+{
+    if (CurrentSaveGame && CurrentSaveGame->LevelResults.Contains(LevelName))
     {
-        BestScore = NewScore;
-        BestRank = NewRank;
+        return CurrentSaveGame->LevelResults[LevelName];
+    }
+    return FLevelResult(); // default empty
+}
+
+void UBestResultsSubsystem::LoadFromDisk()
+{
+    if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SaveSlot, UserIndex))
+    {
+        CurrentSaveGame = Cast<UBestResultsSave>(Loaded);
     }
 
-    if (NewTime < BestTime)
+    if (!CurrentSaveGame)
     {
-        BestTime = NewTime;
+        CurrentSaveGame = Cast<UBestResultsSave>(
+            UGameplayStatics::CreateSaveGameObject(UBestResultsSave::StaticClass()));
     }
 }
+
+void UBestResultsSubsystem::SaveToDisk()
+{
+    if (CurrentSaveGame)
+    {
+        UGameplayStatics::SaveGameToSlot(CurrentSaveGame, SaveSlot, UserIndex);
+    }
+}
+

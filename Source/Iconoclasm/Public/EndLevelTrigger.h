@@ -108,4 +108,7 @@ UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Trigger")
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Final Rank")
     float KillWeight = 0.3f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level")
+    FName LevelID = "Level1";
 };

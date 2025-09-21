@@ -23,13 +23,10 @@ public:
 
 protected:
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* BestScoreText;
+    class UTextBlock* Level1ScoreText;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* BestTimeText;
-
-    UPROPERTY(meta = (BindWidget))
-    class UTextBlock* BestRankText;
+    class UTextBlock* Level2ScoreText;
 
 private:
     int32 BestScore = 0;

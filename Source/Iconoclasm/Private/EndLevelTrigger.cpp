@@ -67,10 +67,10 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
 
             FString FinalRank = CalculateFinalRank(FinalScore, CompletionTime, FinalKills);
 
-            // Update subsystem
-            if (UBestResultsSubsystem* Subsystem = GetGameInstance()->GetSubsystem<UBestResultsSubsystem>())
+            UBestResultsSubsystem* Subsystem = GetGameInstance()->GetSubsystem<UBestResultsSubsystem>();
+            if (Subsystem)
             {
-                Subsystem->UpdateResults(FinalScore, CompletionTime, FinalRank);
+                Subsystem->SaveLevelResult(LevelID, FinalScore, CompletionTime, FinalRank);
             }
 
             // Show the end level widget

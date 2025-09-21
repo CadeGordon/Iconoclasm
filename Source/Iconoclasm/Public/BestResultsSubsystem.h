@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "BestResultsSave.h"
 #include "BestResultsSubsystem.generated.h"
 
 /**
@@ -15,15 +16,20 @@ class ICONOCLASM_API UBestResultsSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-    void UpdateResults(int32 NewScore, float NewTime, const FString& NewRank);
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
 
-    int32 GetBestScore() const { return BestScore; }
-    float GetBestTime() const { return BestTime; }
-    FString GetBestRank() const { return BestRank; }
+    void SaveLevelResult(FName LevelName, int32 Score, float CompletionTime, const FString& Rank);
+    FLevelResult GetLevelResult(FName LevelName) const;
 
 private:
-    int32 BestScore = 0;
-    float BestTime = FLT_MAX;
-    FString BestRank = TEXT("D");
+    void LoadFromDisk();
+    void SaveToDisk();
+
+    UPROPERTY()
+    UBestResultsSave* CurrentSaveGame = nullptr;
+
+    FString SaveSlot = TEXT("BestResultsSlot");
+    uint32 UserIndex = 0;
 	
 };
