@@ -8,6 +8,9 @@
 #include "Blueprint/UserWidget.h"
 #include "IconoclasmCharacter.h"
 #include "EndLevelWidget.h"
+#include "GameFramework/HUD.h"         
+#include "BestResultsWidget.h"
+#include "BestResultsSubsystem.h"
 
 // Sets default values
 AEndLevelTrigger::AEndLevelTrigger()
@@ -64,6 +67,12 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
 
             FString FinalRank = CalculateFinalRank(FinalScore, CompletionTime, FinalKills);
 
+            // Update subsystem
+            if (UBestResultsSubsystem* Subsystem = GetGameInstance()->GetSubsystem<UBestResultsSubsystem>())
+            {
+                Subsystem->UpdateResults(FinalScore, CompletionTime, FinalRank);
+            }
+
             // Show the end level widget
             if (EndLevelWidgetClass)
             {
@@ -82,6 +91,8 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
                     WidgetInstance->SetFinalRank(FinalRank);
                 }
             }
+
+           
 
             // Optionally: Stop decay timer or freeze gameplay here
         }

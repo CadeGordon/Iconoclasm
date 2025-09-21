@@ -36,6 +36,8 @@ UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Trigger")
                         bool bFromSweep, 
                         const FHitResult & SweepResult);
 
+  
+
     // Widget to display end level score
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="UI")
     TSubclassOf<UUserWidget> EndLevelWidgetClass;
@@ -59,6 +61,8 @@ UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Trigger")
 
     FString CalculateFinalRank(float Score, float TimeInSeconds, int32 Kills) const;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    TSubclassOf<class UBestResultsWidget> BestResultsWidgetClass;
 
     // ----- Time Rank Thresholds (in seconds) -----
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Rank|Time")
