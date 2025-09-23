@@ -43,9 +43,15 @@ public:
 
 	virtual void PerformHitscan(FVector& ImpactLocation) override;
 
+
+
 	// Fire mode particle systems
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	UNiagaraSystem* GunslingerParticle;
+
+	// Fire mode particle systems
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* RevolverShotParticle;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	UNiagaraSystem* AltGunslingerParticle;

@@ -248,6 +248,30 @@ void URevolver_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
 			ImpactLocation = EndLocation;
 		}
 
+		if (RevolverShotParticle && Character)
+		{
+			// Make tracer start at the muzzle
+			FVector TracerStartLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+			FVector TracerEndLocation = ImpactLocation;
+
+			UNiagaraComponent* TracerComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+				GetWorld(),
+				RevolverShotParticle,
+				TracerStartLocation
+			);
+
+			if (TracerComp)
+			{
+				// Make it point along the line trace
+				FRotator TracerRotation = (TracerEndLocation - TracerStartLocation).Rotation();
+				TracerComp->SetWorldRotation(TracerRotation);
+
+				// Optional: scale length to match distance
+				float Distance = FVector::Distance(TracerStartLocation, TracerEndLocation);
+				TracerComp->SetWorldScale3D(FVector(Distance / 1000.0f, 1.0f, 1.0f));
+			}
+		}
+
 		// Draw debug line
 		DrawDebugLine(GetWorld(), StartLocation, ImpactLocation, FColor::Red, false, 2.0f, 0, 1.0f);
 	}
@@ -454,6 +478,8 @@ void URevolver_WeaponComponent::AltHellfireMode()
 	float TraceRadius = 50.0f; // Thickness of the trace
 	FCollisionShape TraceSphere = FCollisionShape::MakeSphere(TraceRadius);
 
+
+
 	bool bInitialHit = GetWorld()->SweepSingleByChannel(
 		InitialHitResult,
 		StartLocation,
@@ -488,6 +514,25 @@ void URevolver_WeaponComponent::AltHellfireMode()
 	{
 		// If no hit, use the end location as impact point
 		ImpactLocation = EndLocation;
+	}
+
+	// --- Spawn tracer for initial shot ---
+	if (RevolverShotParticle) // Make sure you assign a Niagara system for this
+	{
+		UNiagaraComponent* TracerComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(),
+			RevolverShotParticle,
+			StartLocation
+		);
+
+		if (TracerComp)
+		{
+			FRotator TracerRotation = (ImpactLocation - StartLocation).Rotation();
+			TracerComp->SetWorldRotation(TracerRotation);
+
+			float Distance = FVector::Distance(StartLocation, ImpactLocation);
+			TracerComp->SetWorldScale3D(FVector(Distance / 100.0f, 1.0f, 1.0f));
+		}
 	}
 
 	// Find the two nearest enemies from the impact location
@@ -528,6 +573,26 @@ void URevolver_WeaponComponent::AltHellfireMode()
 					UDamageType::StaticClass()
 				);
 			}
+
+			// --- Spawn tracer for split shot ---
+			if (RevolverShotParticle)
+			{
+				UNiagaraComponent* SplitTracer = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+					GetWorld(),
+					RevolverShotParticle,
+					ImpactLocation
+				);
+
+				if (SplitTracer)
+				{
+					FRotator SplitRotation = (SplitEndLocation - ImpactLocation).Rotation();
+					SplitTracer->SetWorldRotation(SplitRotation);
+
+					float SplitDistance = FVector::Distance(ImpactLocation, SplitEndLocation);
+					SplitTracer->SetWorldScale3D(FVector(SplitDistance / 100.0f, 1.0f, 1.0f));
+				}
+			}
+
 
 			// Optional: Draw debug line for split traces
 			DrawDebugLine(
