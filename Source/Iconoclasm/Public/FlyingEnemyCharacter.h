@@ -40,6 +40,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
 	UFloatingPawnMovement* MovementComponent;
 
+	/** Expose the capsule root so it’s visible in the editor */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision")
+	UCapsuleComponent* CapsuleRoot;
+
 	// Set the AI controller class to be used by this character
 	UPROPERTY(EditAnywhere, Category = "AI")
 	TSubclassOf<class AFlyingAIController> FlyAIControllerClass;

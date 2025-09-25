@@ -19,6 +19,9 @@ AFlyingEnemyCharacter::AFlyingEnemyCharacter()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	// Assign the inherited capsule component to the property
+	CapsuleRoot = GetCapsuleComponent();
+
 	// Initialize movement component for flying
 	MovementComponent = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("MovementComponent"));
 

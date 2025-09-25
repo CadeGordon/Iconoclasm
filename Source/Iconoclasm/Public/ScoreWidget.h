@@ -44,7 +44,7 @@ protected:
 
     // Kill feed container (will hold a list of text widgets)
     UPROPERTY(meta = (BindWidget))
-    class UVerticalBox* KillFeedBox;
+    class UScrollBox* KillFeedBox;
 
     // Score thresholds for each tier
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score Settings")

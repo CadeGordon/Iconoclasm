@@ -5,6 +5,7 @@
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
+#include "Components/ScrollBox.h"
 
 
 void UScoreWidget::NativeConstruct()
@@ -139,10 +140,12 @@ void UScoreWidget::AddKillMessage(const FString& Message, const FLinearColor& Co
     {
         KillText->SetText(FText::FromString(Message));
         KillText->SetColorAndOpacity(FSlateColor(Color));
-        
 
-        // Insert at the top
-        KillFeedBox->InsertChildAt(0, KillText);
+        // Add to scroll box
+        KillFeedBox->AddChild(KillText);
+
+        // Scroll to bottom to show newest message
+        KillFeedBox->ScrollToEnd();
 
         // Remove after 2 seconds
         FTimerHandle RemoveHandle;
@@ -153,7 +156,6 @@ void UScoreWidget::AddKillMessage(const FString& Message, const FLinearColor& Co
                     KillFeedBox->RemoveChild(KillText);
                 }
             });
-
         GetWorld()->GetTimerManager().SetTimer(RemoveHandle, RemoveDelegate, 2.0f, false);
     }
 }

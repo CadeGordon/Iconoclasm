@@ -387,7 +387,7 @@ void URevolver_WeaponComponent::HellfireMode()
 			PerformHitscan(ImpactLocation);
 
 			// Trace for hits using the same logic as PerformHitscan
-			FVector StartLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
+			FVector StartLocation = Character->GetActorLocation();
 			FVector EndLocation = ImpactLocation;
 			FHitResult HitResult;
 
@@ -860,7 +860,7 @@ void URevolver_WeaponComponent::ReleaseChargedShot()
 
 	// Calculate damage multiplier based on charge level
 	float DamageMultiplier = GetDamageMultiplier(CurrentChargeLevel);
-	float BaseDamage = 50.0f;
+	float BaseDamage = 100.0f;
 	float FinalDamage = BaseDamage * DamageMultiplier;
 
 	// Fire the charged shot
