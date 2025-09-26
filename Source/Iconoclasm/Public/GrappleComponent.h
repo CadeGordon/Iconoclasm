@@ -48,6 +48,21 @@ private:
 
 	void UpdateGrappleVisual();
 
+	//UFUNCTION()
+	//bool ShouldTransitionToSwing();
+
+	UFUNCTION()
+	void StartSwinging();
+
+	//UFUNCTION()
+	//void ApplySwingPhysics(float DeltaTime);
+
+	UFUNCTION()
+	void ApplyCombinedGrapplePhysics(float DeltaTime);
+
+	UFUNCTION()
+	void ApplySwingInput(FVector& CurrentVelocity, const FVector& ToGrapplePoint, float DeltaTime);
+
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleLength = 5000.0f;
@@ -66,11 +81,26 @@ public:
 
 	FTimerHandle GrappleCooldownTimerHandle;
 
-	//variables for swining
-	FVector SwingStartLocation;
-	FVector SwingStartDirection;
-	FVector SwingAxis;
-	float SwingSpeed = 100.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "Grapple")
+	bool IsSwinging;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple Swing")
+	float SwingForce = 2000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple Swing")
+	float MaxSwingSpeed = 3000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple Swing")
+	float SwingDamping = 0.95f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple Swing")
+	float GrappleReleaseThreshold = 300.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple Swing")
+	float SwingTransitionSpeed = 1500.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Grapple")
+	float GrappleDistance;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool IsGrappleActive;

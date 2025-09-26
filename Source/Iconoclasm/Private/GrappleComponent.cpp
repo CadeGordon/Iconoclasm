@@ -30,6 +30,13 @@ UGrappleComponent::UGrappleComponent()
     GrappleFOV = 120.0f;
     InterpSpeed = 5.0f;
 
+    // Swing parameters
+    SwingForce = 2000.0f;
+    MaxSwingSpeed = 3000.0f;
+    SwingDamping = 0.95f;
+    GrappleReleaseThreshold = 300.0f; // Distance threshold for auto-release
+    SwingTransitionSpeed = 1500.0f; // Speed threshold to transition from pull to swing
+
 
 
     CurrentFOV = OriginalFOV;
@@ -80,7 +87,8 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
     if (IsGrappleActive)
     {
-        PullCharacterToLocation(GrappleLocation);
+        // Apply both pulling and swinging physics simultaneously
+        ApplyCombinedGrapplePhysics(DeltaTime);
         UpdateGrappleVisual();
     }
 
@@ -144,6 +152,16 @@ void UGrappleComponent::FireGrapple()
         // If we hit something, store the grapple location
         GrappleLocation = HitResult.ImpactPoint;
         IsGrappleActive = true;
+        
+
+        // Calculate and store the grapple distance
+        GrappleDistance = FVector::Dist(OwningCharacter->GetActorLocation(), GrappleLocation);
+
+        // Immediately start swing physics - reduce gravity for better swing feel
+        if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+        {
+            CharacterMovement->GravityScale = 0.4f;
+        }
 
         GrappleOnCooldown = true;
         GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
@@ -173,6 +191,15 @@ void UGrappleComponent::ReleaseGrapple()
     IsGrappleActive = false;
 
     TargetFOV = OriginalFOV;
+
+    // Restore normal gravity
+    if (OwningCharacter)
+    {
+        if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+        {
+            CharacterMovement->GravityScale = 2.0f;
+        }
+    }
 
     // Hide grapple visual
     HideGrappleVisual();
@@ -206,6 +233,192 @@ void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
         CharacterMovement->Launch(Force);
     }
 }
+
+void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
+{
+    if (!OwningCharacter)
+        return;
+
+    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
+    if (!CharacterMovement)
+        return;
+
+    FVector CharacterLocation = OwningCharacter->GetActorLocation();
+    FVector CurrentVelocity = CharacterMovement->Velocity;
+
+    // Calculate vector from character to grapple point
+    FVector ToGrapplePoint = GrappleLocation - CharacterLocation;
+    float CurrentDistance = ToGrapplePoint.Size();
+
+    // Check if we're close enough to release
+    if (CurrentDistance <= GrappleEndThreshold)
+    {
+        ReleaseGrapple();
+        return;
+    }
+
+    ToGrapplePoint.Normalize();
+
+    // 1. PULLING FORCE - Always pulls toward grapple point
+    FVector PullForce = ToGrapplePoint * GrappleSpeed;
+    CurrentVelocity += PullForce * DeltaTime;
+
+    // 2. PENDULUM CONSTRAINT - Maintains rope length for swinging
+    float DistanceError = CurrentDistance - GrappleDistance;
+    if (DistanceError > 0) // Only prevent stretching, allow compression
+    {
+        FVector ConstraintForce = ToGrapplePoint * DistanceError * SwingForce;
+        CurrentVelocity += ConstraintForce * DeltaTime;
+    }
+
+    // 3. SWING INPUT - Allow player to add momentum perpendicular to rope
+    ApplySwingInput(CurrentVelocity, ToGrapplePoint, DeltaTime);
+
+    // 4. Apply damping to prevent excessive speed buildup
+    CurrentVelocity *= SwingDamping;
+
+    // 5. Clamp maximum speed
+    if (CurrentVelocity.Size() > MaxSwingSpeed)
+    {
+        CurrentVelocity = CurrentVelocity.GetSafeNormal() * MaxSwingSpeed;
+    }
+
+    // Apply the final velocity
+    CharacterMovement->Velocity = CurrentVelocity;
+
+    // Check for auto-release if rope stretches too much
+    if (CurrentDistance > GrappleDistance + GrappleReleaseThreshold)
+    {
+        ReleaseGrapple();
+    }
+}
+
+//bool UGrappleComponent::ShouldTransitionToSwing()
+//{
+//    if (!OwningCharacter)
+//        return false;
+//
+//    // Get player's current velocity
+//    FVector CurrentVelocity = OwningCharacter->GetCharacterMovement()->Velocity;
+//    float CurrentSpeed = CurrentVelocity.Size();
+//
+//    // Get direction to grapple point
+//    FVector ToGrapplePoint = (GrappleLocation - OwningCharacter->GetActorLocation()).GetSafeNormal();
+//
+//    // Check if player has sufficient speed and isn't moving directly toward grapple point
+//    float DotProduct = FVector::DotProduct(CurrentVelocity.GetSafeNormal(), ToGrapplePoint);
+//
+//    // Transition to swing if:
+//    // 1. Player has enough speed
+//    // 2. Player isn't moving directly toward the grapple point (allows for pendulum motion)
+//    // 3. Player has some horizontal velocity component
+//    return CurrentSpeed > SwingTransitionSpeed &&
+//        DotProduct < 0.8f &&
+//        FMath::Abs(CurrentVelocity.Z) < CurrentSpeed * 0.8f;
+//}
+
+void UGrappleComponent::StartSwinging()
+{
+    IsSwinging = true;
+
+    if (OwningCharacter)
+    {
+        // Disable gravity temporarily for smoother swinging
+        UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
+        if (CharacterMovement)
+        {
+            CharacterMovement->GravityScale = 0.3f; // Reduce gravity for swing feel
+        }
+    }
+}
+
+//void UGrappleComponent::ApplySwingPhysics(float DeltaTime)
+//{
+//    if (!OwningCharacter)
+//        return;
+//
+//    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
+//    if (!CharacterMovement)
+//        return;
+//
+//    FVector CharacterLocation = OwningCharacter->GetActorLocation();
+//    FVector CurrentVelocity = CharacterMovement->Velocity;
+//
+//    // Calculate vector from character to grapple point
+//    FVector ToGrapplePoint = GrappleLocation - CharacterLocation;
+//    float CurrentDistance = ToGrapplePoint.Size();
+//    ToGrapplePoint.Normalize();
+//
+//    // Constraint force to maintain grapple distance (pendulum constraint)
+//    float DistanceError = CurrentDistance - GrappleDistance;
+//    FVector ConstraintForce = ToGrapplePoint * DistanceError * SwingForce;
+//
+//    // Only apply inward constraint force (prevent stretching, allow compression)
+//    if (DistanceError > 0)
+//    {
+//        CurrentVelocity += ConstraintForce * DeltaTime;
+//    }
+//
+//    // Apply player input for swinging control
+//    ApplySwingInput(CurrentVelocity, ToGrapplePoint, DeltaTime);
+//
+//    // Apply damping to prevent infinite swinging
+//    CurrentVelocity *= SwingDamping;
+//
+//    // Clamp maximum swing speed
+//    if (CurrentVelocity.Size() > MaxSwingSpeed)
+//    {
+//        CurrentVelocity = CurrentVelocity.GetSafeNormal() * MaxSwingSpeed;
+//    }
+//
+//    // Apply the velocity
+//    CharacterMovement->Velocity = CurrentVelocity;
+//
+//    // Check for release conditions
+//    if (CurrentDistance > GrappleDistance + GrappleReleaseThreshold)
+//    {
+//        ReleaseGrapple();
+//
+//        // Restore normal gravity
+//        CharacterMovement->GravityScale = 1.0f;
+//    }
+//}
+
+void UGrappleComponent::ApplySwingInput(FVector& CurrentVelocity, const FVector& ToGrapplePoint, float DeltaTime)
+{
+    if (!OwningCharacter)
+        return;
+
+    // Get player input
+    FVector InputVector = OwningCharacter->GetLastMovementInputVector();
+
+    if (!InputVector.IsZero())
+    {
+        // Convert input to world space
+        FRotator ControlRotation = OwningCharacter->GetControlRotation();
+        FVector ForwardVector = ControlRotation.Vector();
+        FVector RightVector = FRotationMatrix(ControlRotation).GetUnitAxis(EAxis::Y);
+
+        FVector WorldInput = (ForwardVector * InputVector.X + RightVector * InputVector.Y);
+        WorldInput.Z = 0; // Remove vertical component for horizontal swing control
+        WorldInput.Normalize();
+
+        // Apply swing input force perpendicular to grapple line
+        FVector GrappleDirection = ToGrapplePoint;
+        GrappleDirection.Z = 0; // Project to horizontal plane
+        GrappleDirection.Normalize();
+
+        // Get perpendicular direction for swinging
+        FVector SwingDirection = FVector::CrossProduct(GrappleDirection, FVector::UpVector);
+
+        // Apply input in swing direction
+        float InputDot = FVector::DotProduct(WorldInput, SwingDirection);
+        FVector SwingInputForce = SwingDirection * InputDot * SwingForce * 0.5f;
+
+        CurrentVelocity += SwingInputForce * DeltaTime;
+    }
+}
+
 
 void UGrappleComponent::ResetGrappleCooldown()
 {
