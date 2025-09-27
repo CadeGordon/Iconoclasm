@@ -63,6 +63,12 @@ private:
 	UFUNCTION()
 	void ApplySwingInput(FVector& CurrentVelocity, const FVector& ToGrapplePoint, float DeltaTime);
 
+	void StartWorldGrapple();
+
+	void StartEnemyGrapple();
+
+	void ApplyEnemyGrapplePhysics(float DeltaTime);
+
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleLength = 5000.0f;
@@ -104,6 +110,29 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool IsGrappleActive;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple Swing")
+	float MinimumPullForce = 1500.0f;
+
+	UPROPERTY()
+	bool bWasGroundedWhenGrappleStarted;
+
+	UPROPERTY()
+	class AActor* GrappledActor; // The actor we're grappling (if it's an enemy)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
+	bool bCanGrappleEnemies = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
+	float EnemyPullForce = 1500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
+	float EnemyGrappleRange = 2000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
+	float EnemyGrappleEndThreshold = 500.0f;
+	
+
 
 
 	UPROPERTY()

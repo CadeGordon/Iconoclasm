@@ -900,38 +900,59 @@ float URevolver_WeaponComponent::GetDamageMultiplier(float ChargePercent)
 
 void URevolver_WeaponComponent::FireChargedShot(float DamageAmount)
 {
-	FVector ImpactLocation;
-	PerformHitscan(ImpactLocation);
+	if (!Character)
+		return;
 
-	// Show red firing trace
-	if (Character)
-	{
-		FVector StartLocation = Character->GetActorLocation();
-		DrawDebugLine(
-			GetWorld(),
-			StartLocation,
-			ImpactLocation,
-			FColor::Red,
-			false,
-			1.0f, // Show for 1 second
-			0,
-			5.0f // Thicker line for the actual shot
-		);
-	}
-
-	// Perform damage trace
-	FHitResult HitResult;
 	FVector StartLocation = Character->GetActorLocation();
-	FVector EndLocation = ImpactLocation;
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(Character);
-	QueryParams.bTraceComplex = true;
+	FVector ForwardVector = Character->GetControlRotation().Vector();
+	FVector EndLocation = StartLocation + (ForwardVector * 10000.0f); // Max range
 
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
+	// Show red firing trace for the full path
+	DrawDebugLine(
+		GetWorld(),
+		StartLocation,
+		EndLocation,
+		FColor::Red,
+		false,
+		1.0f,
+		0,
+		5.0f
+	);
+
+	// Manual penetration system
+	FVector CurrentStart = StartLocation;
+	TArray<AActor*> IgnoredActors;
+	IgnoredActors.Add(Character);
+
+	int32 MaxPenetrations = 10; // Prevent infinite loops
+	int32 CurrentPenetrations = 0;
+
+	while (CurrentPenetrations < MaxPenetrations)
 	{
+		FHitResult HitResult;
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActors(IgnoredActors);
+		QueryParams.bTraceComplex = true;
+
+		// Trace from current position to end
+		bool bHit = GetWorld()->LineTraceSingleByChannel(
+			HitResult,
+			CurrentStart,
+			EndLocation,
+			ECC_Pawn,
+			QueryParams
+		);
+
+		if (!bHit)
+		{
+			// No more targets, we're done
+			break;
+		}
+
 		AActor* HitActor = HitResult.GetActor();
 		if (HitActor)
 		{
+			// Apply damage
 			Character->bLastAttackWasChargedShot = true;
 
 			UGameplayStatics::ApplyDamage(
@@ -941,8 +962,39 @@ void URevolver_WeaponComponent::FireChargedShot(float DamageAmount)
 				Character,
 				UDamageType::StaticClass()
 			);
+
+			// Visual feedback
+			DrawDebugSphere(
+				GetWorld(),
+				HitResult.Location,
+				20.0f,
+				12,
+				FColor::Orange,
+				false,
+				1.5f
+			);
+
+			UE_LOG(LogTemp, Warning, TEXT("Penetrating shot hit: %s at distance: %f"),
+				*HitActor->GetName(),
+				FVector::Dist(StartLocation, HitResult.Location));
+
+			// Add this actor to ignore list for next trace
+			IgnoredActors.Add(HitActor);
+
+			// Continue tracing from slightly past the hit point
+			FVector PenetrationOffset = ForwardVector * 10.0f; // Small offset to get past the actor
+			CurrentStart = HitResult.Location + PenetrationOffset;
+
+			CurrentPenetrations++;
+		}
+		else
+		{
+			// Hit something but no actor (probably world geometry), stop here
+			break;
 		}
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Charged shot penetrated %d targets"), CurrentPenetrations);
 
 	// Play enhanced effects based on charge level
 	PlayChargedShotEffects(CurrentChargeLevel);

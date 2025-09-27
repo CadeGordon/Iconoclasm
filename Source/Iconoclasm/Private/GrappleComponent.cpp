@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
+#include "WallRunComponent.h"
 
 
 // Sets default values for this component's properties
@@ -36,6 +37,7 @@ UGrappleComponent::UGrappleComponent()
     SwingDamping = 0.95f;
     GrappleReleaseThreshold = 300.0f; // Distance threshold for auto-release
     SwingTransitionSpeed = 1500.0f; // Speed threshold to transition from pull to swing
+    MinimumPullForce = 1500.0f;
 
 
 
@@ -44,6 +46,8 @@ UGrappleComponent::UGrappleComponent()
     
     // Initialize grapple visual component
     GrappleVisualMesh = nullptr;
+
+    bWasGroundedWhenGrappleStarted = false;
 
 	// ...
 }
@@ -87,6 +91,29 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
     if (IsGrappleActive)
     {
+        // Check if grounded and release grapple if true (but only if we weren't grounded when we started)
+        if (OwningCharacter && OwningCharacter->GetCharacterMovement() &&
+            OwningCharacter->GetCharacterMovement()->IsMovingOnGround() &&
+            !bWasGroundedWhenGrappleStarted)
+        {
+            ReleaseGrapple();
+            return;
+        }
+
+        // Check if wall running and release grapple if true
+        if (OwningCharacter)
+        {
+            // Try to find the wallrun component
+            if (UWallRunComponent* WallRunComp = OwningCharacter->FindComponentByClass<UWallRunComponent>())
+            {
+                if (WallRunComp->IsWallRunning)
+                {
+                    ReleaseGrapple();
+                    return;
+                }
+            }
+        }
+
         // Apply both pulling and swinging physics simultaneously
         ApplyCombinedGrapplePhysics(DeltaTime);
         UpdateGrappleVisual();
@@ -124,15 +151,29 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
         // Ensure progress bar is full when not on cooldown
         GrappleHUD->UpdateProgressBar(1.0f);
     }
+
+
  
 }
 
 void UGrappleComponent::FireGrapple()
 {
+    // If already grappling, release the grapple instead of firing a new one
+    if (IsGrappleActive)
+    {
+        ReleaseGrapple();
+        return;
+    }
+
     if (GrappleOnCooldown || !OwningCharacter)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Peyton is still super fucking faggy"));
         return;
+    }
+
+    // Store whether we were grounded when starting the grapple
+    if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+    {
+        bWasGroundedWhenGrappleStarted = CharacterMovement->IsMovingOnGround();
     }
 
     // Get the player's viewpoint
@@ -143,25 +184,91 @@ void UGrappleComponent::FireGrapple()
     // Calculate the end point of the grapple
     FVector EndPoint = ViewPointLocation + ViewPointRotation.Vector() * GrappleLength;
 
-    // Perform a line trace to detect hit point
+    // Perform line trace for world geometry first
     FHitResult HitResult;
     FCollisionQueryParams QueryParams;
     QueryParams.AddIgnoredActor(OwningCharacter);
-    if (GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_Visibility, QueryParams))
+
+    bool bHitWorld = GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_Visibility, QueryParams);
+
+    // Perform a separate trace for enemies using the Pawn collision channel
+    FHitResult EnemyHitResult;
+    FCollisionQueryParams EnemyQueryParams;
+    EnemyQueryParams.AddIgnoredActor(OwningCharacter);
+    bool bHitEnemy = false;
+
+    if (bCanGrappleEnemies)
     {
-        // If we hit something, store the grapple location
-        GrappleLocation = HitResult.ImpactPoint;
-        IsGrappleActive = true;
-        
+        // Use a shorter range for enemy grappling
+        FVector EnemyEndPoint = ViewPointLocation + ViewPointRotation.Vector() * EnemyGrappleRange;
+        bHitEnemy = GetWorld()->LineTraceSingleByChannel(EnemyHitResult, ViewPointLocation, EnemyEndPoint, ECC_Pawn, EnemyQueryParams);
+    }
 
-        // Calculate and store the grapple distance
-        GrappleDistance = FVector::Dist(OwningCharacter->GetActorLocation(), GrappleLocation);
+    // Determine which target to grapple to
+    FHitResult* TargetHit = nullptr;
+    bool bGrapplingEnemy = false;
 
-        // Immediately start swing physics - reduce gravity for better swing feel
-        if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+    if (bHitEnemy && bHitWorld)
+    {
+        // If we hit both, choose the closer one
+        float EnemyDistance = FVector::Dist(ViewPointLocation, EnemyHitResult.ImpactPoint);
+        float WorldDistance = FVector::Dist(ViewPointLocation, HitResult.ImpactPoint);
+
+        if (EnemyDistance < WorldDistance)
         {
-            CharacterMovement->GravityScale = 0.4f;
+            TargetHit = &EnemyHitResult;
+            bGrapplingEnemy = true;
         }
+        else
+        {
+            TargetHit = &HitResult;
+        }
+    }
+    else if (bHitEnemy)
+    {
+        TargetHit = &EnemyHitResult;
+        bGrapplingEnemy = true;
+    }
+    else if (bHitWorld)
+    {
+        TargetHit = &HitResult;
+    }
+
+    if (TargetHit)
+    {
+        // Check if we're grappling an enemy
+        if (bGrapplingEnemy && TargetHit->GetActor())
+        {
+            // Verify the hit actor has the "Enemy" tag
+            if (TargetHit->GetActor()->Tags.Contains(FName("Enemy")))
+            {
+                GrappledActor = TargetHit->GetActor();
+                GrappleLocation = TargetHit->ImpactPoint;
+                IsGrappleActive = true;
+
+                // For enemy grappling, pull the enemy toward the player instead of player toward enemy
+                StartEnemyGrapple();
+            }
+            else
+            {
+                // Not a valid enemy, treat as world geometry
+                GrappledActor = nullptr;
+                GrappleLocation = TargetHit->ImpactPoint;
+                IsGrappleActive = true;
+                StartWorldGrapple();
+            }
+        }
+        else
+        {
+            // Regular world grappling
+            GrappledActor = nullptr;
+            GrappleLocation = TargetHit->ImpactPoint;
+            IsGrappleActive = true;
+            StartWorldGrapple();
+        }
+
+        // Common grapple setup
+        GrappleDistance = FVector::Dist(OwningCharacter->GetActorLocation(), GrappleLocation);
 
         GrappleOnCooldown = true;
         GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
@@ -180,15 +287,37 @@ void UGrappleComponent::FireGrapple()
     }
     else
     {
-        // If the line trace does not hit anything, do not fire the grapple
+        // If no trace hits anything, do not fire the grapple
         IsGrappleActive = false;
     }
     
 }
 
+// New function to handle enemy grappling
+void UGrappleComponent::StartEnemyGrapple()
+{
+    // For enemy grappling, we pull the enemy toward us rather than us toward the enemy
+    // Set different physics parameters if needed
+    if (OwningCharacter && OwningCharacter->GetCharacterMovement())
+    {
+        OwningCharacter->GetCharacterMovement()->GravityScale = 0.4f;
+    }
+}
+
+// New function to handle world grappling  
+void UGrappleComponent::StartWorldGrapple()
+{
+    // Standard world grappling setup
+    if (OwningCharacter && OwningCharacter->GetCharacterMovement())
+    {
+        OwningCharacter->GetCharacterMovement()->GravityScale = 0.4f;
+    }
+}
+
 void UGrappleComponent::ReleaseGrapple()
 {
     IsGrappleActive = false;
+    GrappledActor = nullptr;
 
     TargetFOV = OriginalFOV;
 
@@ -239,6 +368,13 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
     if (!OwningCharacter)
         return;
 
+    // If we're grappling an enemy, handle enemy pulling
+    if (GrappledActor && GrappledActor->Tags.Contains(FName("Enemy")))
+    {
+        ApplyEnemyGrapplePhysics(DeltaTime);
+        return;
+    }
+
     UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
     if (!CharacterMovement)
         return;
@@ -258,12 +394,25 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
     }
 
     ToGrapplePoint.Normalize();
+    float CurrentSpeed = CurrentVelocity.Size();
 
-    // 1. PULLING FORCE - Always pulls toward grapple point
-    FVector PullForce = ToGrapplePoint * GrappleSpeed;
+    // If we're moving very slowly (essentially stationary), use direct pull like original
+    if (CurrentSpeed < 300.0f)
+    {
+        // Use the original direct pull method for stationary/slow moving players
+        FVector DirectPullForce = ToGrapplePoint * GrappleSpeed;
+        CharacterMovement->Launch(DirectPullForce);
+        return;
+    }
+
+    // For moving players, apply FULL POWER swing physics
+
+    // 1. PULLING FORCE - Full strength pull toward grapple point
+    float PullStrength = FMath::Max(GrappleSpeed, MinimumPullForce);
+    FVector PullForce = ToGrapplePoint * PullStrength;
     CurrentVelocity += PullForce * DeltaTime;
 
-    // 2. PENDULUM CONSTRAINT - Maintains rope length for swinging
+    // 2. PENDULUM CONSTRAINT - Strong constraint to maintain rope length
     float DistanceError = CurrentDistance - GrappleDistance;
     if (DistanceError > 0) // Only prevent stretching, allow compression
     {
@@ -271,13 +420,13 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
         CurrentVelocity += ConstraintForce * DeltaTime;
     }
 
-    // 3. SWING INPUT - Allow player to add momentum perpendicular to rope
+    // 3. SWING INPUT - Full power swing input
     ApplySwingInput(CurrentVelocity, ToGrapplePoint, DeltaTime);
 
-    // 4. Apply damping to prevent excessive speed buildup
+    // 4. Apply minimal damping to maintain momentum and "umph"
     CurrentVelocity *= SwingDamping;
 
-    // 5. Clamp maximum speed
+    // 5. Clamp maximum speed (higher limit for more umph)
     if (CurrentVelocity.Size() > MaxSwingSpeed)
     {
         CurrentVelocity = CurrentVelocity.GetSafeNormal() * MaxSwingSpeed;
@@ -292,6 +441,64 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
         ReleaseGrapple();
     }
 }
+
+// New function to handle enemy grapple physics
+void UGrappleComponent::ApplyEnemyGrapplePhysics(float DeltaTime)
+{
+    if (!GrappledActor || !OwningCharacter)
+    {
+        ReleaseGrapple();
+        return;
+    }
+
+    // Check if the enemy is still valid and has the Enemy tag
+    if (!GrappledActor->Tags.Contains(FName("Enemy")))
+    {
+        ReleaseGrapple();
+        return;
+    }
+
+    FVector PlayerLocation = OwningCharacter->GetActorLocation();
+    FVector EnemyLocation = GrappledActor->GetActorLocation();
+    FVector ToPlayer = PlayerLocation - EnemyLocation;
+    float DistanceToPlayer = ToPlayer.Size();
+
+    // Release if enemy gets too close
+    if (DistanceToPlayer <= EnemyGrappleEndThreshold)
+    {
+        ReleaseGrapple();
+        return;
+    }
+
+    // Pull the enemy toward the player
+    ToPlayer.Normalize();
+    FVector PullForce = ToPlayer * EnemyPullForce;
+
+    // Try to get the enemy's character movement component
+    if (ACharacter* EnemyCharacter = Cast<ACharacter>(GrappledActor))
+    {
+        if (UCharacterMovementComponent* EnemyMovement = EnemyCharacter->GetCharacterMovement())
+        {
+            // Launch the enemy toward the player
+            EnemyMovement->Launch(PullForce);
+        }
+    }
+    else
+    {
+        // If it's not a character, try to move it using physics
+        if (UPrimitiveComponent* EnemyPrimitive = Cast<UPrimitiveComponent>(GrappledActor->GetRootComponent()))
+        {
+            if (EnemyPrimitive->IsSimulatingPhysics())
+            {
+                EnemyPrimitive->AddForce(PullForce, NAME_None, true);
+            }
+        }
+    }
+
+    // Update grapple location to enemy's current position
+    GrappleLocation = EnemyLocation;
+}
+
 
 //bool UGrappleComponent::ShouldTransitionToSwing()
 //{
@@ -485,6 +692,16 @@ void UGrappleComponent::UpdateGrappleVisual()
     FVector StartPoint = OwningCharacter->GetActorLocation();
     FVector EndPoint = GrappleLocation;
 
+    // If we're grappling an enemy, use their current location
+    if (GrappledActor)
+    {
+        EndPoint = GrappledActor->GetActorLocation();
+    }
+    else
+    {
+        EndPoint = GrappleLocation;
+    }
+
     // Calculate midpoint
     FVector MidPoint = (StartPoint + EndPoint) * 0.5f;
 
@@ -507,6 +724,8 @@ void UGrappleComponent::UpdateGrappleVisual()
     Scale.Z = Distance / 100.0f; // Adjust the divisor based on your mesh size
     GrappleVisualMesh->SetWorldScale3D(Scale);
 }
+
+
 
 
 

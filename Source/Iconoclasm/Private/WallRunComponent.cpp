@@ -43,11 +43,9 @@ void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	// Constantly check if the character can start wall running
 	if (WallRunCooldownActive)
 	{
-		// Do not allow wall running if cooldown is active
 		return;
 	}
 
-	// Make sure we have a valid character and movement component
 	if (!OwningCharacter)
 	{
 		return;
@@ -59,10 +57,10 @@ void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 		return;
 	}
 
-	// Constantly check if the character can start wall running
 	FVector OutWallNormal, OutWallRunDirection;
 	bool DetectedWall = DetectWall(OutWallNormal, OutWallRunDirection);
 	bool bIsFalling = MovementComp->IsFalling();
+	bool bIsGrounded = MovementComp->IsMovingOnGround(); // Add this check
 
 	// If a wall is detected and the character is not already wall running, start wall running
 	if (DetectedWall && bIsFalling && !IsWallRunning)
@@ -71,18 +69,24 @@ void UWallRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	}
 	else if (IsWallRunning)
 	{
+		// Stop wall running if character has reached the ground
+		if (bIsGrounded)
+		{
+			StopWallRun();
+			return;
+		}
+
 		// If the character is wall running, continue checking if still near the wall
-		if (DetectedWall)
+		if (DetectedWall && bIsFalling) // Also check bIsFalling here
 		{
 			// Continue wall running
 			WallNormal = OutWallNormal;
 			WallRunDirection = OutWallRunDirection;
-			// Apply the fixed wall run velocity every frame
 			WallRun();
 		}
 		else
 		{
-			// If no wall is detected, stop wall running
+			// If no wall is detected or not falling, stop wall running
 			StopWallRun();
 		}
 	}
