@@ -51,7 +51,7 @@ void UEndLevelWidget::SetEndLevelTime(float TimeInSeconds, const FString& TimeRa
     int32 Seconds = (TotalMilliseconds % 60000) / 1000;
     int32 Milliseconds = TotalMilliseconds % 1000;
 
-    FString TimeString = FString::Printf(TEXT("Time: %02d:%02d.%03d"), Minutes, Seconds, Milliseconds);
+    FString TimeString = FString::Printf(TEXT("Time: %02d:%02d:%03d"), Minutes, Seconds, Milliseconds);
 
     if (TimeText)
     {

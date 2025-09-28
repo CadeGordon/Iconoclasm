@@ -20,7 +20,10 @@ void UScoreWidget::NativeConstruct()
             1000,   // C tier starts at 1000
             3000,   // B tier starts at 3000
             6000,   // A tier starts at 6000
-            10000   // S tier starts at 10000
+            10000,   // S tier starts at 10000
+            15000,
+            20000,
+            25000
         };
     }
 
@@ -47,6 +50,9 @@ FString UScoreWidget::GetTierName(EScoreTier Tier) const
     case EScoreTier::B: return TEXT("B");
     case EScoreTier::A: return TEXT("A");
     case EScoreTier::S: return TEXT("S");
+    case EScoreTier::SS: return TEXT("SS");
+    case EScoreTier::SSS: return TEXT("SSS");
+    case EScoreTier::I: return TEXT("I");
     default: return TEXT("Unknown");
     }
 }
@@ -116,6 +122,9 @@ void UScoreWidget::UpdateScoreDisplay()
         case EScoreTier::B: BarColor = FLinearColor::Green; break;
         case EScoreTier::A: BarColor = FLinearColor::Yellow; break;
         case EScoreTier::S: BarColor = FLinearColor::Red; break;
+        case EScoreTier::SS: BarColor = FLinearColor::Red; break;
+        case EScoreTier::SSS: BarColor = FLinearColor::Red; break;
+        case EScoreTier::I: BarColor = FLinearColor::Red; break;
         }
         ScoreProgressBar->SetFillColorAndOpacity(BarColor);
     }
