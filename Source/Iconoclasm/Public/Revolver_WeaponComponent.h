@@ -153,8 +153,10 @@ private:
 
 	void ResetHellfireCooldown();
 
-	UFUNCTION()
-	TArray<AActor*> FindNearestEnemies(const FVector& Location, int32 MaxEnemies);
+	//UFUNCTION()
+	//TArray<AActor*> FindNearestEnemies(const FVector& Location, int32 MaxEnemies);
+
+	TArray<AActor*> FindNearestEnemiesInRadius(const FVector& Location, int32 MaxEnemies, float SearchRadius);
 
 	// Private helper functions
 	void StartChargingShot();

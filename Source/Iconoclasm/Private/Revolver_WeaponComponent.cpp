@@ -461,9 +461,11 @@ void URevolver_WeaponComponent::AltHellfireMode()
 	bCanFireAltHellfire = false; // Set to false to trigger cooldown
 
 	float BaseDamage = 5000.0f; // Base damage for initial line trace
-	float SplitDamage = 30000.0f; // Damage for each split trace
+	float EnemyHitSplitDamage = 30000.0f; // Damage for each split trace when hitting enemy
+	float SurfaceBounceShatterDamage = 35000.0f; // Increased damage for surface bounce shatter
 	float MaxRange = 200000.0f; // Maximum range for initial trace
-	float SplitRange = 100000.0f; // Maximum range for split traces
+	float BounceRange = 200000.0f; // Maximum range for bounce trace
+	float ShatterSearchRadius = 50000.0f; // Radius to search for enemies when shattering (500m)
 
 	// Initial line trace
 	FVector StartLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
@@ -478,8 +480,6 @@ void URevolver_WeaponComponent::AltHellfireMode()
 	float TraceRadius = 50.0f; // Thickness of the trace
 	FCollisionShape TraceSphere = FCollisionShape::MakeSphere(TraceRadius);
 
-
-
 	bool bInitialHit = GetWorld()->SweepSingleByChannel(
 		InitialHitResult,
 		StartLocation,
@@ -490,15 +490,16 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		QueryParams
 	);
 
-	FVector ImpactLocation;
+	FVector ShatterLocation;
+	float ShatterDamage = EnemyHitSplitDamage;
+	bool bShouldShatter = false;
+
 	if (bInitialHit)
 	{
-		ImpactLocation = InitialHitResult.Location;
-
-		// Apply damage to the initially hit actor
-		if (InitialHitResult.GetActor())
+		// Check if we hit an enemy (Pawn)
+		if (InitialHitResult.GetActor() && InitialHitResult.GetActor()->IsA(APawn::StaticClass()))
 		{
-			// Before ApplyDamage
+			// Hit an enemy - apply damage and shatter immediately
 			Character->bLastAttackWasShatterShot = true;
 
 			UGameplayStatics::ApplyDamage(
@@ -508,118 +509,261 @@ void URevolver_WeaponComponent::AltHellfireMode()
 				Character,
 				UDamageType::StaticClass()
 			);
-		}
-	}
-	else
-	{
-		// If no hit, use the end location as impact point
-		ImpactLocation = EndLocation;
-	}
 
-	// --- Spawn tracer for initial shot ---
-	if (RevolverShotParticle) // Make sure you assign a Niagara system for this
-	{
-		UNiagaraComponent* TracerComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-			GetWorld(),
-			RevolverShotParticle,
-			StartLocation
-		);
+			ShatterLocation = InitialHitResult.Location;
+			ShatterDamage = EnemyHitSplitDamage;
+			bShouldShatter = true;
 
-		if (TracerComp)
-		{
-			FRotator TracerRotation = (ImpactLocation - StartLocation).Rotation();
-			TracerComp->SetWorldRotation(TracerRotation);
-
-			float Distance = FVector::Distance(StartLocation, ImpactLocation);
-			TracerComp->SetWorldScale3D(FVector(Distance / 100.0f, 1.0f, 1.0f));
-		}
-	}
-
-	// Find the two nearest enemies from the impact location
-	TArray<AActor*> NearestEnemies = FindNearestEnemies(ImpactLocation, 2);
-
-	// Fire split traces to the nearest enemies
-	for (AActor* Enemy : NearestEnemies)
-	{
-		if (Enemy)
-		{
-			FVector SplitEndLocation = Enemy->GetActorLocation();
-			FHitResult SplitHitResult;
-
-			// Perform split sphere trace (thicker line trace)
-			float SplitTraceRadius = 30.0f; // Slightly smaller radius for split traces
-			FCollisionShape SplitTraceSphere = FCollisionShape::MakeSphere(SplitTraceRadius);
-
-			bool bSplitHit = GetWorld()->SweepSingleByChannel(
-				SplitHitResult,
-				ImpactLocation,
-				SplitEndLocation,
-				FQuat::Identity,
-				ECC_Pawn,
-				SplitTraceSphere,
-				QueryParams
-			);
-
-			if (bSplitHit && SplitHitResult.GetActor())
-			{
-				Character->bLastAttackWasShatterShot = true;
-
-				// Apply damage to the hit actor
-				UGameplayStatics::ApplyDamage(
-					SplitHitResult.GetActor(),
-					SplitDamage,
-					Character->GetController(),
-					Character,
-					UDamageType::StaticClass()
-				);
-			}
-
-			// --- Spawn tracer for split shot ---
+			// Spawn tracer for initial shot
 			if (RevolverShotParticle)
 			{
-				UNiagaraComponent* SplitTracer = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+				UNiagaraComponent* TracerComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 					GetWorld(),
 					RevolverShotParticle,
-					ImpactLocation
+					StartLocation
 				);
 
-				if (SplitTracer)
+				if (TracerComp)
 				{
-					FRotator SplitRotation = (SplitEndLocation - ImpactLocation).Rotation();
-					SplitTracer->SetWorldRotation(SplitRotation);
+					FRotator TracerRotation = (ShatterLocation - StartLocation).Rotation();
+					TracerComp->SetWorldRotation(TracerRotation);
 
-					float SplitDistance = FVector::Distance(ImpactLocation, SplitEndLocation);
-					SplitTracer->SetWorldScale3D(FVector(SplitDistance / 100.0f, 1.0f, 1.0f));
+					float Distance = FVector::Distance(StartLocation, ShatterLocation);
+					TracerComp->SetWorldScale3D(FVector(Distance / 100.0f, 1.0f, 1.0f));
 				}
 			}
 
-
-			// Optional: Draw debug line for split traces
+			// Draw debug line
 			DrawDebugLine(
 				GetWorld(),
-				ImpactLocation,
-				SplitEndLocation,
-				FColor::Orange,
+				StartLocation,
+				ShatterLocation,
+				FColor::Red,
 				false,
 				2.0f,
 				0,
-				3.0f
+				5.0f
 			);
+		}
+		else
+		{
+			// Hit a surface - bounce off and find second impact
+			FVector BounceStart = InitialHitResult.Location;
+			FVector IncomingDirection = ForwardVector;
+			FVector SurfaceNormal = InitialHitResult.Normal;
+
+			// Calculate reflection direction
+			FVector BounceDirection = IncomingDirection - (2.0f * FVector::DotProduct(IncomingDirection, SurfaceNormal) * SurfaceNormal);
+			BounceDirection.Normalize();
+
+			// Offset the bounce start slightly along the normal to avoid hitting the same surface
+			FVector BounceStartOffset = BounceStart + (SurfaceNormal * 10.0f);
+			FVector BounceEnd = BounceStartOffset + (BounceDirection * BounceRange);
+
+			// Create new query params for bounce and ignore the surface we just hit
+			FCollisionQueryParams BounceQueryParams;
+			BounceQueryParams.AddIgnoredActor(Character);
+			if (InitialHitResult.GetActor())
+			{
+				BounceQueryParams.AddIgnoredActor(InitialHitResult.GetActor());
+			}
+
+			// Perform bounce trace
+			FHitResult BounceHitResult;
+			bool bBounceHit = GetWorld()->SweepSingleByChannel(
+				BounceHitResult,
+				BounceStartOffset,
+				BounceEnd,
+				FQuat::Identity,
+				ECC_Pawn,
+				TraceSphere,
+				BounceQueryParams
+			);
+
+			// Spawn tracer for initial shot to first surface
+			if (RevolverShotParticle)
+			{
+				UNiagaraComponent* TracerComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+					GetWorld(),
+					RevolverShotParticle,
+					StartLocation
+				);
+
+				if (TracerComp)
+				{
+					FRotator TracerRotation = (BounceStart - StartLocation).Rotation();
+					TracerComp->SetWorldRotation(TracerRotation);
+
+					float Distance = FVector::Distance(StartLocation, BounceStart);
+					TracerComp->SetWorldScale3D(FVector(Distance / 100.0f, 1.0f, 1.0f));
+				}
+			}
+
+			// Draw debug line for first impact
+			DrawDebugLine(
+				GetWorld(),
+				StartLocation,
+				BounceStart,
+				FColor::Yellow,
+				false,
+				2.0f,
+				0,
+				5.0f
+			);
+
+			if (bBounceHit)
+			{
+				ShatterLocation = BounceHitResult.Location;
+				ShatterDamage = SurfaceBounceShatterDamage; // Increased damage for bounce shatter
+				bShouldShatter = true;
+
+				// Spawn tracer for bounce shot
+				if (RevolverShotParticle)
+				{
+					UNiagaraComponent* BounceTracer = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+						GetWorld(),
+						RevolverShotParticle,
+						BounceStart
+					);
+
+					if (BounceTracer)
+					{
+						FRotator BounceRotation = (ShatterLocation - BounceStart).Rotation();
+						BounceTracer->SetWorldRotation(BounceRotation);
+
+						float BounceDistance = FVector::Distance(BounceStart, ShatterLocation);
+						BounceTracer->SetWorldScale3D(FVector(BounceDistance / 100.0f, 1.0f, 1.0f));
+					}
+				}
+
+				// Draw debug line for bounce
+				DrawDebugLine(
+					GetWorld(),
+					BounceStart,
+					ShatterLocation,
+					FColor::Cyan,
+					false,
+					2.0f,
+					0,
+					5.0f
+				);
+			}
+			else
+			{
+				// Bounce didn't hit anything - shatter at end of bounce trace
+				ShatterLocation = BounceEnd;
+				ShatterDamage = SurfaceBounceShatterDamage;
+				bShouldShatter = true;
+
+				// Spawn tracer for bounce shot
+				if (RevolverShotParticle)
+				{
+					UNiagaraComponent* BounceTracer = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+						GetWorld(),
+						RevolverShotParticle,
+						BounceStart
+					);
+
+					if (BounceTracer)
+					{
+						FRotator BounceRotation = (ShatterLocation - BounceStart).Rotation();
+						BounceTracer->SetWorldRotation(BounceRotation);
+
+						float BounceDistance = FVector::Distance(BounceStart, ShatterLocation);
+						BounceTracer->SetWorldScale3D(FVector(BounceDistance / 100.0f, 1.0f, 1.0f));
+					}
+				}
+
+				// Draw debug line
+				DrawDebugLine(
+					GetWorld(),
+					BounceStart,
+					ShatterLocation,
+					FColor::Cyan,
+					false,
+					2.0f,
+					0,
+					5.0f
+				);
+			}
 		}
 	}
 
-	// Optional: Draw debug line for initial trace
-	DrawDebugLine(
-		GetWorld(),
-		StartLocation,
-		ImpactLocation,
-		FColor::Red,
-		false,
-		2.0f,
-		0,
-		5.0f
-	);
+	// Shatter logic - always happens after determining shatter location
+	if (bShouldShatter)
+	{
+		// Find nearest enemies within radius from shatter location
+		TArray<AActor*> NearestEnemies = FindNearestEnemiesInRadius(ShatterLocation, 2, ShatterSearchRadius);
 
+		// Fire split traces to the nearest enemies (if any found in radius)
+		for (AActor* Enemy : NearestEnemies)
+		{
+			if (Enemy)
+			{
+				FVector SplitEndLocation = Enemy->GetActorLocation();
+				FHitResult SplitHitResult;
+
+				// Perform split sphere trace
+				float SplitTraceRadius = 30.0f;
+				FCollisionShape SplitTraceSphere = FCollisionShape::MakeSphere(SplitTraceRadius);
+
+				bool bSplitHit = GetWorld()->SweepSingleByChannel(
+					SplitHitResult,
+					ShatterLocation,
+					SplitEndLocation,
+					FQuat::Identity,
+					ECC_Pawn,
+					SplitTraceSphere,
+					QueryParams
+				);
+
+				if (bSplitHit && SplitHitResult.GetActor())
+				{
+					Character->bLastAttackWasShatterShot = true;
+
+					// Apply damage to the hit actor
+					UGameplayStatics::ApplyDamage(
+						SplitHitResult.GetActor(),
+						ShatterDamage,
+						Character->GetController(),
+						Character,
+						UDamageType::StaticClass()
+					);
+				}
+
+				// Spawn tracer for split shot
+				if (RevolverShotParticle)
+				{
+					UNiagaraComponent* SplitTracer = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+						GetWorld(),
+						RevolverShotParticle,
+						ShatterLocation
+					);
+
+					if (SplitTracer)
+					{
+						FRotator SplitRotation = (SplitEndLocation - ShatterLocation).Rotation();
+						SplitTracer->SetWorldRotation(SplitRotation);
+
+						float SplitDistance = FVector::Distance(ShatterLocation, SplitEndLocation);
+						SplitTracer->SetWorldScale3D(FVector(SplitDistance / 100.0f, 1.0f, 1.0f));
+					}
+				}
+
+				// Draw debug line for split traces
+				DrawDebugLine(
+					GetWorld(),
+					ShatterLocation,
+					SplitEndLocation,
+					FColor::Orange,
+					false,
+					2.0f,
+					0,
+					3.0f
+				);
+			}
+		}
+	}
 
 	// Play fire sound
 	if (FireSound != nullptr)
@@ -642,30 +786,30 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		TimerHandle_AltHellfireCooldown,
 		[this]()
 		{
-			bCanFireAltHellfire = true; // Reset AltHellfire to be used again
+			bCanFireAltHellfire = true;
 		},
-		3.0f, // Cooldown duration for AltHellfire
+		3.0f,
 		false
 	);
 
 	// Update AltHellfire cooldown progress bar to 0% when activated
 	if (RevolverHUD != nullptr)
 	{
-		RevolverHUD->UpdateAltHellfireCooldownProgress(0.0f); // Set to 0% immediately
+		RevolverHUD->UpdateAltHellfireCooldownProgress(0.0f);
 	}
 
-	// Start updating the progress for the cooldown (filling up to 100%)
+	// Start updating the progress for the cooldown
 	GetWorld()->GetTimerManager().SetTimer(
 		TimerHandle_AltHellfireProgress,
 		this,
 		&URevolver_WeaponComponent::HandleHellfireAltCooldown,
-		0.01f, // Update the progress every 0.01 seconds
+		0.01f,
 		true
 	);
 }
 
 // Helper function to find nearest enemies
-TArray<AActor*> URevolver_WeaponComponent::FindNearestEnemies(const FVector& Location, int32 MaxEnemies)
+TArray<AActor*> URevolver_WeaponComponent::FindNearestEnemiesInRadius(const FVector& Location, int32 MaxEnemies, float SearchRadius)
 {
 	TArray<AActor*> NearestEnemies;
 	TArray<AActor*> AllPawns;
@@ -686,7 +830,12 @@ TArray<AActor*> URevolver_WeaponComponent::FindNearestEnemies(const FVector& Loc
 
 		// Calculate distance
 		float Distance = FVector::Dist(Location, Pawn->GetActorLocation());
-		EnemyDistances.Add(TPair<float, AActor*>(Distance, Pawn));
+
+		// Only consider enemies within the search radius
+		if (Distance <= SearchRadius)
+		{
+			EnemyDistances.Add(TPair<float, AActor*>(Distance, Pawn));
+		}
 	}
 
 	// Sort by distance (closest first)
