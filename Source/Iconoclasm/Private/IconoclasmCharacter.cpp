@@ -24,6 +24,7 @@
 #include "Blueprint/UserWidget.h"
 #include "HealthComponent.h"
 #include "DeathScreenHUD.h"
+#include "GrappleComponent.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -333,6 +334,8 @@ void AIconoclasmCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::DoubleJump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::SlideJump);
 
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AIconoclasmCharacter::WallJump);
+
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AIconoclasmCharacter::Move);
 
@@ -608,6 +611,8 @@ void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 	CanDashAgain = true;
 	JumpCount = 0;
 	bHasLeftGround = false;
+	bCanWallJump = true;
+	WallJumpCount = 0;
 
 	// If there are no dash charges, start recharging them
 	if (DashCharges == 0)
@@ -735,12 +740,41 @@ bool AIconoclasmCharacter::HasWeaponEquipped() const
 
 void AIconoclasmCharacter::PerformMelee()
 {
-
 	if (!bCanMelee)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Melee is on cooldown."));
 		return;
 	}
+
+	// Check if we're holding a grappled enemy first
+	UGrappleComponent* GrappleComp = FindComponentByClass<UGrappleComponent>();
+	if (GrappleComp && GrappleComp->IsHoldingEnemy())
+	{
+		// Execute the grabbed enemy
+		GrappleComp->ExecuteGrabbedEnemy();
+
+		// Heal the player for executing an enemy
+		UHealthComponent* PlayerHealthComp = FindComponentByClass<UHealthComponent>();
+		if (PlayerHealthComp)
+		{
+			float HealAmount = 50.0f; // Adjust this value as needed
+			PlayerHealthComp->Heal(HealAmount);
+			UE_LOG(LogTemp, Log, TEXT("Enemy executed! Healed for %f"), HealAmount);
+		}
+
+		// Start cooldown for execution
+		bCanMelee = false;
+		GetWorldTimerManager().SetTimer(MeleeCooldownTimerHandle, [this]()
+			{
+				bCanMelee = true;
+				UE_LOG(LogTemp, Log, TEXT("Melee cooldown reset."));
+			}, MeleeCooldownDuration, false);
+
+		bLastAttackWasMelee = true;
+		return; // Exit early, don't do regular melee
+	}
+
+	// === Regular melee logic if not holding an enemy ===
 
 	// Start cooldown
 	bCanMelee = false;
@@ -749,8 +783,6 @@ void AIconoclasmCharacter::PerformMelee()
 			bCanMelee = true;
 			UE_LOG(LogTemp, Log, TEXT("Melee cooldown reset."));
 		}, MeleeCooldownDuration, false);
-
-	// === Your existing melee logic ===
 
 	float MeleeDamage = 1000000.0f;
 
@@ -947,4 +979,138 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 			DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 12, FColor::Red, false, 1.0f, 0, 1.0f);
 		}
 	}
+}
+
+void AIconoclasmCharacter::WallJump()
+{
+	// Check if we're in the air and can wall jump
+	if (!GetCharacterMovement()->IsFalling() || !bCanWallJump)
+	{
+		return;
+	}
+
+	// Check if we've reached the maximum wall jumps
+	if (WallJumpCount >= MaxWallJumps)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Maximum wall jumps reached! (%d/%d)"), WallJumpCount, MaxWallJumps);
+		return;
+	}
+
+	FVector WallNormal;
+	if (!CanPerformWallJump(WallNormal))
+	{
+		return;
+	}
+
+	// Calculate launch direction
+	// Wall normal points away from wall, so we use it as the backward direction
+	FVector UpwardDirection = FVector::UpVector;
+	FVector BackwardDirection = WallNormal; // Away from wall
+
+	// Combine upward and backward forces
+	FVector LaunchVelocity = (UpwardDirection * WallJumpUpwardForce) +
+		(BackwardDirection * WallJumpBackwardForce);
+
+	// Launch the character
+	LaunchCharacter(LaunchVelocity, true, true);
+
+	// Increment wall jump count
+	WallJumpCount++;
+
+	// Reset jump count to allow another jump/double jump
+	JumpCount = 1; // Set to 1 so player can still double jump after wall jump
+
+	// Start cooldown
+	bCanWallJump = false;
+	GetWorldTimerManager().SetTimer(
+		WallJumpCooldownTimerHandle,
+		this,
+		&AIconoclasmCharacter::ResetWallJumpCooldown,
+		WallJumpCooldown,
+		false
+	);
+
+	// Visual feedback (optional)
+	DrawDebugLine(
+		GetWorld(),
+		GetActorLocation(),
+		GetActorLocation() + (LaunchVelocity.GetSafeNormal() * 200.0f),
+		FColor::Green,
+		false,
+		1.0f,
+		0,
+		3.0f
+	);
+
+	UE_LOG(LogTemp, Warning, TEXT("Wall Jump performed! (%d/%d)"), WallJumpCount, MaxWallJumps);
+}
+
+bool AIconoclasmCharacter::CanPerformWallJump(FVector& OutWallNormal)
+{
+	// Get camera forward vector (where player is looking)
+	FVector CameraForward = FirstPersonCameraComponent->GetForwardVector();
+	FVector Start = GetActorLocation();
+	FVector End = Start + (CameraForward * WallCheckDistance);
+
+	// Perform line trace to check for wall
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	bool bHitWall = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		ECC_Visibility,
+		QueryParams
+	);
+
+	// Debug visualization
+	DrawDebugLine(
+		GetWorld(),
+		Start,
+		End,
+		bHitWall ? FColor::Green : FColor::Red,
+		false,
+		0.1f,
+		0,
+		2.0f
+	);
+
+	if (!bHitWall)
+	{
+		return false;
+	}
+
+	// Check if we hit a valid wall (not floor or ceiling)
+	OutWallNormal = HitResult.ImpactNormal;
+	float WallAngle = FMath::Abs(FVector::DotProduct(OutWallNormal, FVector::UpVector));
+
+	// Wall should be mostly vertical (dot product close to 0 means perpendicular to up vector)
+	if (WallAngle > 0.3f) // 0 = perfectly vertical, 1 = horizontal
+	{
+		return false;
+	}
+
+	// Project camera forward onto horizontal plane to check if looking at wall
+	// This allows looking up/down while still facing the wall
+	FVector CameraForwardHorizontal = CameraForward;
+	CameraForwardHorizontal.Z = 0.0f; // Remove vertical component
+	CameraForwardHorizontal.Normalize();
+
+	// Check if player is looking roughly perpendicular to the wall (ignoring pitch)
+	float LookAngle = FVector::DotProduct(CameraForwardHorizontal, -OutWallNormal);
+	float AngleThreshold = FMath::Cos(FMath::DegreesToRadians(WallJumpAngleThreshold));
+
+	if (LookAngle < AngleThreshold)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+void AIconoclasmCharacter::ResetWallJumpCooldown()
+{
+	bCanWallJump = true;
 }

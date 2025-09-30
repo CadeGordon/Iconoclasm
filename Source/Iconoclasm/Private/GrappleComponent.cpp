@@ -13,6 +13,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
 #include "WallRunComponent.h"
+#include "GruntAIController.h"
 
 
 // Sets default values for this component's properties
@@ -89,6 +90,8 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+    UpdateGrabbedEnemyPosition();
+
     if (IsGrappleActive)
     {
         // Check if grounded and release grapple if true (but only if we weren't grounded when we started)
@@ -158,6 +161,14 @@ void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
 void UGrappleComponent::FireGrapple()
 {
+
+    // Can't grapple while holding an enemy
+    if (bIsHoldingEnemy)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cannot grapple while holding an enemy! Execute or release them first."));
+        return;
+    }
+
     // If already grappling, release the grapple instead of firing a new one
     if (IsGrappleActive)
     {
@@ -300,7 +311,7 @@ void UGrappleComponent::StartEnemyGrapple()
     // Set different physics parameters if needed
     if (OwningCharacter && OwningCharacter->GetCharacterMovement())
     {
-        OwningCharacter->GetCharacterMovement()->GravityScale = 0.4f;
+        OwningCharacter->GetCharacterMovement()->GravityScale = 2.0f;
     }
 }
 
@@ -375,6 +386,8 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
         return;
     }
 
+
+    // Otherwise, use the existing world grapple physics
     UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
     if (!CharacterMovement)
         return;
@@ -466,7 +479,7 @@ void UGrappleComponent::ApplyEnemyGrapplePhysics(float DeltaTime)
     // Release if enemy gets too close
     if (DistanceToPlayer <= EnemyGrappleEndThreshold)
     {
-        ReleaseGrapple();
+        GrabEnemy();
         return;
     }
 
@@ -497,6 +510,109 @@ void UGrappleComponent::ApplyEnemyGrapplePhysics(float DeltaTime)
 
     // Update grapple location to enemy's current position
     GrappleLocation = EnemyLocation;
+}
+
+// New function to grab and hold the enemy
+void UGrappleComponent::GrabEnemy()
+{
+    if (!GrappledActor || !OwningCharacter)
+    {
+        ReleaseGrapple();
+        return;
+    }
+
+    // Store the grabbed enemy
+    GrabbedEnemy = GrappledActor;
+    bIsHoldingEnemy = true;
+
+    // End the grapple phase
+    IsGrappleActive = false;
+    GrappledActor = nullptr;
+
+    // Hide grapple visual
+    HideGrappleVisual();
+
+    // Disable enemy AI and physics
+    if (ACharacter* EnemyCharacter = Cast<ACharacter>(GrabbedEnemy))
+    {
+        //// Disable AI
+        //if (AGruntAIController* GruntAIController = Cast<AGruntAIController>(EnemyCharacter->GetController()))
+        //{
+        //    GruntAIController->GetBrainComponent()->StopLogic("Grabbed");
+        //}
+
+        // Disable movement
+        if (UCharacterMovementComponent* EnemyMovement = EnemyCharacter->GetCharacterMovement())
+        {
+            EnemyMovement->DisableMovement();
+        }
+
+        // Disable collision with the player
+        EnemyCharacter->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+    }
+
+    // Position enemy in front of player
+    UpdateGrabbedEnemyPosition();
+
+    UE_LOG(LogTemp, Warning, TEXT("Enemy grabbed! Press melee to execute."));
+}
+
+// Update the grabbed enemy's position every frame
+void UGrappleComponent::UpdateGrabbedEnemyPosition()
+{
+    if (!bIsHoldingEnemy || !GrabbedEnemy || !OwningCharacter)
+    {
+        //ReleaseGrabbedEnemy();
+        return;
+    }
+
+    // Check if the enemy is still valid
+    if (!IsValid(GrabbedEnemy))
+    {
+        bIsHoldingEnemy = false;
+        GrabbedEnemy = nullptr;
+        return;
+    }
+
+    // Calculate position in front of player
+    FVector PlayerLocation = OwningCharacter->GetActorLocation();
+    FVector PlayerForward = OwningCharacter->GetActorForwardVector();
+    FVector HoldPosition = PlayerLocation + (PlayerForward * EnemyHoldDistance) + FVector(0, 0, EnemyHoldHeight);
+
+    // Smoothly interpolate to the hold position for better visuals
+    FVector CurrentEnemyLocation = GrabbedEnemy->GetActorLocation();
+    FVector NewLocation = FMath::VInterpTo(CurrentEnemyLocation, HoldPosition, GetWorld()->GetDeltaSeconds(), 15.0f);
+
+    // Set enemy location
+    GrabbedEnemy->SetActorLocation(HoldPosition);
+
+    // Make enemy face the player
+    FRotator LookAtPlayer = UKismetMathLibrary::FindLookAtRotation(GrabbedEnemy->GetActorLocation(), PlayerLocation);
+    GrabbedEnemy->SetActorRotation(LookAtPlayer);
+}
+
+// Execute (destroy) the grabbed enemy - call this from melee input
+void UGrappleComponent::ExecuteGrabbedEnemy()
+{
+    if (!bIsHoldingEnemy || !GrabbedEnemy)
+    {
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Executing grabbed enemy!"));
+
+    // Optional: Spawn particles, play sound, etc. here
+    // You could also play an execution animation on the player
+
+    // Destroy the enemy
+    GrabbedEnemy->Destroy();
+
+    // Clear references
+    GrabbedEnemy = nullptr;
+    bIsHoldingEnemy = false;
+
+    // Restore normal FOV if it was changed
+    TargetFOV = OriginalFOV;
 }
 
 

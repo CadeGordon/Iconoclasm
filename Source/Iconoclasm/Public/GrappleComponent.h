@@ -34,6 +34,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReleaseGrapple();
 
+	// Add these public functions to your GrappleComponent.h:
+	UFUNCTION(BlueprintCallable, Category = "Grapple")
+	void ExecuteGrabbedEnemy(); // Call this from your melee button input
+
+	UFUNCTION(BlueprintCallable, Category = "Grapple")
+	bool IsHoldingEnemy() const { return bIsHoldingEnemy; }
+
 private:
 	void PullCharacterToLocation(const FVector& Location);
 
@@ -68,6 +75,14 @@ private:
 	void StartEnemyGrapple();
 
 	void ApplyEnemyGrapplePhysics(float DeltaTime);
+
+	
+
+	void GrabEnemy();
+
+	void UpdateGrabbedEnemyPosition();
+
+	
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
@@ -120,6 +135,12 @@ public:
 	UPROPERTY()
 	class AActor* GrappledActor; // The actor we're grappling (if it's an enemy)
 
+	UPROPERTY()
+	class AActor* GrabbedEnemy;
+
+	UPROPERTY()
+	bool bIsHoldingEnemy = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
 	bool bCanGrappleEnemies = true;
 
@@ -132,6 +153,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
 	float EnemyGrappleEndThreshold = 500.0f;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
+	float EnemyHoldDistance = 150.0f; // Distance in front of player to hold enemy
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grapple", meta = (AllowPrivateAccess = "true"))
+	float EnemyHoldHeight = 50.0f; // Height offset for holding enemy
 
 
 

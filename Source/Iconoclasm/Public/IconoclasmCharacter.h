@@ -184,6 +184,11 @@ public:
 
 		UFUNCTION()
 		UHealthComponent* GetHealthComponent() const;
+
+		// Wall Jump Functions
+		void WallJump();
+		bool CanPerformWallJump(FVector& OutWallNormal);
+		void ResetWallJumpCooldown();
 	
 	
 
@@ -338,6 +343,18 @@ public:
 		float ProgressInterpSpeed; // The speed of interpolation
 
 		bool bHasLeftGround = false;
+
+		// Wall Jump Variables
+		bool bCanWallJump = true;
+		int32 WallJumpCount = 0;
+		int32 MaxWallJumps = 4;
+		float WallJumpCooldown = 0.3f;
+		FTimerHandle WallJumpCooldownTimerHandle;
+
+		float WallJumpUpwardForce = 1200.0f;
+		float WallJumpBackwardForce = 1500.0f;
+		float WallCheckDistance = 150.0f;
+		float WallJumpAngleThreshold = 45.0f;
 		
 };
 
