@@ -50,6 +50,13 @@ void URevolver_WeaponComponent::Fire()
 		}
 		break;
 	case ERevolverMode::RevolverMode2:
+		// Check if Hellfire mode is unlocked
+		if (!bHellfireModeUnlocked)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Hellfire mode is locked!"));
+			return;
+		}
+
 		if (bCanFireHellfire)
 		{
 			HellfireMode();
@@ -62,7 +69,7 @@ void URevolver_WeaponComponent::Fire()
 				false
 			);
 		}
-
+		break;
 	default:
 		break;
 	}
@@ -81,6 +88,12 @@ void URevolver_WeaponComponent::AltFire()
 		AltGunslingerMode();
 		break;
 	case ERevolverMode::RevolverMode2:
+		// Check if Hellfire mode is unlocked
+		if (!bHellfireModeUnlocked)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Hellfire mode is locked!"));
+			return;
+		}
 		AltHellfireMode();
 		break;
 	default:
@@ -90,8 +103,19 @@ void URevolver_WeaponComponent::AltFire()
 
 void URevolver_WeaponComponent::SwitchFireMode()
 {
+	// Store the current mode
+	ERevolverMode PreviousMode = CurrentWeaponMode;
+
 	// Cycle through the weapon modes
 	CurrentWeaponMode = static_cast<ERevolverMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(ERevolverMode::RevolverMode2) + 1));
+
+	// If we switched to Hellfire mode but it's locked, switch back
+	if (CurrentWeaponMode == ERevolverMode::RevolverMode2 && !bHellfireModeUnlocked)
+	{
+		CurrentWeaponMode = PreviousMode;
+		UE_LOG(LogTemp, Warning, TEXT("Cannot switch to Hellfire mode - it is locked!"));
+		return;
+	}
 
 	// Update UI color
 	if (RevolverHUD)
@@ -211,6 +235,28 @@ void URevolver_WeaponComponent::DetachFromCharacter()
 			RevolverHUD->SetVisibilityState(false);
 		}
 	}
+}
+
+void URevolver_WeaponComponent::UnlockHellfireMode()
+{
+	if (bHellfireModeUnlocked)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Hellfire mode is already unlocked!"));
+		return;
+	}
+
+	bHellfireModeUnlocked = true;
+	UE_LOG(LogTemp, Warning, TEXT("Hellfire mode unlocked!"));
+
+	// Hide the unlock widget
+	if (HellfireUnlockWidget)
+	{
+		HellfireUnlockWidget->RemoveFromParent();
+		HellfireUnlockWidget = nullptr;
+	}
+
+	
+	// Play unlock sound, show notification, etc.
 }
 
 void URevolver_WeaponComponent::PerformHitscan(FVector& ImpactLocation)

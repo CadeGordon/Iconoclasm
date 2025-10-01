@@ -106,8 +106,7 @@ private:
 	FTimerHandle TimerHandle_HellfireEffect;
 	FTimerHandle TimerHandle_HellfireStop;
 
-	/** The Character holding this weapon*/
-	AIconoclasmCharacter* Character;
+	
 
 	ERevolverMode CurrentWeaponMode;
 
@@ -192,4 +191,29 @@ private:
 
 		UFUNCTION(BlueprintPure, Category = "Weapon")
 		float GetChargePercentage() const { return CurrentChargeLevel * 100.0f; }
+
+		// In the public section:
+		UFUNCTION(BlueprintCallable, Category = "Weapon")
+		void UnlockHellfireMode();
+
+		UFUNCTION(BlueprintPure, Category = "Weapon")
+		bool IsHellfireModeUnlocked() const { return bHellfireModeUnlocked; }
+
+		// Widget class for the unlock UI
+		UPROPERTY(EditDefaultsOnly, Category = "UI")
+		TSubclassOf<class UUserWidget> HellfireUnlockWidgetClass;
+
+		// Reference to the unlock widget instance
+		UPROPERTY()
+		class UUserWidget* HellfireUnlockWidget;
+
+		// In the private section:
+		UPROPERTY()
+		bool bHellfireModeUnlocked = false;
+
+		/** The Character holding this weapon*/
+		AIconoclasmCharacter* Character;
+
+		// Helper function to show/hide unlock widget
+		//void UpdateUnlockWidgetVisibility();
 };
