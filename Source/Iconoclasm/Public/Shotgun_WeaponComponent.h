@@ -56,6 +56,13 @@ public:
 
 	void ApplyAltDefconDamage(const FVector& Origin, float Radius, float Damage);
 
+	// In the public section:
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void UnlockDefconMode();
+
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	bool IsDefconModeUnlocked() const { return bDefconModeUnlocked; }
+
 public:
 	
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -82,6 +89,10 @@ private:
 
 	FTimerHandle FireCooldownTimerHandle;
 	int32 HitscanCount;
+
+	// In the private section:
+	UPROPERTY()
+	bool bDefconModeUnlocked = false;
 
 	bool bCanUseAltTimeWarp = true;
 	bool bCanUseAltDefcon = true;

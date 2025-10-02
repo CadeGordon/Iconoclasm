@@ -96,6 +96,13 @@ void UTP_WeaponComponent::Fire()
 		}
 		break;
 	case EWeaponMode::Mode2:
+		// Check if Impulse mode is unlocked
+		if (!bImpulseModeUnlocked)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Impulse mode is locked!"));
+			return;
+		}
+
 		if (bCanFireImpulse)
 		{
 			ImpulseMode();
@@ -145,6 +152,13 @@ void UTP_WeaponComponent::AltFire()
 		break;
 
 	case EWeaponMode::Mode2: // AltImpulseMode
+		// Check if Impulse mode is unlocked
+		if (!bImpulseModeUnlocked)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Impulse mode is locked!"));
+			return;
+		}
+
 		if (CurrentTime >= LastAltImpulseModeTime) // Only checks cooldown expiration
 		{
 			AltImpulseMode();
@@ -166,8 +180,19 @@ void UTP_WeaponComponent::AltFire()
 
 void UTP_WeaponComponent::SwitchFireMode()
 {
+	// Store the current mode
+	EWeaponMode PreviousMode = CurrentWeaponMode;
+
 	// Cycle through the weapon modes
 	CurrentWeaponMode = static_cast<EWeaponMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(EWeaponMode::Mode2) + 1));
+
+	// If we switched to Impulse mode but it's locked, switch back
+	if (CurrentWeaponMode == EWeaponMode::Mode2 && !bImpulseModeUnlocked)
+	{
+		CurrentWeaponMode = PreviousMode;
+		UE_LOG(LogTemp, Warning, TEXT("Cannot switch to Impulse mode - it is locked!"));
+		return;
+	}
 
 	// Map modes to colors
 	FLinearColor ModeColor;
@@ -895,4 +920,18 @@ void UTP_WeaponComponent::OnTeleportTimerExpired()
 {
 	// Auto-teleport when timer expires
 	TeleportToMark();
+}
+
+void UTP_WeaponComponent::UnlockImpulseMode()
+{
+	if (bImpulseModeUnlocked)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Impulse mode is already unlocked!"));
+		return;
+	}
+
+	bImpulseModeUnlocked = true;
+	UE_LOG(LogTemp, Warning, TEXT("Impulse mode unlocked!"));
+
+	
 }

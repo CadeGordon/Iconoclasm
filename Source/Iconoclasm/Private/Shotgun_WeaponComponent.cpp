@@ -113,6 +113,13 @@ void UShotgun_WeaponComponent::Fire()
 		}
 		break;
 	case EShotgunMode::ShotgunMode2:
+		// Check if Defcon mode is unlocked
+		if (!bDefconModeUnlocked)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Defcon mode is locked!"));
+			return;
+		}
+
 		if (bCanFireDefcon)
 		{
 			DefconMode();
@@ -144,6 +151,12 @@ void UShotgun_WeaponComponent::AltFire()
 		AltTimeWarpMode();
 		break;
 	case EShotgunMode::ShotgunMode2:
+		// Check if Defcon mode is unlocked
+		if (!bDefconModeUnlocked)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Defcon mode is locked!"));
+			return;
+		}
 		AltDefconMode();
 		break;
 	default:
@@ -153,8 +166,19 @@ void UShotgun_WeaponComponent::AltFire()
 
 void UShotgun_WeaponComponent::SwitchFireMode()
 {
+	// Store the current mode
+	EShotgunMode PreviousMode = CurrentWeaponMode;
+
 	// Cycle through the weapon modes
 	CurrentWeaponMode = static_cast<EShotgunMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(EShotgunMode::ShotgunMode2) + 1));
+
+	// If we switched to Defcon mode but it's locked, switch back
+	if (CurrentWeaponMode == EShotgunMode::ShotgunMode2 && !bDefconModeUnlocked)
+	{
+		CurrentWeaponMode = PreviousMode;
+		UE_LOG(LogTemp, Warning, TEXT("Cannot switch to Defcon mode - it is locked!"));
+		return;
+	}
 
 	// Update the HUD based on the new mode
 	if (ShotgunHUDInstance)
@@ -176,7 +200,6 @@ void UShotgun_WeaponComponent::SwitchFireMode()
 			ShotgunHUDInstance->ShowAltDefconProgressBar();
 		}
 	}
-
 
 }
 
@@ -894,4 +917,18 @@ void UShotgun_WeaponComponent::ApplyAltDefconDamage(const FVector& Origin, float
 
 	// Reset the flag immediately after applying damage
 	Character->bLastAttackWasZeroPoint = false;
+}
+
+void UShotgun_WeaponComponent::UnlockDefconMode()
+{
+	if (bDefconModeUnlocked)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Defcon mode is already unlocked!"));
+		return;
+	}
+
+	bDefconModeUnlocked = true;
+	UE_LOG(LogTemp, Warning, TEXT("Defcon mode unlocked!"));
+
+	// Play unlock sound, show notification, etc.
 }

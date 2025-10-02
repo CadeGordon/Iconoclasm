@@ -214,6 +214,10 @@ private:
 		/** The Character holding this weapon*/
 		AIconoclasmCharacter* Character;
 
+		// Static function to get the revolver component from any actor (usually the player)
+		UFUNCTION(BlueprintPure, Category = "Weapon", meta = (WorldContext = "WorldContextObject"))
+		static URevolver_WeaponComponent* GetRevolverComponentFromPlayer(const UObject* WorldContextObject);
+
 		// Helper function to show/hide unlock widget
 		//void UpdateUnlockWidgetVisibility();
 };

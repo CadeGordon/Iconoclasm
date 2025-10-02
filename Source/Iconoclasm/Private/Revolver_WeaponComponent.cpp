@@ -101,6 +101,81 @@ void URevolver_WeaponComponent::AltFire()
 	}
 }
 
+// Static helper function to get the revolver component from the player
+URevolver_WeaponComponent* URevolver_WeaponComponent::GetRevolverComponentFromPlayer(const UObject* WorldContextObject)
+{
+	if (!WorldContextObject)
+	{
+		return nullptr;
+	}
+
+	UWorld* World = WorldContextObject->GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	// Get the player controller
+	APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC)
+	{
+		return nullptr;
+	}
+
+	// Get the player pawn
+	APawn* PlayerPawn = PC->GetPawn();
+	if (!PlayerPawn)
+	{
+		return nullptr;
+	}
+
+	// Method 1: Check if component is on the pawn directly
+	URevolver_WeaponComponent* RevolverComp = PlayerPawn->FindComponentByClass<URevolver_WeaponComponent>();
+	if (RevolverComp)
+	{
+		return RevolverComp;
+	}
+
+	// Method 2: Check attached actors (weapons picked up)
+	TArray<AActor*> AttachedActors;
+	PlayerPawn->GetAttachedActors(AttachedActors);
+
+	for (AActor* AttachedActor : AttachedActors)
+	{
+		if (AttachedActor)
+		{
+			RevolverComp = AttachedActor->FindComponentByClass<URevolver_WeaponComponent>();
+			if (RevolverComp)
+			{
+				return RevolverComp;
+			}
+		}
+	}
+
+	// Method 3: Search all actors with the component
+	TArray<AActor*> AllActors;
+	UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+
+	for (AActor* Actor : AllActors)
+	{
+		RevolverComp = Actor->FindComponentByClass<URevolver_WeaponComponent>();
+		if (RevolverComp)
+		{
+			// Check if this component belongs to our player
+			AIconoclasmCharacter* RevolverOwner = Cast<AIconoclasmCharacter>(RevolverComp->Character);
+			AIconoclasmCharacter* PlayerCharacter = Cast<AIconoclasmCharacter>(PlayerPawn);
+
+			if (RevolverOwner == PlayerCharacter)
+			{
+				return RevolverComp;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+
 void URevolver_WeaponComponent::SwitchFireMode()
 {
 	// Store the current mode

@@ -66,6 +66,12 @@ public:
 	/** Sets default values for this component's properties */
 	UTP_WeaponComponent();
 
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void UnlockImpulseMode();
+
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	bool IsImpulseModeUnlocked() const { return bImpulseModeUnlocked; }
+
 public:
 	virtual void BeginPlay() override;
 
@@ -145,6 +151,10 @@ private:
 
 	float AltLifeBloodCooldown = 5.0f; // Cooldown in seconds
 	float AltImpulseCooldown = 7.0f;
+
+	// In the private section:
+	UPROPERTY()
+	bool bImpulseModeUnlocked = false;
 
 	EWeaponMode CurrentWeaponMode;
 
