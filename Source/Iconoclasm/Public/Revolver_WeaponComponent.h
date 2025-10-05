@@ -71,6 +71,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUserWidget> RevolverHUDClass;
 
+	// Cost to unlock hellfire mode
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hellfire")
+	int32 HellfireUnlockCost = 1000; // Set the cost here
+
 protected:
 	/** Ends gameplay for this component. */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -99,6 +103,8 @@ private:
 
 	float GunslingerCooldown = 0.5f;
 	float HellfireCooldown = 0.5f;
+
+	
 
 	// Timers for cooldowns
 	FTimerHandle TimerHandle_AltGunslingerCooldown;

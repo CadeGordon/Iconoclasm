@@ -15,6 +15,7 @@
 #include "NiagaraComponent.h"
 #include "Components/SphereComponent.h"
 #include "RevolverHUD.h"
+#include "BestResultsSubsystem.h"
 
 
 URevolver_WeaponComponent::URevolver_WeaponComponent()
@@ -320,8 +321,44 @@ void URevolver_WeaponComponent::UnlockHellfireMode()
 		return;
 	}
 
+	// Get the BestResultsSubsystem
+	UGameInstance* GameInstance = GetWorld()->GetGameInstance();
+	if (!GameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to get GameInstance!"));
+		return;
+	}
+
+	UBestResultsSubsystem* BestResultsSubsystem = GameInstance->GetSubsystem<UBestResultsSubsystem>();
+	if (!BestResultsSubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to get BestResultsSubsystem!"));
+		return;
+	}
+
+	// Check if player has enough money
+	int32 CurrentMoney = BestResultsSubsystem->GetCurrentMoney();
+	if (CurrentMoney < HellfireUnlockCost)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not enough money! Need %d, have %d"), HellfireUnlockCost, CurrentMoney);
+
+		// Optional: Show "Not Enough Money" notification to player
+		// You can create a widget or use your existing notification system here
+
+		return;
+	}
+
+	// Spend the money
+	bool bSuccess = BestResultsSubsystem->SpendMoney(HellfireUnlockCost);
+	if (!bSuccess)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to spend money!"));
+		return;
+	}
+
+	// Unlock the mode
 	bHellfireModeUnlocked = true;
-	UE_LOG(LogTemp, Warning, TEXT("Hellfire mode unlocked!"));
+	UE_LOG(LogTemp, Warning, TEXT("Hellfire mode unlocked! Spent %d money."), HellfireUnlockCost);
 
 	// Hide the unlock widget
 	if (HellfireUnlockWidget)
@@ -330,7 +367,6 @@ void URevolver_WeaponComponent::UnlockHellfireMode()
 		HellfireUnlockWidget = nullptr;
 	}
 
-	
 	// Play unlock sound, show notification, etc.
 }
 

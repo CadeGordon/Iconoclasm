@@ -34,6 +34,8 @@ public:
     UPROPERTY(VisibleAnywhere, Category = "Results")
     TMap<FName, FLevelResult> LevelResults; // key = LevelName
 
-    
+    // Player's total money
+    UPROPERTY(BlueprintReadOnly)
+    int32 PlayerMoney = 0;
 
 };

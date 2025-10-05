@@ -59,6 +59,8 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
             // --- Completion Time ---
             CompletionTime = UGameplayStatics::GetTimeSeconds(GetWorld());
 
+          
+
             FString TimeRank = GetTimeRank(CompletionTime);
 
             // --- Final Kills ---
@@ -71,6 +73,12 @@ void AEndLevelTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp,
             if (Subsystem)
             {
                 Subsystem->SaveLevelResult(LevelID, FinalScore, CompletionTime, FinalRank);
+
+                // Award money based on final score
+                // You can adjust this conversion rate as needed
+                int32 MoneyEarned = FinalScore; // 1:1 ratio, or use FinalScore / 10, etc.
+                Subsystem->AddMoney(MoneyEarned);
+
             }
 
             // Show the end level widget

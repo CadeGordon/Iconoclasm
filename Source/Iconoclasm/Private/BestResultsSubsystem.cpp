@@ -76,6 +76,39 @@ FLevelResult UBestResultsSubsystem::GetLevelResult(FName LevelName) const
     return FLevelResult(); // default empty
 }
 
+void UBestResultsSubsystem::AddMoney(int32 Amount)
+{
+    if (!CurrentSaveGame || Amount <= 0) return;
+
+    CurrentSaveGame->PlayerMoney += Amount;
+    OnMoneyChanged.Broadcast(CurrentSaveGame->PlayerMoney);
+    SaveToDisk();
+}
+
+bool UBestResultsSubsystem::SpendMoney(int32 Amount)
+{
+    if (!CurrentSaveGame || Amount <= 0) return false;
+
+    if (CurrentSaveGame->PlayerMoney >= Amount)
+    {
+        CurrentSaveGame->PlayerMoney -= Amount;
+        OnMoneyChanged.Broadcast(CurrentSaveGame->PlayerMoney);
+        SaveToDisk();
+        return true;
+    }
+
+    return false;
+}
+
+int32 UBestResultsSubsystem::GetCurrentMoney() const
+{
+    if (CurrentSaveGame)
+    {
+        return CurrentSaveGame->PlayerMoney;
+    }
+    return 0;
+}
+
 void UBestResultsSubsystem::LoadFromDisk()
 {
     if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SaveSlot, UserIndex))
