@@ -74,6 +74,10 @@ public:
 	UPROPERTY()
 	TArray<TWeakObjectPtr<AShotgunProjectile>> ActiveProjectiles;
 
+	// Cost to unlock defcon mode
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defcon")
+	int32 DefconUnlockCost = 1500; // Set the cost here (made it a bit more expensive than Hellfire)
+
 private:
 
 
@@ -108,6 +112,8 @@ private:
 	bool bCanFireDefcon = true;
 	float TimeWarpCooldown = 2.0f; // Set desired cooldown time
 	float DefconCooldown = 2.0f;
+
+	
 
 	// Cooldown durations
 	float AltTimeWarpCooldown = 5.0f;

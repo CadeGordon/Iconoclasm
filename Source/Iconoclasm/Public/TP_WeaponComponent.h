@@ -72,6 +72,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	bool IsImpulseModeUnlocked() const { return bImpulseModeUnlocked; }
 
+	// Cost to unlock impulse mode
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Impulse")
+	int32 ImpulseUnlockCost = 2000;
+
 public:
 	virtual void BeginPlay() override;
 

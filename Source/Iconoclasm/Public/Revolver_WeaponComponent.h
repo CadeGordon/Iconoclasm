@@ -73,7 +73,7 @@ public:
 
 	// Cost to unlock hellfire mode
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hellfire")
-	int32 HellfireUnlockCost = 1000; // Set the cost here
+	int32 HellfireUnlockCost = 1000000; // Set the cost here
 
 protected:
 	/** Ends gameplay for this component. */

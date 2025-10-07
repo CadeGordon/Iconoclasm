@@ -18,6 +18,7 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "DrawDebugHelpers.h"
+#include "BestResultsSubsystem.h"
 
 // Sets default values for this component's properties
 UTP_WeaponComponent::UTP_WeaponComponent()
@@ -930,8 +931,45 @@ void UTP_WeaponComponent::UnlockImpulseMode()
 		return;
 	}
 
-	bImpulseModeUnlocked = true;
-	UE_LOG(LogTemp, Warning, TEXT("Impulse mode unlocked!"));
+	// Get the BestResultsSubsystem
+	UGameInstance* GameInstance = GetWorld()->GetGameInstance();
+	if (!GameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to get GameInstance!"));
+		return;
+	}
 
+	UBestResultsSubsystem* BestResultsSubsystem = GameInstance->GetSubsystem<UBestResultsSubsystem>();
+	if (!BestResultsSubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to get BestResultsSubsystem!"));
+		return;
+	}
+
+	// Check if player has enough money
+	int32 CurrentMoney = BestResultsSubsystem->GetCurrentMoney();
+	if (CurrentMoney < ImpulseUnlockCost)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not enough money! Need %d, have %d"), ImpulseUnlockCost, CurrentMoney);
+
+		// Optional: Show "Not Enough Money" notification to player
+		// You can create a widget or use your existing notification system here
+
+		return;
+	}
+
+	// Spend the money
+	bool bSuccess = BestResultsSubsystem->SpendMoney(ImpulseUnlockCost);
+	if (!bSuccess)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to spend money!"));
+		return;
+	}
+
+	// Unlock the mode
+	bImpulseModeUnlocked = true;
+	UE_LOG(LogTemp, Warning, TEXT("Impulse mode unlocked! Spent %d money."), ImpulseUnlockCost);
+
+	// Play unlock sound, show notification, etc.
 	
 }
