@@ -43,6 +43,10 @@ public:
 		AActor* DamageCauser
 	);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	TSubclassOf<AActor> BloodEffectClass;
+
+
 public:
 	// Events
 	UPROPERTY(BlueprintAssignable, Category = "Events")

@@ -18,6 +18,7 @@ UHealthComponent::UHealthComponent()
 	MaxHealth = 100.0f;
 	CurrentHealth = MaxHealth;
 	bIsDead = false;
+	BloodEffectClass = nullptr;
 
 	// ...
 }
@@ -127,6 +128,18 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 					ScoreComp->AddScoreForEnemy(EnemyType);
 					ScoreComp->AddKill();
 				}
+			}
+
+			// Spawn blood effect at actor's location
+			if (BloodEffectClass && GetWorld())
+			{
+				FActorSpawnParameters SpawnParams;
+				GetWorld()->SpawnActor<AActor>(
+					BloodEffectClass,
+					GetOwner()->GetActorLocation(),
+					FRotator::ZeroRotator,
+					SpawnParams
+				);
 			}
 
 			// Spawn health pack at actor's location
