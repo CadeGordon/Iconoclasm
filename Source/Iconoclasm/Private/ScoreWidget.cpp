@@ -32,6 +32,9 @@ void UScoreWidget::NativeConstruct()
 
     // Initialize the display
     UpdateScoreDisplay();
+
+    // Hide the widget initially since score is 0
+    SetVisibility(ESlateVisibility::Hidden);
 }
 
 void UScoreWidget::UpdateScore(int32 NewScore)
@@ -39,6 +42,19 @@ void UScoreWidget::UpdateScore(int32 NewScore)
     CurrentScore = NewScore;
     CurrentTier = CalculateTier(CurrentScore);
     UpdateScoreDisplay();
+
+    // Show widget if score > 0, hide if score == 0
+    if (CurrentScore > 0)
+    {
+        if (GetVisibility() == ESlateVisibility::Hidden)
+        {
+            SetVisibility(ESlateVisibility::Visible);
+        }
+    }
+    else
+    {
+        SetVisibility(ESlateVisibility::Hidden);
+    }
 }
 
 FString UScoreWidget::GetTierName(EScoreTier Tier) const
