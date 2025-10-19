@@ -65,38 +65,49 @@ void AEnemySpawner::SpawnEnemies()
         return;
     }
 
-    for (int32 i = 0; i < SpawnPoints.Num(); ++i)
+    UE_LOG(LogTemp, Warning, TEXT("Array Sizes - EnemyTypes: %d, EnemyCounts: %d, SpawnPoints: %d"),
+        EnemyTypes.Num(), EnemyCounts.Num(), SpawnPoints.Num());
+
+    int32 MaxSpawns = FMath::Min3(EnemyTypes.Num(), EnemyCounts.Num(), SpawnPoints.Num());
+
+    for (int32 i = 0; i < MaxSpawns; ++i)
     {
-        if (!EnemyTypes.IsValidIndex(i) || !SpawnPoints.IsValidIndex(i) || !SpawnPoints[i])
+        // CRITICAL: Check spawn point validity BEFORE using it
+        if (!IsValid(SpawnPoints[i]))
         {
-            UE_LOG(LogTemp, Error, TEXT("Invalid spawn data at index: %d"), i);
+            UE_LOG(LogTemp, Error, TEXT("SpawnPoint at index %d is NULL or invalid! Skipping..."), i);
             continue;
         }
 
-        UClass* EnemyClass = EnemyTypes[i];
-        if (!EnemyClass)
+        // Check enemy class validity
+        if (!EnemyTypes[i])
         {
-            UE_LOG(LogTemp, Error, TEXT("Enemy class at index %d is NULL!"), i);
+            UE_LOG(LogTemp, Error, TEXT("Enemy class at index %d is NULL! Skipping..."), i);
             continue;
         }
 
+        // Now safe to get location
+        FVector SpawnLocation = SpawnPoints[i]->GetActorLocation();
         int32 SpawnCount = EnemyCounts[i];
+
+        UE_LOG(LogTemp, Warning, TEXT("Spawning %d enemies at index %d, location: %s"),
+            SpawnCount, i, *SpawnLocation.ToString());
 
         for (int32 j = 0; j < SpawnCount; ++j)
         {
-            FVector SpawnLocation = SpawnPoints[i]->GetActorLocation();
             FActorSpawnParameters SpawnParams;
             SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-            AActor* SpawnedEnemy = GetWorld()->SpawnActor<AActor>(EnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+            AActor* SpawnedEnemy = GetWorld()->SpawnActor<AActor>(EnemyTypes[i], SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 
-            if (!SpawnedEnemy)
+            if (IsValid(SpawnedEnemy))
             {
-                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy at index %d!"), i);
-                continue;
+                UE_LOG(LogTemp, Warning, TEXT("Successfully spawned: %s"), *SpawnedEnemy->GetName());
             }
-
-            UE_LOG(LogTemp, Warning, TEXT("Successfully spawned: %s"), *SpawnedEnemy->GetName());
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy %d at spawn point %d!"), j, i);
+            }
         }
     }
 }
