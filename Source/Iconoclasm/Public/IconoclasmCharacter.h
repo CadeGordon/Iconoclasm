@@ -355,6 +355,11 @@ public:
 		float WallJumpBackwardForce = 1500.0f;
 		float WallCheckDistance = 150.0f;
 		float WallJumpAngleThreshold = 45.0f;
+
+		bool bIsDeceleratingFromSlide;
+		float CurrentSlideSpeed;
+		float DefaultWalkSpeed;
+		float SlideDecelerationRate; // How fast we slow down after sliding
 		
 };
 

@@ -71,6 +71,12 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	SlideJumpBoostStrength = 2500.0f;
 	GroundSlamStrength = 200000.0f;
 
+	// Slide momentum variables
+	bIsDeceleratingFromSlide = false;
+	CurrentSlideSpeed = 0.0f;
+	DefaultWalkSpeed = 1600.0f; // Match your current MaxWalkSpeed
+	SlideDecelerationRate = 100.0f; // Adjust this to control how fast momentum fades
+
 	//DashUI
 	TargetDashProgress = 1.0f;  // Starts full
 	CurrentDashProgress = 1.0f;
@@ -293,10 +299,58 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 		LastSafeLocation = GetActorLocation();
 	}
 
-	if (IsSliding) {
-
+	if (IsSliding)
+	{
 		UpdateSlide();
+	}
 
+	// NEW: Handle slide momentum deceleration
+	if (bIsDeceleratingFromSlide && !IsSliding)
+	{
+		// Only apply momentum if the player is giving movement input
+		FVector MovementInput = GetLastMovementInputVector();
+
+		if (!MovementInput.IsNearlyZero())
+		{
+			// Gradually reduce speed back to default
+			CurrentSlideSpeed = FMath::FInterpTo(
+				CurrentSlideSpeed,
+				DefaultWalkSpeed,
+				DeltaTime,
+				SlideDecelerationRate * DeltaTime
+			);
+
+			// Apply the momentum to the character's velocity
+			if (GetCharacterMovement()->IsMovingOnGround())
+			{
+				FVector CurrentVelocity = GetCharacterMovement()->Velocity;
+				FVector HorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
+
+				if (!HorizontalVelocity.IsNearlyZero())
+				{
+					FVector MomentumDirection = HorizontalVelocity.GetSafeNormal();
+					GetCharacterMovement()->Velocity = MomentumDirection * CurrentSlideSpeed + FVector(0, 0, CurrentVelocity.Z);
+				}
+			}
+
+			// Update max walk speed too so it feels natural
+			GetCharacterMovement()->MaxWalkSpeed = CurrentSlideSpeed;
+		}
+		else
+		{
+			// No input - instantly reset to default speed
+			bIsDeceleratingFromSlide = false;
+			GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed;
+			CurrentSlideSpeed = DefaultWalkSpeed;
+		}
+
+		// Stop decelerating when we're close to default speed
+		if (FMath::IsNearlyEqual(CurrentSlideSpeed, DefaultWalkSpeed, 10.0f))
+		{
+			bIsDeceleratingFromSlide = false;
+			GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed;
+			CurrentSlideSpeed = DefaultWalkSpeed;
+		}
 	}
 
 	// Interpolate the current FOV towards the target FOV
@@ -311,13 +365,11 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 	{
 		CurrentDashProgress = FMath::FInterpTo(CurrentDashProgress, TargetDashProgress, DeltaTime, ProgressInterpSpeed);
 
-		// Update the HUD
 		if (DashHUD)
 		{
 			DashHUD->UpdateDashProgress(CurrentDashProgress);
 		}
 	}
-
 }
 
 //////////////////////////////////////////////////////////////////////////// Input
@@ -399,7 +451,7 @@ void AIconoclasmCharacter::DoubleJump()
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 
-	if (WallRunComponent && WallRunComponent->IsWallRunning) 
+	if (WallRunComponent && WallRunComponent->IsWallRunning)
 	{
 		WallRunComponent->StopWallRun();
 	}
@@ -423,15 +475,20 @@ void AIconoclasmCharacter::DoubleJump()
 		}
 		else
 		{
-			LaunchCharacter(FVector(0, 0, 1400.0f), false, true); // Apply manual jump force
+			// Get current horizontal velocity for momentum
+			FVector CurrentVelocity = MoveComp->Velocity;
+			FVector HorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
+
+			// Preserve horizontal momentum and add vertical jump force
+			FVector LaunchVelocity = HorizontalVelocity + FVector(0, 0, 1400.0f);
+
+			LaunchCharacter(LaunchVelocity, false, true); // Apply manual jump force with momentum
+
 			// === Mark Double Jump Kill Window ===
 			bLastActionWasDoubleJump = true;
 			LastDoubleJumpTime = GetWorld()->GetTimeSeconds();
 		}
-
 		JumpCount++;
-
-		
 	}
 }
 
@@ -441,26 +498,42 @@ void AIconoclasmCharacter::Dash()
 	{
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
 
-		
-
 		if (!DashDirection.IsNearlyZero())
 		{
 			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f);
-
 			IsDashing = true;
+
 			float DashSpeed = GetCharacterMovement()->IsMovingOnGround() ? GroundDash : AirDash;
-			GetCharacterMovement()->Velocity = DashDirection * DashSpeed;
+
+			// Get current velocity
+			FVector CurrentVelocity = GetCharacterMovement()->Velocity;
+			FVector CurrentHorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
+			float CurrentHorizontalSpeed = CurrentHorizontalVelocity.Size();
+
+			// Only apply dash if it would increase speed, otherwise maintain current momentum
+			float FinalSpeed = FMath::Max(CurrentHorizontalSpeed, DashSpeed);
+
+			// If in air, reset vertical velocity to stop falling (no upward boost)
+			float VerticalVelocity = CurrentVelocity.Z;
+			if (!GetCharacterMovement()->IsMovingOnGround())
+			{
+				// Reset falling velocity to 0
+				VerticalVelocity = 0.0f;
+			}
+
+			// Apply velocity in dash direction with the higher speed
+			GetCharacterMovement()->Velocity = (DashDirection * FinalSpeed) + FVector(0, 0, VerticalVelocity);
+
+			// Store the higher speed for momentum deceleration
+			CurrentSlideSpeed = FinalSpeed;
+			bIsDeceleratingFromSlide = false; // Reset any ongoing deceleration
 
 			DashCharges--;
-
 			// Set target progress based on charges
 			TargetDashProgress = static_cast<float>(DashCharges) / 3.0f;
-
 			LastDashTime = GetWorld()->GetTimeSeconds();
-
 			StartDashCooldown();
 		}
-
 		CanDashAgain = (DashCharges > 0);
 	}
 }
@@ -490,8 +563,12 @@ void AIconoclasmCharacter::ResetDashCooldown()
 void AIconoclasmCharacter::EndDash()
 {
 	IsDashing = false;
-	
-	/*TargetFOV = OriginalFOV;*/
+
+	// Start momentum deceleration after dash ends
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		bIsDeceleratingFromSlide = true;
+	}
 }
 
 void AIconoclasmCharacter::StartSlide()
@@ -499,20 +576,22 @@ void AIconoclasmCharacter::StartSlide()
 	if (!IsSliding && GetCharacterMovement()->IsMovingOnGround())
 	{
 		IsSliding = true;
+		bIsDeceleratingFromSlide = false; // Stop any ongoing deceleration
 
 		// Set the character's movement direction
 		SlideDirection = GetActorForwardVector();
 
-		
+		// Set initial slide speed
+		CurrentSlideSpeed = SlideSpeed;
+
 		UpdateSlide();
 		TargetFOV = SlideFOV;
 
-		// Adjust the camera position or rotation here
-        if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
-        {
-            // Move the camera down
-            FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, -50.0f)); // Adjust the Z value as needed
-        }
+		// Adjust the camera position
+		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+		{
+			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, -50.0f));
+		}
 	}
 
 }
@@ -523,47 +602,41 @@ void AIconoclasmCharacter::UpdateSlide()
 	{
 		if (GetCharacterMovement()->IsMovingOnGround())
 		{
-			// Adjust the slide speed
-			SlideSpeed = 5000.0f; 
+			// Keep the original slide speed behavior
+			SlideSpeed = 5000.0f;
 
 			// Set the character's velocity directly for smooth movement on the ground
 			FVector SlideVelocity = SlideDirection * SlideSpeed;
 			GetCharacterMovement()->Velocity = SlideVelocity;
+
+			// Update CurrentSlideSpeed to match for when we exit the slide
+			CurrentSlideSpeed = SlideSpeed;
 
 			// Rotate the character based on the controller input
 			const FRotator ControlRotation = GetControlRotation();
 			const FRotator ControlYawRotation(0, ControlRotation.Yaw, 0);
 			SetActorRotation(ControlYawRotation);
 		}
-		else
-		{
-			//Can be used to launch player when sliding off a ledge not sure if want to use it
-			//// If sliding off a ledge, use LaunchCharacter with a set value
-			//FVector LaunchVelocity = SlideDirection * 100.0f; 
-			//LaunchCharacter(LaunchVelocity, false, false);
-		}
-
-		// Additional logic for updating slide
 	}
-
 }
 
 void AIconoclasmCharacter::StopSlide()
 {
-	if (IsSliding) {
+	if (IsSliding)
+	{
 		IsSliding = false;
-		GetCharacterMovement()->MaxWalkSpeed = 1600.0f;
+
+		// NEW: Start momentum deceleration instead of instant stop
+		bIsDeceleratingFromSlide = true;
+		// CurrentSlideSpeed retains its current value and will gradually decrease
+
 		TargetFOV = OriginalFOV;
 
-		// Adjust the camera position or rotation here
+		// Adjust the camera position back
 		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
 		{
-			// Move the camera down
-			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f)); // Adjust the Z value as needed
+			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
 		}
-
-		
-
 	}
 }
 
@@ -571,10 +644,16 @@ void AIconoclasmCharacter::SlideJump()
 {
 	if (IsSliding)
 	{
-		// Perform a boost when jumping while sliding
-		FVector LaunchVelocity = FVector(0.0f, 0.0f, 1.0f) * SlideJumpBoostStrength; // Adjust the Z component for upward boost
+		// Get the current slide direction and speed for horizontal momentum
+		FVector HorizontalMomentum = SlideDirection * CurrentSlideSpeed;
+
+		// Combine upward boost with horizontal slide momentum
+		FVector LaunchVelocity = FVector(HorizontalMomentum.X, HorizontalMomentum.Y, SlideJumpBoostStrength);
+
 		LaunchCharacter(LaunchVelocity, false, false);
 		StopSlide(); // Stop sliding when jumping
+
+		// The momentum will continue in the air and decay when you land (if moving)
 
 		// === Mark Double Jump Kill Window ===
 		bLastActionWasSlideJump = true;
