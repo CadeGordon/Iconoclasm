@@ -189,6 +189,9 @@ public:
 		void WallJump();
 		bool CanPerformWallJump(FVector& OutWallNormal);
 		void ResetWallJumpCooldown();
+
+		void ResetSlamJumpWindow();
+		void ResetSlamSlideWindow();
 	
 	
 
@@ -360,6 +363,19 @@ public:
 		float CurrentSlideSpeed;
 		float DefaultWalkSpeed;
 		float SlideDecelerationRate; // How fast we slow down after sliding
+
+		// Ground Slam Jump variables
+		bool bCanSlamJump;
+		int32 SlamJumpCount;
+		float SlamJumpWindowTime;
+		FTimerHandle SlamJumpWindowTimerHandle;
+		float BaseSlamJumpHeight;
+		float SlamJumpHeightMultiplier;
+
+		// Ground Slam Slide variables
+		bool bCanSlamSlide;
+		float SlamSlideWindowTime;
+		FTimerHandle SlamSlideWindowTimerHandle;
 		
 };
 

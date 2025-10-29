@@ -67,7 +67,7 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	CanDashAgain = true;
 	//Slide Varibales
 	IsSliding = false;
-	SlideSpeed = 2000.0f;
+	SlideSpeed = 5000.0f;
 	SlideJumpBoostStrength = 2500.0f;
 	GroundSlamStrength = 200000.0f;
 
@@ -76,6 +76,17 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	CurrentSlideSpeed = 0.0f;
 	DefaultWalkSpeed = 1600.0f; // Match your current MaxWalkSpeed
 	SlideDecelerationRate = 100.0f; // Adjust this to control how fast momentum fades
+
+	// Ground Slam Jump variables
+	bCanSlamJump = false;
+	SlamJumpCount = 0;
+	SlamJumpWindowTime = 2.5f; // 1 second window
+	BaseSlamJumpHeight = 1600.0f; // Base jump height
+	SlamJumpHeightMultiplier = 1.5f; // Each successive jump is 1.5x higher
+
+	// Ground Slam Slide variables
+	bCanSlamSlide = false;
+	SlamSlideWindowTime = 2.5f; // 1 second window
 
 	//DashUI
 	TargetDashProgress = 1.0f;  // Starts full
@@ -451,6 +462,24 @@ void AIconoclasmCharacter::DoubleJump()
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 
+	// Check if this is a slam jump
+	if (bCanSlamJump && MoveComp->IsMovingOnGround())
+	{
+		// Calculate progressive jump height
+		float JumpHeight = BaseSlamJumpHeight * FMath::Pow(SlamJumpHeightMultiplier, SlamJumpCount);
+
+		// Launch the character
+		LaunchCharacter(FVector(0, 0, JumpHeight), false, true);
+
+		// Increment slam jump count for next jump
+		SlamJumpCount++;
+
+		UE_LOG(LogTemp, Warning, TEXT("Slam Jump #%d! Height: %f"), SlamJumpCount, JumpHeight);
+
+		// Don't increment regular JumpCount, we want to allow double jump after slam jump
+		return;
+	}
+
 	if (WallRunComponent && WallRunComponent->IsWallRunning)
 	{
 		WallRunComponent->StopWallRun();
@@ -581,8 +610,25 @@ void AIconoclasmCharacter::StartSlide()
 		// Set the character's movement direction
 		SlideDirection = GetActorForwardVector();
 
-		// Set initial slide speed
-		CurrentSlideSpeed = SlideSpeed;
+		// Check if this is a slam slide (within window and has slam jumps)
+		if (bCanSlamSlide && SlamJumpCount > 0)
+		{
+			// Add bonus speed on top of base slide speed (5000 per slam jump)
+			float SlideSpeedBoost = SlideSpeed + (5000.0f * SlamJumpCount);
+			CurrentSlideSpeed = SlideSpeedBoost;
+
+			UE_LOG(LogTemp, Warning, TEXT("Slam Slide! Speed boosted by %d slams: %f"), SlamJumpCount, SlideSpeedBoost);
+
+			// Reset slam counters after using the boost
+			SlamJumpCount = 0;
+			bCanSlamSlide = false;
+			GetWorld()->GetTimerManager().ClearTimer(SlamSlideWindowTimerHandle);
+		}
+		else
+		{
+			// Normal slide speed
+			CurrentSlideSpeed = SlideSpeed;
+		}
 
 		UpdateSlide();
 		TargetFOV = SlideFOV;
@@ -602,15 +648,16 @@ void AIconoclasmCharacter::UpdateSlide()
 	{
 		if (GetCharacterMovement()->IsMovingOnGround())
 		{
-			// Keep the original slide speed behavior
-			SlideSpeed = 5000.0f;
+			// Don't overwrite CurrentSlideSpeed - it's set in StartSlide()
+			// Only set it if it's somehow zero
+			if (CurrentSlideSpeed <= 0.0f)
+			{
+				CurrentSlideSpeed = 5000.0f;
+			}
 
 			// Set the character's velocity directly for smooth movement on the ground
-			FVector SlideVelocity = SlideDirection * SlideSpeed;
+			FVector SlideVelocity = SlideDirection * CurrentSlideSpeed;
 			GetCharacterMovement()->Velocity = SlideVelocity;
-
-			// Update CurrentSlideSpeed to match for when we exit the slide
-			CurrentSlideSpeed = SlideSpeed;
 
 			// Rotate the character based on the controller input
 			const FRotator ControlRotation = GetControlRotation();
@@ -992,6 +1039,26 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 		// Stop the ground slam timer
 		GetWorld()->GetTimerManager().ClearTimer(GroundSlamTimerHandle);
 
+		// Enable slam jump window
+		bCanSlamJump = true;
+		GetWorld()->GetTimerManager().SetTimer(
+			SlamJumpWindowTimerHandle,
+			this,
+			&AIconoclasmCharacter::ResetSlamJumpWindow,
+			SlamJumpWindowTime,
+			false
+		);
+
+		// Enable slam slide window
+		bCanSlamSlide = true;
+		GetWorld()->GetTimerManager().SetTimer(
+			SlamSlideWindowTimerHandle,
+			this,
+			&AIconoclasmCharacter::ResetSlamSlideWindow,
+			SlamSlideWindowTime,
+			false
+		);
+
 		// Trace setup
 		TArray<AActor*> IgnoreActors;
 		IgnoreActors.Add(this);
@@ -1014,7 +1081,7 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 
 		if (bHitSomething)
 		{
-			//  Track already damaged actors so we don’t hit them multiple times
+			//  Track already damaged actors so we don't hit them multiple times
 			TSet<AActor*> DamagedActors;
 
 			for (const FHitResult& HitResult : HitResults)
@@ -1023,8 +1090,6 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 				if (!HitActor || DamagedActors.Contains(HitActor)) continue;
 
 				DamagedActors.Add(HitActor);
-
-				
 
 				//  Deal damage
 				float DamageAmount = 50.0f; // tweak this as needed
@@ -1192,4 +1257,16 @@ bool AIconoclasmCharacter::CanPerformWallJump(FVector& OutWallNormal)
 void AIconoclasmCharacter::ResetWallJumpCooldown()
 {
 	bCanWallJump = true;
+}
+
+// New helper functions - add these to your character class:
+void AIconoclasmCharacter::ResetSlamJumpWindow()
+{
+	bCanSlamJump = false;
+	SlamJumpCount = 0; // Reset the counter when window expires
+}
+
+void AIconoclasmCharacter::ResetSlamSlideWindow()
+{
+	bCanSlamSlide = false;
 }
