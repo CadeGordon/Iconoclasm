@@ -386,7 +386,6 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
         return;
     }
 
-
     // Otherwise, use the existing world grapple physics
     UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
     if (!CharacterMovement)
@@ -419,10 +418,12 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
     }
 
     // For moving players, apply FULL POWER swing physics
+    // Adjust pull strength based on player's current speed
+    float BasePullStrength = FMath::Max(GrappleSpeed, MinimumPullForce);
+    float AdaptivePullStrength = FMath::Max(BasePullStrength, CurrentSpeed * 1.2f); // Scale with player speed
 
-    // 1. PULLING FORCE - Full strength pull toward grapple point
-    float PullStrength = FMath::Max(GrappleSpeed, MinimumPullForce);
-    FVector PullForce = ToGrapplePoint * PullStrength;
+    // 1. PULLING FORCE - Adaptive strength that scales with player momentum
+    FVector PullForce = ToGrapplePoint * AdaptivePullStrength;
     CurrentVelocity += PullForce * DeltaTime;
 
     // 2. PENDULUM CONSTRAINT - Strong constraint to maintain rope length
@@ -439,10 +440,11 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
     // 4. Apply minimal damping to maintain momentum and "umph"
     CurrentVelocity *= SwingDamping;
 
-    // 5. Clamp maximum speed (higher limit for more umph)
-    if (CurrentVelocity.Size() > MaxSwingSpeed)
+    // 5. Adaptive max swing speed - increases with player's momentum
+    float AdaptiveMaxSpeed = FMath::Max(MaxSwingSpeed, CurrentSpeed * 1.1f);
+    if (CurrentVelocity.Size() > AdaptiveMaxSpeed)
     {
-        CurrentVelocity = CurrentVelocity.GetSafeNormal() * MaxSwingSpeed;
+        CurrentVelocity = CurrentVelocity.GetSafeNormal() * AdaptiveMaxSpeed;
     }
 
     // Apply the final velocity

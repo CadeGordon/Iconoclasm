@@ -109,6 +109,14 @@ void UWallRunComponent::StartWallRun()
 		// Capture the player's initial velocity when the wall run starts
 		InitialVelocity = OwningCharacter->GetCharacterMovement()->Velocity;
 
+		// Calculate adaptive wall run speed based on player's current horizontal speed
+		FVector HorizontalVelocity = InitialVelocity;
+		HorizontalVelocity.Z = 0; // Remove vertical component
+		float CurrentHorizontalSpeed = HorizontalVelocity.Size();
+
+		// Use the greater of base wall run speed or current horizontal speed
+		AdaptiveWallRunSpeed = FMath::Max(WallRunSpeed, CurrentHorizontalSpeed);
+
 		// Set a timer to stop wall running after the specified duration
 		GetWorld()->GetTimerManager().SetTimer(WallRunTimerHandle, this, &UWallRunComponent::EndWallRun, WallRunDuration, false);
 
@@ -162,8 +170,8 @@ void UWallRunComponent::WallRun()
 {
 	UCharacterMovementComponent* MovementComp = OwningCharacter->GetCharacterMovement();
 
-	// Create a fixed velocity using the wall run direction and speed
-	FVector NewVelocity = WallRunDirection * WallRunSpeed;
+	// Use the adaptive speed calculated when wall run started
+	FVector NewVelocity = WallRunDirection * AdaptiveWallRunSpeed;
 
 	// Apply the constant descent rate
 	NewVelocity.Z = -DescentRate;

@@ -54,6 +54,8 @@ private:
 	float WallRunSpeed;
 	float WallRunDuration;
 
+	float AdaptiveWallRunSpeed;
+
 	float DescentRate;
 
 	// Cooldown duration in seconds
