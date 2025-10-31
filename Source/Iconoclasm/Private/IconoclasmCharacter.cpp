@@ -605,7 +605,10 @@ void AIconoclasmCharacter::StartSlide()
 	if (!IsSliding && GetCharacterMovement()->IsMovingOnGround())
 	{
 		IsSliding = true;
-		bIsDeceleratingFromSlide = false; // Stop any ongoing deceleration
+		bIsDeceleratingFromSlide = false;
+
+		// Clear the damaged actors list for this new slide
+		DamagedActorsThisSlide.Empty();
 
 		// Set the character's movement direction
 		SlideDirection = GetActorForwardVector();
@@ -616,7 +619,6 @@ void AIconoclasmCharacter::StartSlide()
 			// Add bonus speed on top of base slide speed (5000 per slam jump)
 			float SlideSpeedBoost = SlideSpeed + (5000.0f * SlamJumpCount);
 			CurrentSlideSpeed = SlideSpeedBoost;
-
 			UE_LOG(LogTemp, Warning, TEXT("Slam Slide! Speed boosted by %d slams: %f"), SlamJumpCount, SlideSpeedBoost);
 
 			// Reset slam counters after using the boost
@@ -659,6 +661,9 @@ void AIconoclasmCharacter::UpdateSlide()
 			FVector SlideVelocity = SlideDirection * CurrentSlideSpeed;
 			GetCharacterMovement()->Velocity = SlideVelocity;
 
+			// Check for enemies to damage while sliding
+			CheckSlideCollisions();
+
 			// Rotate the character based on the controller input
 			const FRotator ControlRotation = GetControlRotation();
 			const FRotator ControlYawRotation(0, ControlRotation.Yaw, 0);
@@ -667,11 +672,77 @@ void AIconoclasmCharacter::UpdateSlide()
 	}
 }
 
+void AIconoclasmCharacter::CheckSlideCollisions()
+{
+	// Perform a sphere sweep in front of the character
+	FVector Start = GetActorLocation();
+	FVector End = Start + (SlideDirection * 100.0f); // Check 100 units ahead
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	TArray<FHitResult> HitResults;
+	bool bHit = GetWorld()->SweepMultiByChannel(
+		HitResults,
+		Start,
+		End,
+		FQuat::Identity,
+		ECC_Pawn, // Collision channel for pawns
+		FCollisionShape::MakeSphere(80.0f), // Collision radius
+		QueryParams
+	);
+
+	if (bHit)
+	{
+		for (const FHitResult& Hit : HitResults)
+		{
+			AActor* HitActor = Hit.GetActor();
+			if (HitActor && !DamagedActorsThisSlide.Contains(HitActor))
+			{
+				// Check if the actor has a HealthComponent
+				if (UHealthComponent* HealthComp = HitActor->FindComponentByClass<UHealthComponent>())
+				{
+					// Don't damage yourself or dead enemies
+					if (HitActor != this && !HealthComp->IsDead())
+					{
+						ApplySlideDamage(HitActor, Hit);
+						DamagedActorsThisSlide.Add(HitActor);
+					}
+				}
+			}
+		}
+	}
+}
+
+void AIconoclasmCharacter::ApplySlideDamage(AActor* Enemy, const FHitResult& Hit)
+{
+	if (!Enemy) return;
+
+	// Calculate damage (bonus damage for slam slides based on speed)
+	float SpeedMultiplier = FMath::Clamp(CurrentSlideSpeed / SlideSpeed, 1.0f, 3.0f);
+	float FinalDamage = SlideDamage * SpeedMultiplier;
+
+	// Apply damage using Unreal's damage system
+	// This will trigger the HealthComponent's HandleTakeAnyDamage and award points
+	UGameplayStatics::ApplyDamage(
+		Enemy,
+		FinalDamage,
+		GetController(),
+		this,
+		UDamageType::StaticClass()
+	);
+
+	UE_LOG(LogTemp, Warning, TEXT("Slide Hit Enemy: %s for %f damage!"), *Enemy->GetName(), FinalDamage);
+}
+
 void AIconoclasmCharacter::StopSlide()
 {
 	if (IsSliding)
 	{
 		IsSliding = false;
+
+		// Clear damaged actors list when slide ends
+		DamagedActorsThisSlide.Empty();
 
 		// NEW: Start momentum deceleration instead of instant stop
 		bIsDeceleratingFromSlide = true;
@@ -691,20 +762,22 @@ void AIconoclasmCharacter::SlideJump()
 {
 	if (IsSliding)
 	{
-		// Get the current slide direction and speed for horizontal momentum
-		FVector HorizontalMomentum = SlideDirection * CurrentSlideSpeed;
+		IsSliding = false;
 
-		// Combine upward boost with horizontal slide momentum
-		FVector LaunchVelocity = FVector(HorizontalMomentum.X, HorizontalMomentum.Y, SlideJumpBoostStrength);
+		// Clear damaged actors list when slide ends
+		DamagedActorsThisSlide.Empty();
 
-		LaunchCharacter(LaunchVelocity, false, false);
-		StopSlide(); // Stop sliding when jumping
+		// NEW: Start momentum deceleration instead of instant stop
+		bIsDeceleratingFromSlide = true;
+		// CurrentSlideSpeed retains its current value and will gradually decrease
 
-		// The momentum will continue in the air and decay when you land (if moving)
+		TargetFOV = OriginalFOV;
 
-		// === Mark Double Jump Kill Window ===
-		bLastActionWasSlideJump = true;
-		LastSlideJumpTime = GetWorld()->GetTimeSeconds();
+		// Adjust the camera position back
+		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+		{
+			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
+		}
 	}
 }
 

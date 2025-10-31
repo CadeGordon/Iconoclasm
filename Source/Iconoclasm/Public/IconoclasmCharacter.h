@@ -192,6 +192,20 @@ public:
 
 		void ResetSlamJumpWindow();
 		void ResetSlamSlideWindow();
+
+		// In your header file (.h), add these:
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slide")
+		float SlideDamage = 50.0f;
+
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slide")
+		float SlideKnockbackForce = 1000.0f;
+
+		// Track enemies we've already hit this slide to prevent multi-hits
+		TSet<AActor*> DamagedActorsThisSlide;
+
+		// Function declarations
+		void CheckSlideCollisions();
+		void ApplySlideDamage(AActor* Enemy, const FHitResult& Hit);
 	
 	
 
