@@ -2,6 +2,7 @@
 
 
 #include "HealthPack.h"
+#include "TimerManager.h"
 
 // Sets default values
 AHealthPack::AHealthPack()
@@ -27,6 +28,14 @@ void AHealthPack::BeginPlay()
 	Super::BeginPlay();
 
 
+    // Set a timer to destroy this health pack after 5 seconds
+    GetWorldTimerManager().SetTimer(
+        DestroyTimerHandle,
+        this,
+        &AHealthPack::DestroyHealthPack,
+        5.0f,
+        false
+    );
 	
 }
 
@@ -59,7 +68,15 @@ void AHealthPack::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActo
             PlayerHealth->Heal(HealAmount);
         }
 
+        // Clear the timer before destroying (to avoid calling Destroy twice)
+        GetWorldTimerManager().ClearTimer(DestroyTimerHandle);
+
         // Destroy the health pack
         Destroy();
     }
+}
+
+void AHealthPack::DestroyHealthPack()
+{
+    Destroy();
 }

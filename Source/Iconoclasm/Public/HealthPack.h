@@ -41,4 +41,8 @@ private:
         UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
         const FHitResult& SweepResult);
 
+    FTimerHandle DestroyTimerHandle;
+
+    void DestroyHealthPack();
+
 };
