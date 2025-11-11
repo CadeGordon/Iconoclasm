@@ -20,6 +20,9 @@ public:
 
     virtual void Tick(float DeltaTime) override;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    float DamageAmount = 20.0f;
+
 
 protected:
     virtual void BeginPlay() override;

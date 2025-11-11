@@ -60,24 +60,23 @@ void AGruntAIController::AttackPlayer()
     // Check if the AI can attack
     if (bCanAttack && PlayerPawn)
     {
-        // Amount of damage to deal
-        float DamageAmount = 20.0f;
-
-        // Deal damage to the player
+        // Deal damage to the player using the editable DamageAmount
         UGameplayStatics::ApplyDamage(
             PlayerPawn,                // Target actor (the player)
-            DamageAmount,              // Damage amount
+            DamageAmount,              // Damage amount (now editable in editor)
             GetPawn()->GetController(),// Instigator (the AI controller)
             GetPawn(),                 // Damage causer (the grunt enemy)
             UDamageType::StaticClass() // Damage type
         );
 
         // Debug message to indicate the player was hit
-        GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Player hit - Damage dealt!"));
+        GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red,
+            FString::Printf(TEXT("Player hit - %f Damage dealt!"), DamageAmount));
 
         // Start the cooldown
         bCanAttack = false;
-        GetWorld()->GetTimerManager().SetTimer(AttackCooldownTimerHandle, this, &AGruntAIController::ResetAttack, AttackCooldown);
+        GetWorld()->GetTimerManager().SetTimer(AttackCooldownTimerHandle,
+            this, &AGruntAIController::ResetAttack, AttackCooldown);
     }
 }
 

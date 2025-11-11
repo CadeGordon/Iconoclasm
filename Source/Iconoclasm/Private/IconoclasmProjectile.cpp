@@ -36,8 +36,8 @@ AIconoclasmProjectile::AIconoclasmProjectile()
 	// Use a ProjectileMovementComponent to govern this projectile's movement
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileComp"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
-	ProjectileMovement->InitialSpeed = 1400.f; // Slower for bullet hell feel
-	ProjectileMovement->MaxSpeed = 1400.f;
+	ProjectileMovement->InitialSpeed = 1900.f; // Slower for bullet hell feel
+	ProjectileMovement->MaxSpeed = 1900.f;
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = false; // No bouncing for bullet hell
 
@@ -48,8 +48,8 @@ AIconoclasmProjectile::AIconoclasmProjectile()
 	ProjectileMovement->bIsHomingProjectile = false;
 
 	// Bullet hell properties
-	TrackingStrength = 3000.0f; // Much more aggressive tracking
-	MaxTrackingDistance = 3500.0f;
+	TrackingStrength = 4500.0f; // Much more aggressive tracking
+	MaxTrackingDistance = 5500.0f;
 	bCanTrackPlayer = true;
 	TargetPlayer = nullptr;
 
