@@ -11,6 +11,7 @@ AGruntAIController::AGruntAIController()
 {
     bCanAttack = true; // Enemy can attack initially
     AttackCooldown = 2.0f; // Default attack cooldown duration (in seconds)
+
 }
 
 void AGruntAIController::Tick(float DeltaTime)
@@ -57,19 +58,28 @@ void AGruntAIController::MoveToPlayer()
 
 void AGruntAIController::AttackPlayer()
 {
-    // Check if the AI can attack
     if (bCanAttack && PlayerPawn)
     {
-        // Deal damage to the player using the editable DamageAmount
+        // Get the damage amount from the enemy pawn
+        AGruntEnemyCharacter* GruntPawn = Cast<AGruntEnemyCharacter>(GetPawn());
+
+        float DamageAmount = 20.0f; // Default fallback
+
+        if (GruntPawn)
+        {
+            DamageAmount = GruntPawn->DamageAmount;
+        }
+
+        // Deal damage to the player
         UGameplayStatics::ApplyDamage(
-            PlayerPawn,                // Target actor (the player)
-            DamageAmount,              // Damage amount (now editable in editor)
-            GetPawn()->GetController(),// Instigator (the AI controller)
-            GetPawn(),                 // Damage causer (the grunt enemy)
-            UDamageType::StaticClass() // Damage type
+            PlayerPawn,
+            DamageAmount,
+            GetPawn()->GetController(),
+            GetPawn(),
+            UDamageType::StaticClass()
         );
 
-        // Debug message to indicate the player was hit
+        // Debug message
         GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red,
             FString::Printf(TEXT("Player hit - %f Damage dealt!"), DamageAmount));
 

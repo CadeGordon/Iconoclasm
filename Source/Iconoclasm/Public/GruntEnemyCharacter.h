@@ -15,6 +15,10 @@ public:
 	// Sets default values for this character's properties
 	AGruntEnemyCharacter();
 
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	float DamageAmount = 20.0f;
+
 	
 protected:
 	// Called when the game starts or when spawned
