@@ -6,6 +6,7 @@
 #include "HealthPack.h"
 #include "ScoreComponent.h"
 #include "ScoreWidget.h"
+#include "CombatMusicManager.h"
 
 // Sets default values for this component's properties
 UHealthComponent::UHealthComponent()
@@ -37,7 +38,7 @@ void UHealthComponent::BeginPlay()
 	{
 		Owner->OnTakeAnyDamage.AddDynamic(this, &UHealthComponent::HandleTakeAnyDamage);
 	}
-	
+
 }
 
 void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
@@ -99,7 +100,17 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 		}
 		else
 		{
-			// This is an enemy that died award score to player
+			// This is an enemy that died
+
+			// Notify music manager BEFORE awarding score or destroying
+			ACombatMusicManager* MusicManager = ACombatMusicManager::GetInstance(GetWorld());
+			if (MusicManager)
+			{
+				MusicManager->OnEnemyKilled();
+				UE_LOG(LogTemp, Log, TEXT("Enemy died - notified music manager"));
+			}
+
+			// Award score to player
 			if (InstigatedBy && InstigatedBy->GetPawn())
 			{
 				AActor* KillerActor = InstigatedBy->GetPawn();
@@ -196,4 +207,3 @@ void UHealthComponent::SetCurrentHealth(float NewHealth)
 	OnHealthChanged.Broadcast(CurrentHealth);
 	bIsDead = (CurrentHealth <= 0.0f);
 }
-

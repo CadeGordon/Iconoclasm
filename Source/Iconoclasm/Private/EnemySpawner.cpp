@@ -10,6 +10,7 @@
 #include "IconoclasmCharacter.h"
 #include "FlyingEnemyCharacter.h"
 #include "FlyingAIController.h"
+#include "CombatMusicManager.h"
 
 // Sets default values
 AEnemySpawner::AEnemySpawner()
@@ -69,24 +70,22 @@ void AEnemySpawner::SpawnEnemies()
         EnemyTypes.Num(), EnemyCounts.Num(), SpawnPoints.Num());
 
     int32 MaxSpawns = FMath::Min3(EnemyTypes.Num(), EnemyCounts.Num(), SpawnPoints.Num());
+    int32 TotalSpawnedCount = 0;
 
     for (int32 i = 0; i < MaxSpawns; ++i)
     {
-        // CRITICAL: Check spawn point validity BEFORE using it
         if (!IsValid(SpawnPoints[i]))
         {
             UE_LOG(LogTemp, Error, TEXT("SpawnPoint at index %d is NULL or invalid! Skipping..."), i);
             continue;
         }
 
-        // Check enemy class validity
         if (!EnemyTypes[i])
         {
             UE_LOG(LogTemp, Error, TEXT("Enemy class at index %d is NULL! Skipping..."), i);
             continue;
         }
 
-        // Now safe to get location
         FVector SpawnLocation = SpawnPoints[i]->GetActorLocation();
         int32 SpawnCount = EnemyCounts[i];
 
@@ -102,12 +101,28 @@ void AEnemySpawner::SpawnEnemies()
 
             if (IsValid(SpawnedEnemy))
             {
+                TotalSpawnedCount++;
                 UE_LOG(LogTemp, Warning, TEXT("Successfully spawned: %s"), *SpawnedEnemy->GetName());
             }
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy %d at spawn point %d!"), j, i);
             }
+        }
+    }
+
+    // Notify the music manager about spawned enemies
+    if (TotalSpawnedCount > 0)
+    {
+        ACombatMusicManager* MusicManager = ACombatMusicManager::GetInstance(GetWorld());
+        if (MusicManager)
+        {
+            MusicManager->RegisterEnemies(TotalSpawnedCount);
+            UE_LOG(LogTemp, Warning, TEXT("Notified music manager of %d spawned enemies"), TotalSpawnedCount);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Music Manager not found in level!"));
         }
     }
 }
