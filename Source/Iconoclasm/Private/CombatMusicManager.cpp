@@ -47,7 +47,11 @@ void ACombatMusicManager::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    if (bIsFading)
+    if (bStoppingMusic)
+    {
+        UpdateStopFade(DeltaTime);
+    }
+    else if (bIsFading)
     {
         UpdateFade(DeltaTime);
     }
@@ -171,5 +175,74 @@ ACombatMusicManager* ACombatMusicManager::GetInstance(UWorld* World)
     }
 
     return Instance;
+}
+
+void ACombatMusicManager::StopAllMusic(bool bImmediate, float FadeOutDuration)
+{
+    UE_LOG(LogTemp, Warning, TEXT("StopAllMusic called - Immediate: %s"), bImmediate ? TEXT("true") : TEXT("false"));
+
+    if (bImmediate)
+    {
+        // Stop both tracks immediately
+        if (ChillAudioComponent && ChillAudioComponent->IsPlaying())
+        {
+            ChillAudioComponent->Stop();
+        }
+        if (ActionAudioComponent && ActionAudioComponent->IsPlaying())
+        {
+            ActionAudioComponent->Stop();
+        }
+
+        bInCombat = false;
+        bIsFading = false;
+        bStoppingMusic = false;
+
+        UE_LOG(LogTemp, Warning, TEXT("All music stopped immediately"));
+    }
+    else
+    {
+        // Fade out over time
+        bStoppingMusic = true;
+        bIsFading = false;
+        StopFadeTime = FadeOutDuration;
+        FadeTimer = 0.0f;
+
+        UE_LOG(LogTemp, Warning, TEXT("Starting music fade out over %.1f seconds"), FadeOutDuration);
+    }
+}
+
+void ACombatMusicManager::UpdateStopFade(float DeltaTime)
+{
+    FadeTimer += DeltaTime;
+    float FadeAlpha = FMath::Clamp(FadeTimer / StopFadeTime, 0.0f, 1.0f);
+    float Volume = (1.0f - FadeAlpha) * MusicVolume;
+
+    // Fade both tracks to zero
+    if (ChillAudioComponent && ChillAudioComponent->IsPlaying())
+    {
+        ChillAudioComponent->SetVolumeMultiplier(Volume);
+    }
+    if (ActionAudioComponent && ActionAudioComponent->IsPlaying())
+    {
+        ActionAudioComponent->SetVolumeMultiplier(Volume);
+    }
+
+    // Finish fade
+    if (FadeAlpha >= 1.0f)
+    {
+        if (ChillAudioComponent)
+        {
+            ChillAudioComponent->Stop();
+        }
+        if (ActionAudioComponent)
+        {
+            ActionAudioComponent->Stop();
+        }
+
+        bStoppingMusic = false;
+        bInCombat = false;
+
+        UE_LOG(LogTemp, Warning, TEXT("Music fade out complete - all tracks stopped"));
+    }
 }
 

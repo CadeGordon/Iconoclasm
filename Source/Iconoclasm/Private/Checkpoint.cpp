@@ -10,25 +10,21 @@
 #include "FlyingEnemyCharacter.h"
 #include "GruntEnemyCharacter.h"
 #include "RaphaelBossCharacter.h"
+#include "CombatMusicManager.h"
 
- 
+ACheckpoint::ACheckpoint()
+{
+	PrimaryActorTick.bCanEverTick = false;
+	CheckpointTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("CheckpointTrigger"));
+	RootComponent = CheckpointTrigger;
+	CheckpointTrigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CheckpointTrigger->SetCollisionObjectType(ECC_WorldDynamic);
+	CheckpointTrigger->SetCollisionResponseToAllChannels(ECR_Ignore);
+	CheckpointTrigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CheckpointTrigger->OnComponentBeginOverlap.AddDynamic(this, &ACheckpoint::OnCheckpointOverlap);
+}
 
- ACheckpoint::ACheckpoint()
- {
-	 PrimaryActorTick.bCanEverTick = false;
-
-	 CheckpointTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("CheckpointTrigger"));
-	 RootComponent = CheckpointTrigger;
-	 CheckpointTrigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	 CheckpointTrigger->SetCollisionObjectType(ECC_WorldDynamic);
-	 CheckpointTrigger->SetCollisionResponseToAllChannels(ECR_Ignore);
-	 CheckpointTrigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-
-	 CheckpointTrigger->OnComponentBeginOverlap.AddDynamic(this, &ACheckpoint::OnCheckpointOverlap);
-
- }
-
- void ACheckpoint::BeginPlay()
+void ACheckpoint::BeginPlay()
 {
 	Super::BeginPlay();
 }
@@ -40,7 +36,6 @@ void ACheckpoint::OnCheckpointOverlap(UPrimitiveComponent* OverlappedComponent, 
 	if (PlayerCharacter)
 	{
 		PlayerCharacter->SetCheckpointLocation(GetActorLocation());
-
 		DestroyEnemyCharacters();
 	}
 }
@@ -53,6 +48,8 @@ void ACheckpoint::DestroyEnemyCharacters()
 		return;
 	}
 
+	int32 TotalEnemiesDestroyed = 0;
+
 	// Destroy RangedEnemyCharacters (except Raphael boss)
 	TArray<AActor*> RangedEnemies;
 	UGameplayStatics::GetAllActorsOfClass(World, ARangedEnemyCharacter::StaticClass(), RangedEnemies);
@@ -62,6 +59,7 @@ void ACheckpoint::DestroyEnemyCharacters()
 		if (!RaphaelBoss)
 		{
 			Enemy->Destroy();
+			TotalEnemiesDestroyed++;
 		}
 	}
 
@@ -74,6 +72,7 @@ void ACheckpoint::DestroyEnemyCharacters()
 		if (!RaphaelBoss)
 		{
 			Enemy->Destroy();
+			TotalEnemiesDestroyed++;
 		}
 	}
 
@@ -86,6 +85,26 @@ void ACheckpoint::DestroyEnemyCharacters()
 		if (!RaphaelBoss)
 		{
 			Enemy->Destroy();
+			TotalEnemiesDestroyed++;
+		}
+	}
+
+	// Notify the music manager that enemies were destroyed
+	if (TotalEnemiesDestroyed > 0)
+	{
+		ACombatMusicManager* MusicManager = ACombatMusicManager::GetInstance(World);
+		if (MusicManager)
+		{
+			// Notify for each enemy destroyed
+			for (int32 i = 0; i < TotalEnemiesDestroyed; i++)
+			{
+				MusicManager->OnEnemyKilled();
+			}
+			UE_LOG(LogTemp, Warning, TEXT("Checkpoint destroyed %d enemies and notified music manager"), TotalEnemiesDestroyed);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Music Manager not found when clearing checkpoint enemies!"));
 		}
 	}
 }

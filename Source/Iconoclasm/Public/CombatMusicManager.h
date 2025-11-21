@@ -14,13 +14,11 @@ class ICONOCLASM_API ACombatMusicManager : public AActor
 {
 	GENERATED_BODY()
 	
-public:	
-	// Sets default values for this actor's properties
-	ACombatMusicManager();
+public:
+    ACombatMusicManager();
 
 protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 
 public:
     virtual void Tick(float DeltaTime) override;
@@ -39,6 +37,10 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Combat Music")
     void EndCombat();
+
+    // Stop all music tracks
+    UFUNCTION(BlueprintCallable, Category = "Combat Music")
+    void StopAllMusic(bool bImmediate = false, float FadeOutDuration = 2.0f);
 
 protected:
     // Music tracks
@@ -68,11 +70,14 @@ private:
     bool bIsFading = false;
     float FadeTimer = 0.0f;
     bool bFadingToAction = false;
+    bool bStoppingMusic = false;
+    float StopFadeTime = 2.0f;
 
     void UpdateMusicState();
     void CrossfadeToAction();
     void CrossfadeToChill();
     void UpdateFade(float DeltaTime);
+    void UpdateStopFade(float DeltaTime);
 
 public:
     // Singleton access
