@@ -106,7 +106,18 @@ void ACombatMusicManager::CrossfadeToAction()
 {
     if (!ActionAudioComponent->IsPlaying())
     {
-        ActionAudioComponent->Play();
+        // Start at a random position in the track
+        if (ActionTrack)
+        {
+            float TrackDuration = ActionTrack->Duration;
+            float RandomStartTime = FMath::FRandRange(0.0f, FMath::Max(0.0f, TrackDuration - 1.0f));
+            ActionAudioComponent->Play(RandomStartTime);
+            UE_LOG(LogTemp, Log, TEXT("Starting action track at %.2f seconds"), RandomStartTime);
+        }
+        else
+        {
+            ActionAudioComponent->Play();
+        }
     }
 
     bIsFading = true;
@@ -116,9 +127,29 @@ void ACombatMusicManager::CrossfadeToAction()
 
 void ACombatMusicManager::CrossfadeToChill()
 {
-    if (!ChillAudioComponent->IsPlaying())
+    // Always start at a random position, even if already playing
+    if (ChillTrack)
     {
-        ChillAudioComponent->Play();
+        float TrackDuration = ChillTrack->Duration;
+        float RandomStartTime = FMath::FRandRange(0.0f, FMath::Max(0.0f, TrackDuration - 1.0f));
+
+        if (!ChillAudioComponent->IsPlaying())
+        {
+            ChillAudioComponent->Play(RandomStartTime);
+            UE_LOG(LogTemp, Log, TEXT("Starting chill track at %.2f seconds"), RandomStartTime);
+        }
+        else
+        {
+            // If already playing, just let it continue from current position
+            UE_LOG(LogTemp, Log, TEXT("Chill track already playing, continuing from current position"));
+        }
+    }
+    else
+    {
+        if (!ChillAudioComponent->IsPlaying())
+        {
+            ChillAudioComponent->Play();
+        }
     }
 
     bIsFading = true;
@@ -153,10 +184,12 @@ void ACombatMusicManager::UpdateFade(float DeltaTime)
         if (bFadingToAction)
         {
             ChillAudioComponent->Stop();
+            UE_LOG(LogTemp, Log, TEXT("Fade to action complete - stopped chill track"));
         }
         else
         {
             ActionAudioComponent->Stop();
+            UE_LOG(LogTemp, Log, TEXT("Fade to chill complete - stopped action track"));
         }
     }
 }
