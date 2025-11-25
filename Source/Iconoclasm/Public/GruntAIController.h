@@ -17,32 +17,31 @@ class ICONOCLASM_API AGruntAIController : public AAIController
 public:
     AGruntAIController();
 
-
     virtual void Tick(float DeltaTime) override;
-
-    
-
 
 protected:
     virtual void BeginPlay() override;
 
 private:
+    // Reference to the player pawn
     APawn* PlayerPawn;
-    FVector WanderLocation;
-    bool IsPlayerInRange;
 
-    // Can the AI attack
+    // Attack cooldown management
     bool bCanAttack;
-
-    // Cooldown duration for attacks
     float AttackCooldown;
-
-    // Timer handle for attack cooldown
     FTimerHandle AttackCooldownTimerHandle;
 
+    // Jump cooldown management
+    bool bCanJump;
+    float JumpCooldown;
+    FTimerHandle JumpCooldownTimerHandle;
+
+    // Functions
     void MoveToPlayer();
     void AttackPlayer();
-
-    // Reset attack ability after cooldown
     void ResetAttack();
+    void TryJumpToPlayer();
+    void ResetJump();
+    bool CalculateJumpVelocity(const FVector& StartLocation, const FVector& TargetLocation, float& OutLaunchSpeed, FVector& OutLaunchVelocity);
+
 };

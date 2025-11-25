@@ -108,23 +108,66 @@ void AFlyingEnemyCharacter::InitializeFlyingSettings()
 
 void AFlyingEnemyCharacter::ShootAtPlayer(APawn* Target)
 {
-    if (ProjectileClass && Target)
+    // Add comprehensive null checks using modern Unreal API
+    if (!ProjectileClass)
     {
-        FVector MuzzlePosition = MuzzleSphere->GetComponentLocation();
-        FRotator MuzzleRotation = (Target->GetActorLocation() - MuzzlePosition).Rotation();
+        UE_LOG(LogTemp, Error, TEXT("ProjectileClass is not set on %s"), *GetName());
+        return;
+    }
 
-        // Spawn the projectile
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.Owner = this;
-        SpawnParams.Instigator = GetInstigator();
+    if (!IsValid(Target))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Invalid target for shooting"));
+        return;
+    }
 
-        AIconoclasmProjectile* Projectile = GetWorld()->SpawnActor<AIconoclasmProjectile>(ProjectileClass, MuzzlePosition, MuzzleRotation, SpawnParams);
+    UWorld* World = GetWorld();
+    if (!IsValid(World))
+    {
+        UE_LOG(LogTemp, Error, TEXT("World is null when trying to shoot"));
+        return;
+    }
 
-        if (Projectile)
-        {
-            FVector LaunchDirection = MuzzleRotation.Vector();
-            Projectile->FireInDirection(LaunchDirection);  // Adjust if your projectile has a custom fire method
-        }
+    if (!IsValid(MuzzleSphere))
+    {
+        UE_LOG(LogTemp, Error, TEXT("MuzzleSphere is null on %s"), *GetName());
+        return;
+    }
+
+    FVector MuzzlePosition = MuzzleSphere->GetComponentLocation();
+    FVector TargetLocation = Target->GetActorLocation();
+    FVector DirectionToTarget = TargetLocation - MuzzlePosition;
+
+    // Check if direction is valid
+    if (DirectionToTarget.IsNearlyZero())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Target is too close to muzzle position"));
+        return;
+    }
+
+    FRotator MuzzleRotation = DirectionToTarget.Rotation();
+
+    // Spawn the projectile
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = this;
+    SpawnParams.Instigator = GetInstigator();
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    AIconoclasmProjectile* Projectile = World->SpawnActor<AIconoclasmProjectile>(
+        ProjectileClass,
+        MuzzlePosition,
+        MuzzleRotation,
+        SpawnParams
+    );
+
+    if (IsValid(Projectile))
+    {
+        FVector LaunchDirection = MuzzleRotation.Vector();
+        Projectile->FireInDirection(LaunchDirection);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to spawn projectile"));
     }
 }
 

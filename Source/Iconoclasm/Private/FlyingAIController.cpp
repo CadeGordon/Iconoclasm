@@ -24,6 +24,13 @@ void AFlyingAIController::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
+    // Validate pawn is still valid
+    APawn* ControlledPawn = GetPawn();
+    if (!IsValid(ControlledPawn))
+    {
+        return;
+    }
+
     TimeSinceLastDirectionChange += DeltaTime;
     TimeSinceLastShot += DeltaTime;
 
@@ -33,10 +40,10 @@ void AFlyingAIController::Tick(float DeltaTime)
         TimeSinceLastDirectionChange = 0.0f;
     }
 
-    if (PlayerPawn)
+    if (IsValid(PlayerPawn))
     {
         // Calculate distance to the player
-        float DistanceToPlayer = FVector::Dist(PlayerPawn->GetActorLocation(), GetPawn()->GetActorLocation());
+        float DistanceToPlayer = FVector::Dist(PlayerPawn->GetActorLocation(), ControlledPawn->GetActorLocation());
 
         if (DistanceToPlayer <= ShootRange && TimeSinceLastShot >= TimeBetweenShots)
         {
@@ -61,25 +68,22 @@ void AFlyingAIController::Tick(float DeltaTime)
 
 void AFlyingAIController::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
     // Find the player pawn
     PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
-    
-
     // Start flying in a random direction
     ChangeFlyDirection();
     TimeSinceLastDirectionChange = 0.0f;
-
-	
 }
 
 void AFlyingAIController::FlyAround()
 {
-    if (GetPawn())
+    APawn* ControlledPawn = GetPawn();
+    if (IsValid(ControlledPawn))
     {
-        FVector NewLocation = GetPawn()->GetActorLocation();
+        FVector NewLocation = ControlledPawn->GetActorLocation();
         FVector AvoidanceDirection = AvoidNearbyEnemies(); // Get avoidance vector from nearby enemies
         FVector MovementDirection = RandomFlyDirection + AvoidanceDirection; // Add the avoidance to the flying direction
 
@@ -95,7 +99,7 @@ void AFlyingAIController::FlyAround()
             NewLocation.Z = MinAltitude;  // Keep the enemy at least this high
         }
 
-        GetPawn()->SetActorLocation(NewLocation);
+        ControlledPawn->SetActorLocation(NewLocation);
     }
 }
 
@@ -111,11 +115,12 @@ void AFlyingAIController::ChangeFlyDirection()
 
 void AFlyingAIController::MoveToPlayer()
 {
-    if (PlayerPawn && GetPawn())
+    APawn* ControlledPawn = GetPawn();
+    if (IsValid(PlayerPawn) && IsValid(ControlledPawn))
     {
-        FVector DirectionToPlayer = (PlayerPawn->GetActorLocation() - GetPawn()->GetActorLocation()).GetSafeNormal();
-        FVector NewLocation = GetPawn()->GetActorLocation() + (DirectionToPlayer * FlySpeed * GetWorld()->DeltaTimeSeconds);
-        GetPawn()->SetActorLocation(NewLocation);
+        FVector DirectionToPlayer = (PlayerPawn->GetActorLocation() - ControlledPawn->GetActorLocation()).GetSafeNormal();
+        FVector NewLocation = ControlledPawn->GetActorLocation() + (DirectionToPlayer * FlySpeed * GetWorld()->DeltaTimeSeconds);
+        ControlledPawn->SetActorLocation(NewLocation);
     }
 }
 
@@ -127,16 +132,34 @@ void AFlyingAIController::AttackPlayer()
 
 void AFlyingAIController::ShootProjectile()
 {
-    AFlyingEnemyCharacter* FlyingEnemy = Cast<AFlyingEnemyCharacter>(GetPawn());
-    if (FlyingEnemy)
+    // Add validation checks using modern Unreal API
+    APawn* ControlledPawn = GetPawn();
+    if (!IsValid(ControlledPawn))
     {
-        FlyingEnemy->ShootAtPlayer(PlayerPawn);  // Call the character to handle shooting
+        return;
+    }
+
+    if (!IsValid(PlayerPawn))
+    {
+        return;
+    }
+
+    AFlyingEnemyCharacter* FlyingEnemy = Cast<AFlyingEnemyCharacter>(ControlledPawn);
+    if (IsValid(FlyingEnemy))
+    {
+        FlyingEnemy->ShootAtPlayer(PlayerPawn);
     }
 }
 
 FVector AFlyingAIController::AvoidNearbyEnemies()
 {
     FVector Avoidance = FVector::ZeroVector;
+
+    APawn* ControlledPawn = GetPawn();
+    if (!IsValid(ControlledPawn))
+    {
+        return Avoidance;
+    }
 
     // Define the radius to check for nearby enemies
     float AvoidanceRadius = 700.0f;
@@ -147,16 +170,19 @@ FVector AFlyingAIController::AvoidNearbyEnemies()
 
     for (AActor* OtherEnemy : AllEnemies)
     {
-        // Skip if the other enemy is this one
-        if (OtherEnemy == GetPawn()) continue;
+        // Skip if the other enemy is this one or is invalid
+        if (!IsValid(OtherEnemy) || OtherEnemy == ControlledPawn)
+        {
+            continue;
+        }
 
         // Calculate the distance to the other enemy
-        float DistanceToEnemy = FVector::Dist(GetPawn()->GetActorLocation(), OtherEnemy->GetActorLocation());
+        float DistanceToEnemy = FVector::Dist(ControlledPawn->GetActorLocation(), OtherEnemy->GetActorLocation());
 
         if (DistanceToEnemy < AvoidanceRadius)
         {
             // Calculate a direction away from the other enemy
-            FVector AwayFromEnemy = GetPawn()->GetActorLocation() - OtherEnemy->GetActorLocation();
+            FVector AwayFromEnemy = ControlledPawn->GetActorLocation() - OtherEnemy->GetActorLocation();
             AwayFromEnemy.Normalize();
 
             // Scale the avoidance based on the proximity (closer enemies generate stronger avoidance)
@@ -172,5 +198,4 @@ FVector AFlyingAIController::AvoidNearbyEnemies()
 
     return Avoidance * 2.5f; // You can adjust the multiplier to control the strength of avoidance
 }
-
 

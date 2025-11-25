@@ -5,6 +5,7 @@
 #include "GruntAIController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 AGruntEnemyCharacter::AGruntEnemyCharacter()
@@ -19,8 +20,24 @@ AGruntEnemyCharacter::AGruntEnemyCharacter()
 	// Set the "Enemy" tag
 	Tags.Add(FName("Enemy"));
 
-    
+	// Ensure the character can jump
+	JumpMaxCount = 1;
 
+	// Configure movement for jumping
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->JumpZVelocity = 600.0f;
+		GetCharacterMovement()->AirControl = 0.5f;
+	}
+
+}
+
+bool AGruntEnemyCharacter::CanAIJump() const
+{
+	// Check if AI can jump
+	return GetCharacterMovement() &&
+		GetCharacterMovement()->IsMovingOnGround() &&
+		!GetCharacterMovement()->IsFalling();
 }
 
 

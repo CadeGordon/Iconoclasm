@@ -33,5 +33,7 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	
+
+	// Custom function to check if AI can jump (not an override)
+	bool CanAIJump() const;
 };
