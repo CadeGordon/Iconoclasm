@@ -36,6 +36,12 @@ private:
     float JumpCooldown;
     FTimerHandle JumpCooldownTimerHandle;
 
+    // Flanking behavior
+    float MyFlankAngle; // This enemy's assigned angle around the player
+    float FlankDistance; // Preferred distance from player
+    FVector TargetFlankPosition; // Calculated flanking position
+    float RepositionTimer; // Timer to recalculate position
+
     // Functions
     void MoveToPlayer();
     void AttackPlayer();
@@ -43,5 +49,10 @@ private:
     void TryJumpToPlayer();
     void ResetJump();
     bool CalculateJumpVelocity(const FVector& StartLocation, const FVector& TargetLocation, float& OutLaunchSpeed, FVector& OutLaunchVelocity);
+
+    // Flanking functions
+    void CalculateFlankPosition();
+    float FindBestFlankAngle();
+    bool IsPositionOccupied(const FVector& Position, float Radius);
 
 };

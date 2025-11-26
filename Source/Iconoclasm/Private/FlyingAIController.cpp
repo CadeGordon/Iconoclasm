@@ -84,19 +84,22 @@ void AFlyingAIController::FlyAround()
     if (IsValid(ControlledPawn))
     {
         FVector NewLocation = ControlledPawn->GetActorLocation();
-        FVector AvoidanceDirection = AvoidNearbyEnemies(); // Get avoidance vector from nearby enemies
-        FVector MovementDirection = RandomFlyDirection + AvoidanceDirection; // Add the avoidance to the flying direction
+        FVector AvoidanceDirection = AvoidNearbyEnemies();
+        FVector MovementDirection = RandomFlyDirection + AvoidanceDirection;
 
         MovementDirection.Normalize();
         NewLocation += (MovementDirection * FlySpeed * GetWorld()->DeltaTimeSeconds);
 
         // Set a minimum Z value (altitude) to prevent the enemy from flying too close to the ground
-        float MinAltitude = 500.0f;  // Adjust this value as necessary
+        float MinAltitude = 500.0f;
 
-        // Ensure the new location's Z value is above the minimum altitude
+        // FIXED: Smoothly push the enemy upward instead of teleporting
         if (NewLocation.Z < MinAltitude)
         {
-            NewLocation.Z = MinAltitude;  // Keep the enemy at least this high
+            // Add upward force proportional to how far below minimum we are
+            float AltitudeDeficit = MinAltitude - NewLocation.Z;
+            float UpwardCorrection = FMath::Min(AltitudeDeficit * 0.5f, FlySpeed * GetWorld()->DeltaTimeSeconds);
+            NewLocation.Z += UpwardCorrection;
         }
 
         ControlledPawn->SetActorLocation(NewLocation);
@@ -105,12 +108,23 @@ void AFlyingAIController::FlyAround()
 
 void AFlyingAIController::ChangeFlyDirection()
 {
-    // Generate a random direction
-    RandomFlyDirection = FMath::VRand();
-    RandomFlyDirection.Z = FMath::FRandRange(0.3f, 1.0f); // Favor flying upward a bit more
-    RandomFlyDirection.Normalize();
+    APawn* ControlledPawn = GetPawn();
+    float CurrentAltitude = IsValid(ControlledPawn) ? ControlledPawn->GetActorLocation().Z : 500.0f;
+    float MinAltitude = 500.0f;
 
-    UE_LOG(LogTemp, Warning, TEXT("Changing fly direction to: %s"), *RandomFlyDirection.ToString());
+    RandomFlyDirection = FMath::VRand();
+
+    // If we're near minimum altitude, bias the direction upward more strongly
+    if (CurrentAltitude < MinAltitude + 200.0f)
+    {
+        RandomFlyDirection.Z = FMath::FRandRange(0.5f, 1.0f); // Stronger upward bias
+    }
+    else
+    {
+        RandomFlyDirection.Z = FMath::FRandRange(0.3f, 1.0f);
+    }
+
+    RandomFlyDirection.Normalize();
 }
 
 void AFlyingAIController::MoveToPlayer()
