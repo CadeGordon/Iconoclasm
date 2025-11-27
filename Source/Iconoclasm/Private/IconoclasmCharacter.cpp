@@ -303,7 +303,6 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-
 	// Check if the player is on the ground
 	if (GetCharacterMovement()->IsMovingOnGround())
 	{
@@ -315,52 +314,53 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 		UpdateSlide();
 	}
 
-	// NEW: Handle slide momentum deceleration
-	if (bIsDeceleratingFromSlide && !IsSliding)
+	// IMPROVED: Handle slide/dash momentum deceleration
+	if (bIsDeceleratingFromSlide && !IsSliding && GetCharacterMovement()->IsMovingOnGround())
 	{
-		// Only apply momentum if the player is giving movement input
-		FVector MovementInput = GetLastMovementInputVector();
+		// Get current velocity and input
+		FVector CurrentVelocity = GetCharacterMovement()->Velocity;
+		FVector HorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
+		float CurrentSpeed = HorizontalVelocity.Size();
 
-		if (!MovementInput.IsNearlyZero())
+		FVector InputVector = GetLastMovementInputVector();
+		bool bHasInput = !InputVector.IsNearlyZero();
+
+		if (bHasInput)
 		{
-			// Gradually reduce speed back to default
-			CurrentSlideSpeed = FMath::FInterpTo(
-				CurrentSlideSpeed,
-				DefaultWalkSpeed,
-				DeltaTime,
-				SlideDecelerationRate * DeltaTime
-			);
+			// With input: decelerate faster to allow responsive player control
+			// Uses interp rate instead of multiplying by DeltaTime (FInterpTo already handles that)
+			CurrentSlideSpeed = FMath::FInterpTo(CurrentSlideSpeed, DefaultWalkSpeed, DeltaTime, 8.0f);
+		}
+		else
+		{
+			// No input: decelerate at moderate rate for smooth coast to stop
+			CurrentSlideSpeed = FMath::FInterpTo(CurrentSlideSpeed, DefaultWalkSpeed, DeltaTime, 4.0f);
+		}
 
-			// Apply the momentum to the character's velocity
-			if (GetCharacterMovement()->IsMovingOnGround())
-			{
-				FVector CurrentVelocity = GetCharacterMovement()->Velocity;
-				FVector HorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
+		// Apply the decelerating momentum only if still above normal walk speed
+		if (CurrentSlideSpeed > DefaultWalkSpeed)
+		{
+			FVector Direction = HorizontalVelocity.GetSafeNormal();
+			// Preserve vertical velocity (for slopes, etc.)
+			GetCharacterMovement()->Velocity = (Direction * CurrentSlideSpeed) + FVector(0, 0, CurrentVelocity.Z);
 
-				if (!HorizontalVelocity.IsNearlyZero())
-				{
-					FVector MomentumDirection = HorizontalVelocity.GetSafeNormal();
-					GetCharacterMovement()->Velocity = MomentumDirection * CurrentSlideSpeed + FVector(0, 0, CurrentVelocity.Z);
-				}
-			}
-
-			// Update max walk speed too so it feels natural
+			// Update max walk speed so movement input works naturally
 			GetCharacterMovement()->MaxWalkSpeed = CurrentSlideSpeed;
 		}
 		else
 		{
-			// No input - instantly reset to default speed
+			// Once we're back to normal walk speed, stop the special deceleration
 			bIsDeceleratingFromSlide = false;
-			GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed;
 			CurrentSlideSpeed = DefaultWalkSpeed;
+			GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed;
 		}
-
-		// Stop decelerating when we're close to default speed
-		if (FMath::IsNearlyEqual(CurrentSlideSpeed, DefaultWalkSpeed, 10.0f))
+	}
+	// Ensure max walk speed is reset if deceleration ended
+	else if (!bIsDeceleratingFromSlide && !IsSliding && !IsDashing)
+	{
+		if (GetCharacterMovement()->MaxWalkSpeed != DefaultWalkSpeed)
 		{
-			bIsDeceleratingFromSlide = false;
 			GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed;
-			CurrentSlideSpeed = DefaultWalkSpeed;
 		}
 	}
 
@@ -593,10 +593,18 @@ void AIconoclasmCharacter::EndDash()
 {
 	IsDashing = false;
 
-	// Start momentum deceleration after dash ends
+	// Start momentum deceleration with reduced initial speed
 	if (GetCharacterMovement()->IsMovingOnGround())
 	{
-		bIsDeceleratingFromSlide = true;
+		FVector HorizontalVel = GetCharacterMovement()->Velocity;
+		HorizontalVel.Z = 0;
+		float CurrentSpeed = HorizontalVel.Size();
+
+		if (CurrentSpeed > GetCharacterMovement()->MaxWalkSpeed * 1.3f)
+		{
+			bIsDeceleratingFromSlide = true;
+			CurrentSlideSpeed = CurrentSpeed * 0.75f; // Reduce by 25%
+		}
 	}
 }
 
@@ -740,17 +748,24 @@ void AIconoclasmCharacter::StopSlide()
 	if (IsSliding)
 	{
 		IsSliding = false;
-
-		// Clear damaged actors list when slide ends
 		DamagedActorsThisSlide.Empty();
 
-		// NEW: Start momentum deceleration instead of instant stop
-		bIsDeceleratingFromSlide = true;
-		// CurrentSlideSpeed retains its current value and will gradually decrease
+		// Only preserve momentum if speed is significantly above walk speed
+		float CurrentSpeed = CurrentSlideSpeed;
+		if (CurrentSpeed > GetCharacterMovement()->MaxWalkSpeed * 1.5f)
+		{
+			bIsDeceleratingFromSlide = true;
+			// Reduce initial momentum slightly for better feel
+			CurrentSlideSpeed = CurrentSpeed * 0.7f;
+		}
+		else
+		{
+			bIsDeceleratingFromSlide = false;
+			CurrentSlideSpeed = 0.0f;
+		}
 
 		TargetFOV = OriginalFOV;
 
-		// Adjust the camera position back
 		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
 		{
 			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
@@ -806,17 +821,25 @@ void AIconoclasmCharacter::GroundSlam()
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
-
 	CanDashAgain = true;
 	JumpCount = 0;
 	bHasLeftGround = false;
 	bCanWallJump = true;
 	WallJumpCount = 0;
 
-	// If there are no dash charges, start recharging them
+	// If landing from significant momentum, start deceleration
+	FVector HorizontalVel = GetCharacterMovement()->Velocity;
+	HorizontalVel.Z = 0;
+	float LandingSpeed = HorizontalVel.Size();
+
+	if (LandingSpeed > GetCharacterMovement()->MaxWalkSpeed * 1.2f)
+	{
+		bIsDeceleratingFromSlide = true;
+		CurrentSlideSpeed = LandingSpeed;
+	}
+
 	if (DashCharges == 0)
 	{
-		// Start cooldown timer
 		StartDashCooldown();
 	}
 }
