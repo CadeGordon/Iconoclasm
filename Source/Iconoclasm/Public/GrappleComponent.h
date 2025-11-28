@@ -86,7 +86,7 @@ private:
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Grapple")
-	float GrappleLength = 5000.0f;
+	float GrappleLength = 6500.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Grapple")
 	float GrappleSpeed = 8000.0f;

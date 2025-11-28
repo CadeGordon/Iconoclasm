@@ -337,7 +337,7 @@ void UGrappleComponent::ReleaseGrapple()
     {
         if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
         {
-            CharacterMovement->GravityScale = 2.0f;
+            CharacterMovement->GravityScale = 2.7f;
         }
     }
 
