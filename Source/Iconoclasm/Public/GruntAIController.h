@@ -23,36 +23,81 @@ protected:
     virtual void BeginPlay() override;
 
 private:
-    // Reference to the player pawn
+    // Player reference
     APawn* PlayerPawn;
 
-    // Attack cooldown management
+    // Attack system
     bool bCanAttack;
     float AttackCooldown;
     FTimerHandle AttackCooldownTimerHandle;
+    void AttackPlayer();
+    void ResetAttack();
 
-    // Jump cooldown management
+    // Jump to airborne player system
     bool bCanJump;
     float JumpCooldown;
     FTimerHandle JumpCooldownTimerHandle;
-
-    // Flanking behavior
-    float MyFlankAngle; // This enemy's assigned angle around the player
-    float FlankDistance; // Preferred distance from player
-    FVector TargetFlankPosition; // Calculated flanking position
-    float RepositionTimer; // Timer to recalculate position
-
-    // Functions
-    void MoveToPlayer();
-    void AttackPlayer();
-    void ResetAttack();
     void TryJumpToPlayer();
     void ResetJump();
-    bool CalculateJumpVelocity(const FVector& StartLocation, const FVector& TargetLocation, float& OutLaunchSpeed, FVector& OutLaunchVelocity);
+    bool CalculateJumpVelocity(const FVector& StartLocation, const FVector& TargetLocation,
+        float& OutLaunchSpeed, FVector& OutLaunchVelocity);
 
-    // Flanking functions
+    // Lunge attack system
+    bool bCanLunge;
+    float LungeCooldown;
+    FTimerHandle LungeCooldownTimerHandle;
+    void TryLungeAtPlayer();
+    void ResetLunge();
+    float LungeChance;
+    float NextLungeCheckTime;
+
+    // NEW: Circle strafe behavior
+    bool bIsCircling;
+    float CircleDirection; // 1.0 = clockwise, -1.0 = counter-clockwise
+    float CircleDuration;
+    float CircleTimer;
+    void TryCircleStrafe();
+    void StopCircling();
+
+    // NEW: Dodge behavior (sidestep when player attacks)
+    bool bCanDodge;
+    float DodgeCooldown;
+    FTimerHandle DodgeCooldownTimerHandle;
+    void TryDodge();
+    void ResetDodge();
+    FVector LastPlayerForward;
+
+    // NEW: Feint/fake lunge behavior
+    bool bCanFeint;
+    float FeintCooldown;
+    FTimerHandle FeintCooldownTimerHandle;
+    void TryFeint();
+    void ResetFeint();
+
+    // NEW: Pack coordination
+    void CheckPackBehavior();
+    bool ShouldHangBack(); // Stay back if too many allies are close
+    int32 GetNearbyAlliesCount(float Radius);
+
+    // NEW: Retreat when low health (if you add health to grunts)
+    bool bIsRetreating;
+    float RetreatTimer;
+    void CheckRetreat();
+
+    // Flanking system
+    FVector TargetFlankPosition;
+    float MyFlankAngle;
+    float FlankDistance;
+    float RepositionTimer;
     void CalculateFlankPosition();
     float FindBestFlankAngle();
     bool IsPositionOccupied(const FVector& Position, float Radius);
 
+    // Movement
+    void MoveToPlayer();
+
+    // NEW: Personality traits (set randomly per grunt)
+    float Aggression; // 0.0 - 1.0, affects behavior chances
+    float Caution; // 0.0 - 1.0, affects retreat/dodge behavior
+    bool bIsAlpha; // Alpha grunts are more aggressive
 };
