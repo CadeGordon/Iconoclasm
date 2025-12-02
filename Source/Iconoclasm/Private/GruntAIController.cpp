@@ -749,12 +749,16 @@ void AGruntAIController::CheckRetreat()
 
     if (AllyCount == 0) // Last one standing
     {
-        bShouldRetreat = true;
+        // 50% chance to retreat if cautious, alphas never retreat
+        if (!bIsAlpha && Caution > 0.4f)
+        {
+            bShouldRetreat = FMath::FRand() < 0.5f;
+        }
     }
     else if (AllyCount <= 2 && !bIsAlpha) // 1-2 allies left and not an alpha
     {
-        // Cautious grunts retreat, aggressive ones keep fighting
-        bShouldRetreat = (Caution > 0.5f && FMath::FRand() < 0.4f);
+        // Only very cautious grunts retreat, and only sometimes
+        bShouldRetreat = (Caution > 0.6f && FMath::FRand() < 0.25f);
     }
 
     // Start retreat if conditions met
