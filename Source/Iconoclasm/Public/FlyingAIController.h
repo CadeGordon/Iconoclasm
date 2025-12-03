@@ -27,68 +27,69 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
-	// Player pawn reference
-	APawn* PlayerPawn;
+    // Player reference
+    UPROPERTY()
+    APawn* PlayerPawn;
 
-	// Flag to track if the enemy is chasing the player
-	bool bIsChasingPlayer;
+    // Movement parameters
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float PreferredDistance;  // Ideal distance to maintain from player
 
-	// Distance to start chasing the player
-	UPROPERTY(EditAnywhere, Category = "AI")
-	float PlayerChaseDistance;
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float MinDistance;  // If closer than this, actively flee
 
-	// Distance to stop chasing the player
-	UPROPERTY(EditAnywhere, Category = "AI")
-	float StopChasingDistance;
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float FlySpeed;
 
-	FVector RandomFlyDirection;
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float ChangeDirectionInterval;
 
-	// Movement parameters
-	float MaxFollowDistance = 2000.0f;  // Max distance to start moving toward the player
-	float MinFollowDistance = 600.0f;   // Min distance to stop approaching the player and hover around
-	float HoverSpeed = 300.0f;          // Speed at which the enemy hovers around the player
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float StrafeSpeed;
 
-	/** Shooting range for the enemy to fire projectiles at the player */
-	float ShootRange = 10000.0f;
+    // Evasive maneuver parameters
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float EvasiveManeuverChance;
 
-	/** Time between shots */
-	float TimeBetweenShots = 2.0f;
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float EvasiveManeuverDuration;
 
-	/** Timer to keep track of time since last shot */
-	float TimeSinceLastShot = 0.0f;
+    // Shooting parameters
+    UPROPERTY(EditAnywhere, Category = "Combat")
+    float ShootRange;
 
+    UPROPERTY(EditAnywhere, Category = "Combat")
+    float TimeBetweenShots;
 
-	UPROPERTY(EditAnywhere, Category = "AI")
-	float FlySpeed = 600.0f;
+    // Internal state
+    float TimeSinceLastDirectionChange;
+    float TimeSinceLastShot;
+    bool bIsChasingPlayer;
 
-	UPROPERTY(EditAnywhere, Category = "AI")
-	float FlyRadius = 1000.0f; // Max distance to fly in one direction before changing
+    // Evasive maneuver state
+    bool bIsEvading;
+    float EvasiveManeuverTimer;
+    FVector CurrentEvasiveDirection;
 
-	UPROPERTY(EditAnywhere, Category = "AI")
-	float ChangeDirectionInterval = 3.0f; // Time interval between direction changes
+    FVector RandomFlyDirection;
 
-	/** Avoidance radius to prevent clustering with nearby enemies */
-	//float AvoidanceRadius = 300.0f;
+    // Smoothing parameters
+    FVector CurrentVelocity;  // Current movement velocity
+    FVector TargetDirection;  // Direction we want to move toward
 
-	float TimeSinceLastDirectionChange;
+    UPROPERTY(EditAnywhere, Category = "AI")
+    float AccelerationRate;  // How fast to change velocity
 
-	void FlyAround();
-	void ChangeFlyDirection();
+    // AI behavior functions
+    void FlyAround(float DeltaTime);
+    void ChangeFlyDirection();
+    void FleeFromPlayer(float DeltaTime);
+    void MaintainDistance(float DeltaTime);
+    void AttackPlayer();
+    void ShootProjectile();
+    void TriggerEvasiveManeuver();
+    void ApplySmoothMovement(float DeltaTime);  // New - handles smooth interpolation
 
-	// Move toward the player
-	void MoveToPlayer();
-
-	void AttackPlayer();
-
-	/** Shoots a projectile at the player */
-	void ShootProjectile();
-
-	/** Generate an avoidance vector to steer away from nearby enemies */
-	FVector AvoidNearbyEnemies();
-
-	// Function to make the enemy hover or circle around the player
-	//void HoverAroundPlayer(const FVector& PlayerLocation, const FVector& EnemyLocation, float DeltaTime);
-
-
-	
+    // Helper function to avoid other enemies
+    FVector AvoidNearbyEnemies();
 };
