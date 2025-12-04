@@ -61,10 +61,24 @@ private:
     UPROPERTY(EditAnywhere, Category = "Combat")
     float TimeBetweenShots;
 
+    UPROPERTY(EditAnywhere, Category = "Combat")
+    float BurstShotChance;  // 0.0 to 1.0, chance to do burst instead of single shot
+
+    UPROPERTY(EditAnywhere, Category = "Combat")
+    int32 BurstShotCount;  // Number of shots in a burst
+
+    UPROPERTY(EditAnywhere, Category = "Combat")
+    float TimeBetweenBurstShots;  // Delay between shots in a burst
+
     // Internal state
     float TimeSinceLastDirectionChange;
     float TimeSinceLastShot;
     bool bIsChasingPlayer;
+
+    // Burst shooting state
+    bool bIsBursting;
+    int32 CurrentBurstCount;
+    float TimeSinceLastBurstShot;
 
     // Evasive maneuver state
     bool bIsEvading;

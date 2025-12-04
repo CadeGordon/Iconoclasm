@@ -20,9 +20,15 @@ AFlyingAIController::AFlyingAIController()
     bIsChasingPlayer = false;
 
     // Shooting parameters
-    ShootRange = 1500.0f;
+    ShootRange = 5500.0f;
     TimeBetweenShots = 2.0f;
     TimeSinceLastShot = 0.0f;
+    BurstShotChance = 0.4f;  // 40% chance to do burst instead of single shot
+    BurstShotCount = 3;
+    TimeBetweenBurstShots = 0.15f;
+    CurrentBurstCount = 0;
+    bIsBursting = false;
+    TimeSinceLastBurstShot = 0.0f;
 
     // Evasive maneuver parameters
     EvasiveManeuverChance = 0.2f;  // Reduced from 0.3f
@@ -50,6 +56,27 @@ void AFlyingAIController::Tick(float DeltaTime)
 
     TimeSinceLastDirectionChange += DeltaTime;
     TimeSinceLastShot += DeltaTime;
+
+    // Handle burst shooting
+    if (bIsBursting)
+    {
+        TimeSinceLastBurstShot += DeltaTime;
+
+        if (TimeSinceLastBurstShot >= TimeBetweenBurstShots)
+        {
+            ShootProjectile();
+            CurrentBurstCount++;
+            TimeSinceLastBurstShot = 0.0f;
+
+            // End burst if we've shot enough times
+            if (CurrentBurstCount >= BurstShotCount)
+            {
+                bIsBursting = false;
+                CurrentBurstCount = 0;
+                TimeSinceLastShot = 0.0f;  // Reset cooldown after burst
+            }
+        }
+    }
 
     // Handle evasive maneuver timing
     if (bIsEvading)
@@ -79,14 +106,26 @@ void AFlyingAIController::Tick(float DeltaTime)
     {
         float DistanceToPlayer = FVector::Dist(PlayerPawn->GetActorLocation(), ControlledPawn->GetActorLocation());
 
-        // Shoot at player if within range and cooldown has passed
-        if (DistanceToPlayer <= ShootRange && TimeSinceLastShot >= TimeBetweenShots)
+        // Shoot at player if within range and cooldown has passed (and not already bursting)
+        if (!bIsBursting && DistanceToPlayer <= ShootRange && TimeSinceLastShot >= TimeBetweenShots)
         {
-            ShootProjectile();
-            TimeSinceLastShot = 0.0f;
+            // Randomly decide between single shot or burst
+            if (FMath::FRand() < BurstShotChance)
+            {
+                // Start burst fire
+                bIsBursting = true;
+                CurrentBurstCount = 0;
+                TimeSinceLastBurstShot = 0.0f;
+            }
+            else
+            {
+                // Single shot
+                ShootProjectile();
+                TimeSinceLastShot = 0.0f;
+            }
 
             // Trigger evasive maneuver after shooting
-            if (FMath::FRand() < 0.4f)  // Reduced from 0.6f
+            if (FMath::FRand() < 0.4f)
             {
                 TriggerEvasiveManeuver();
             }
@@ -358,4 +397,3 @@ FVector AFlyingAIController::AvoidNearbyEnemies()
 
     return Avoidance * 2.0f;  // Reduced from 2.5f
 }
-

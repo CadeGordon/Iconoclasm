@@ -466,7 +466,6 @@ bool AIconoclasmCharacter::GetHasRifle()
 
 void AIconoclasmCharacter::DoubleJump()
 {
-
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 
 	// Check if this is a slam jump
@@ -474,24 +473,71 @@ void AIconoclasmCharacter::DoubleJump()
 	{
 		// Calculate progressive jump height
 		float JumpHeight = BaseSlamJumpHeight * FMath::Pow(SlamJumpHeightMultiplier, SlamJumpCount);
-
-		// Launch the character
 		LaunchCharacter(FVector(0, 0, JumpHeight), false, true);
-
-		// Increment slam jump count for next jump
 		SlamJumpCount++;
-
 		UE_LOG(LogTemp, Warning, TEXT("Slam Jump #%d! Height: %f"), SlamJumpCount, JumpHeight);
-
-		// Don't increment regular JumpCount, we want to allow double jump after slam jump
 		return;
 	}
 
+	// === WALL JUMP - MOST POWERFUL WITH MOMENTUM AND CAMERA CONTROL ===
 	if (WallRunComponent && WallRunComponent->IsWallRunning)
 	{
+		FVector WallNormal = WallRunComponent->GetWallNormal();
+		FVector WallDirection = WallRunComponent->GetWallRunDirection();
+
+		// Get current velocity to preserve momentum
+		FVector CurrentVelocity = MoveComp->Velocity;
+		FVector CurrentHorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
+		float CurrentSpeed = CurrentHorizontalVelocity.Size();
+
+		// Get camera direction for player control
+		FVector CameraForward = FirstPersonCameraComponent->GetForwardVector();
+		FVector CameraRight = FirstPersonCameraComponent->GetRightVector();
+
+		// Project camera forward onto horizontal plane (remove pitch)
+		FVector CameraForwardHorizontal = CameraForward;
+		CameraForwardHorizontal.Z = 0.0f;
+		CameraForwardHorizontal.Normalize();
+
+		// Build powerful wall jump velocity based on camera direction
+		FVector WallJumpVelocity = FVector::ZeroVector;
+
+		// 1. Add horizontal velocity based on where player is looking
+		float ForwardSpeed = FMath::Max(CurrentSpeed * 1.2f, 1000.0f); // Boost by 20% or minimum
+		WallJumpVelocity += CameraForwardHorizontal * ForwardSpeed;
+
+		// 2. Add push away from wall (scaled based on if player is looking away from wall)
+		float WallPushDot = FVector::DotProduct(CameraForwardHorizontal, WallNormal);
+		float WallPushMultiplier = FMath::Max(WallPushDot, 0.3f); // Minimum 30% push, max 100%
+		WallJumpVelocity += WallNormal * (800.0f * WallPushMultiplier);
+
+		// 3. High vertical boost (preserve camera pitch influence)
+		float PitchInfluence = FMath::Clamp(CameraForward.Z, -0.5f, 0.8f); // Clamp to prevent extreme angles
+		WallJumpVelocity.Z = 1800.0f + (PitchInfluence * 600.0f); // Looking up = higher jump, down = less high
+
+		// Apply the wall jump with momentum preservation
+		LaunchCharacter(WallJumpVelocity, false, true);
+
+		// Stop wall running
 		WallRunComponent->StopWallRun();
+
+		// Start momentum deceleration system (like dash/slide)
+		bIsDeceleratingFromSlide = true;
+		CurrentSlideSpeed = ForwardSpeed * 1.3f; // Higher multiplier for wall jump momentum
+
+		// Mark as double jump for kill window
+		bLastActionWasDoubleJump = true;
+		LastDoubleJumpTime = GetWorld()->GetTimeSeconds();
+
+		// Reset jump count to allow one more air jump
+		JumpCount = 1;
+
+		UE_LOG(LogTemp, Warning, TEXT("Wall Jump! Looking direction, Speed: %f, Pitch: %f"),
+			ForwardSpeed, PitchInfluence);
+		return;
 	}
 
+	// === REGULAR JUMP LOGIC ===
 	if (MoveComp->IsMovingOnGround())
 	{
 		bHasLeftGround = false;
@@ -507,20 +553,15 @@ void AIconoclasmCharacter::DoubleJump()
 	{
 		if (MoveComp->IsMovingOnGround())
 		{
-			Jump(); // Applies default jump Z velocity
+			Jump();
 		}
 		else
 		{
-			// Get current horizontal velocity for momentum
 			FVector CurrentVelocity = MoveComp->Velocity;
 			FVector HorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
-
-			// Preserve horizontal momentum and add vertical jump force
 			FVector LaunchVelocity = HorizontalVelocity + FVector(0, 0, 1400.0f);
+			LaunchCharacter(LaunchVelocity, false, true);
 
-			LaunchCharacter(LaunchVelocity, false, true); // Apply manual jump force with momentum
-
-			// === Mark Double Jump Kill Window ===
 			bLastActionWasDoubleJump = true;
 			LastDoubleJumpTime = GetWorld()->GetTimeSeconds();
 		}

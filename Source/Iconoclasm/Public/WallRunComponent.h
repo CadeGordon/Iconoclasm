@@ -37,6 +37,10 @@ public:
 
 	bool GetIsWallRunning() const { return IsWallRunning; }
 
+	// Add to public members
+	FVector GetWallNormal() const { return WallNormal; }
+	FVector GetWallRunDirection() const { return WallRunDirection; }
+
 private:
 	bool DetectWall(FVector& OutWallNormal, FVector& OutWallDirection);
 
