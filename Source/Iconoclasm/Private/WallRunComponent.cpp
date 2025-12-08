@@ -16,7 +16,7 @@ UWallRunComponent::UWallRunComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
-	WallRunSpeed = 1800.0f;
+	WallRunSpeed = 1450.0f;
 	
 	DescentRate = 200.0f;
 
