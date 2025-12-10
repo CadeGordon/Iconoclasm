@@ -266,6 +266,18 @@ void UGrappleComponent::FireGrapple()
                 GrappledActor = nullptr;
                 GrappleLocation = TargetHit->ImpactPoint;
                 IsGrappleActive = true;
+
+                // Force character off ground if grounded (for world grapple only)
+                if (bWasGroundedWhenGrappleStarted && OwningCharacter)
+                {
+                    if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+                    {
+                        CharacterMovement->SetMovementMode(MOVE_Falling);
+                        FVector LaunchVelocity = FVector(0, 0, 500.0f);
+                        CharacterMovement->Launch(LaunchVelocity);
+                    }
+                }
+
                 StartWorldGrapple();
             }
         }
@@ -275,6 +287,18 @@ void UGrappleComponent::FireGrapple()
             GrappledActor = nullptr;
             GrappleLocation = TargetHit->ImpactPoint;
             IsGrappleActive = true;
+
+            // Force character off ground if grounded (for world grapple only)
+            if (bWasGroundedWhenGrappleStarted && OwningCharacter)
+            {
+                if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+                {
+                    CharacterMovement->SetMovementMode(MOVE_Falling);
+                    FVector LaunchVelocity = FVector(0, 0, 500.0f);
+                    CharacterMovement->Launch(LaunchVelocity);
+                }
+            }
+
             StartWorldGrapple();
         }
 
@@ -383,13 +407,19 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
     if (GrappledActor && GrappledActor->Tags.Contains(FName("Enemy")))
     {
         ApplyEnemyGrapplePhysics(DeltaTime);
-        return;
+        return; // Exit early - don't apply world grapple physics for enemies
     }
 
-    // Otherwise, use the existing world grapple physics
+    // Only apply falling mode and world grapple physics for non-enemy grapples
     UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
     if (!CharacterMovement)
         return;
+
+    // NEW: Ensure we stay in falling mode during world grapple
+    if (CharacterMovement->MovementMode != MOVE_Falling)
+    {
+        CharacterMovement->SetMovementMode(MOVE_Falling);
+    }
 
     FVector CharacterLocation = OwningCharacter->GetActorLocation();
     FVector CurrentVelocity = CharacterMovement->Velocity;
@@ -408,19 +438,19 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
     ToGrapplePoint.Normalize();
     float CurrentSpeed = CurrentVelocity.Size();
 
-    // If we're moving very slowly (essentially stationary), use direct pull like original
-    if (CurrentSpeed < 300.0f)
+    // MODIFIED: Use direct pull for slower speeds OR if we just started grappling from ground
+    // This prevents the "dragging" effect
+    if (CurrentSpeed < 500.0f) // Increased threshold
     {
-        // Use the original direct pull method for stationary/slow moving players
+        // Use the original direct pull method
         FVector DirectPullForce = ToGrapplePoint * GrappleSpeed;
         CharacterMovement->Launch(DirectPullForce);
         return;
     }
 
     // For moving players, apply FULL POWER swing physics
-    // Adjust pull strength based on player's current speed
     float BasePullStrength = FMath::Max(GrappleSpeed, MinimumPullForce);
-    float AdaptivePullStrength = FMath::Max(BasePullStrength, CurrentSpeed * 1.2f); // Scale with player speed
+    float AdaptivePullStrength = FMath::Max(BasePullStrength, CurrentSpeed * 1.2f);
 
     // 1. PULLING FORCE - Adaptive strength that scales with player momentum
     FVector PullForce = ToGrapplePoint * AdaptivePullStrength;
@@ -428,7 +458,7 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
 
     // 2. PENDULUM CONSTRAINT - Strong constraint to maintain rope length
     float DistanceError = CurrentDistance - GrappleDistance;
-    if (DistanceError > 0) // Only prevent stretching, allow compression
+    if (DistanceError > 0)
     {
         FVector ConstraintForce = ToGrapplePoint * DistanceError * SwingForce;
         CurrentVelocity += ConstraintForce * DeltaTime;
@@ -437,10 +467,10 @@ void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
     // 3. SWING INPUT - Full power swing input
     ApplySwingInput(CurrentVelocity, ToGrapplePoint, DeltaTime);
 
-    // 4. Apply minimal damping to maintain momentum and "umph"
+    // 4. Apply minimal damping to maintain momentum
     CurrentVelocity *= SwingDamping;
 
-    // 5. Adaptive max swing speed - increases with player's momentum
+    // 5. Adaptive max swing speed
     float AdaptiveMaxSpeed = FMath::Max(MaxSwingSpeed, CurrentSpeed * 1.1f);
     if (CurrentVelocity.Size() > AdaptiveMaxSpeed)
     {
