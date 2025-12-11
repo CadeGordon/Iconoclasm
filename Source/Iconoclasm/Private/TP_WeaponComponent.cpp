@@ -26,6 +26,7 @@ UTP_WeaponComponent::UTP_WeaponComponent()
 	// Default offset from the character location for projectiles to spawn
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
 	CurrentWeaponMode = EWeaponMode::Mode1;
+	WeaponType = EWeaponType::GrenadeLauncher;
 }
 
 void UTP_WeaponComponent::BeginPlay()

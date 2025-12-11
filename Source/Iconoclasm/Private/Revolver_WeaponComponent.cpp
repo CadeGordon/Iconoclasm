@@ -24,6 +24,8 @@ URevolver_WeaponComponent::URevolver_WeaponComponent()
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
 	CurrentWeaponMode = ERevolverMode::RevolverMode1;
 
+	WeaponType = EWeaponType::Revolver;
+
 }
 
 void URevolver_WeaponComponent::Fire()
@@ -359,6 +361,29 @@ void URevolver_WeaponComponent::UnlockHellfireMode()
 	// Unlock the mode
 	bHellfireModeUnlocked = true;
 	UE_LOG(LogTemp, Warning, TEXT("Hellfire mode unlocked! Spent %d money."), HellfireUnlockCost);
+
+	UWeaponSaveGame* SaveGameInstance =
+		Cast<UWeaponSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("WeaponSaveSlot"), 0));
+
+	if (!SaveGameInstance)
+	{
+		SaveGameInstance = Cast<UWeaponSaveGame>(
+			UGameplayStatics::CreateSaveGameObject(UWeaponSaveGame::StaticClass()));
+	}
+
+	if (SaveGameInstance)
+	{
+		SaveGameInstance->AddWeapon(WeaponType);
+		FWeaponSaveData* Data = SaveGameInstance->GetWeaponData(WeaponType);
+
+		if (Data)
+		{
+			Data->bHasWeapon = true;
+			Data->bHellfireModeUnlocked = true;
+		}
+
+		UGameplayStatics::SaveGameToSlot(SaveGameInstance, TEXT("WeaponSaveSlot"), 0);
+	}
 
 	// Hide the unlock widget
 	if (HellfireUnlockWidget)

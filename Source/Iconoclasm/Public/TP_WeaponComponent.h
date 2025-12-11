@@ -6,6 +6,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "HealthComponent.h"
 #include "GrenadeLauncherProjectile.h"
+#include "WeaponTypes.h"
 #include "TP_WeaponComponent.generated.h"
 
 class AIconoclasmCharacter;
@@ -75,6 +76,16 @@ public:
 	// Cost to unlock impulse mode
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Impulse")
 	int32 ImpulseUnlockCost = 2000;
+
+	// Which logical weapon this component represents
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon|Save")
+	EWeaponType WeaponType = EWeaponType::GrenadeLauncher;
+
+	FORCEINLINE EWeaponType GetWeaponType() const { return WeaponType; }
+
+	bool IsImpulseUnlocked() const { return bImpulseModeUnlocked; }
+	void SetImpulseUnlocked(bool bNew) { bImpulseModeUnlocked = bNew; }
+
 
 public:
 	virtual void BeginPlay() override;

@@ -25,8 +25,10 @@
 #include "HealthComponent.h"
 #include "DeathScreenHUD.h"
 #include "GrappleComponent.h"
+#include "WeaponSaveGame.h"
+#include "WeaponTypes.h"
 
-
+const FString AIconoclasmCharacter::WeaponSaveSlotName = TEXT("WeaponSaveSlot");
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
@@ -296,7 +298,220 @@ void AIconoclasmCharacter::BeginPlay()
 			UE_LOG(LogTemp, Warning, TEXT("Health Widget Created and Initialized"));
 		}
 	}
+
+	LoadWeaponState();
 	
+}
+
+void AIconoclasmCharacter::SaveWeaponPickup(UActorComponent* WeaponComponent)
+{
+	if (!WeaponComponent)
+	{
+		return;
+	}
+
+	UWeaponSaveGame* SaveGameInstance =
+		Cast<UWeaponSaveGame>(UGameplayStatics::LoadGameFromSlot(WeaponSaveSlotName, 0));
+
+	if (!SaveGameInstance)
+	{
+		SaveGameInstance = Cast<UWeaponSaveGame>(
+			UGameplayStatics::CreateSaveGameObject(UWeaponSaveGame::StaticClass()));
+	}
+
+	if (!SaveGameInstance)
+	{
+		return;
+	}
+
+	EWeaponType WeaponType = EWeaponType::Revolver; // default
+
+	bool bImpulseUnlocked = false;
+	bool bDefconUnlocked = false;
+	bool bHellfireUnlocked = false;
+
+	// Figure out which weapon this is and pull mode unlocks
+	if (URevolver_WeaponComponent* Revolver = Cast<URevolver_WeaponComponent>(WeaponComponent))
+	{
+		WeaponType = EWeaponType::Revolver;
+		bHellfireUnlocked = Revolver->IsHellfireUnlocked();
+	}
+	else if (UShotgun_WeaponComponent* Shotgun = Cast<UShotgun_WeaponComponent>(WeaponComponent))
+	{
+		WeaponType = EWeaponType::Shotgun;
+		bDefconUnlocked = Shotgun->IsDefconUnlocked();
+	}
+	else if (UTP_WeaponComponent* GL = Cast<UTP_WeaponComponent>(WeaponComponent))
+	{
+		WeaponType = EWeaponType::GrenadeLauncher;
+		bImpulseUnlocked = GL->IsImpulseUnlocked();
+	}
+
+	SaveGameInstance->AddWeapon(WeaponType);
+	FWeaponSaveData* Data = SaveGameInstance->GetWeaponData(WeaponType);
+
+	if (Data)
+	{
+		Data->bHasWeapon = true;
+		Data->bImpulseModeUnlocked = bImpulseUnlocked || Data->bImpulseModeUnlocked;
+		Data->bDefconModeUnlocked = bDefconUnlocked || Data->bDefconModeUnlocked;
+		Data->bHellfireModeUnlocked = bHellfireUnlocked || Data->bHellfireModeUnlocked;
+	}
+
+	UGameplayStatics::SaveGameToSlot(SaveGameInstance, WeaponSaveSlotName, 0);
+}
+
+void AIconoclasmCharacter::SaveWeaponState()
+{
+	UWeaponSaveGame* SaveGameInstance =
+		Cast<UWeaponSaveGame>(UGameplayStatics::LoadGameFromSlot(WeaponSaveSlotName, 0));
+
+	if (!SaveGameInstance)
+	{
+		SaveGameInstance = Cast<UWeaponSaveGame>(
+			UGameplayStatics::CreateSaveGameObject(UWeaponSaveGame::StaticClass()));
+	}
+
+	if (!SaveGameInstance)
+	{
+		return;
+	}
+
+	// Clear and rebuild from current inventory
+	SaveGameInstance->UnlockedWeapons.Empty();
+
+	for (UActorComponent* Comp : GetComponents())
+	{
+		if (!Comp) continue;
+
+		URevolver_WeaponComponent* Revolver = Cast<URevolver_WeaponComponent>(Comp);
+		UShotgun_WeaponComponent* Shotgun = Cast<UShotgun_WeaponComponent>(Comp);
+		UTP_WeaponComponent* GL = Cast<UTP_WeaponComponent>(Comp);
+
+		if (!Revolver && !Shotgun && !GL)
+		{
+			continue;
+		}
+
+		EWeaponType WeaponType = EWeaponType::Revolver;
+		bool bImpulseUnlocked = false;
+		bool bDefconUnlocked = false;
+		bool bHellfireUnlocked = false;
+
+		if (Revolver)
+		{
+			WeaponType = EWeaponType::Revolver;
+			bHellfireUnlocked = Revolver->IsHellfireUnlocked();
+		}
+		else if (Shotgun)
+		{
+			WeaponType = EWeaponType::Shotgun;
+			bDefconUnlocked = Shotgun->IsDefconUnlocked();
+		}
+		else if (GL)
+		{
+			WeaponType = EWeaponType::GrenadeLauncher;
+			bImpulseUnlocked = GL->IsImpulseUnlocked();
+		}
+
+		SaveGameInstance->AddWeapon(WeaponType);
+		FWeaponSaveData* Data = SaveGameInstance->GetWeaponData(WeaponType);
+		if (Data)
+		{
+			Data->bHasWeapon = true;
+			Data->bImpulseModeUnlocked = bImpulseUnlocked;
+			Data->bDefconModeUnlocked = bDefconUnlocked;
+			Data->bHellfireModeUnlocked = bHellfireUnlocked;
+		}
+	}
+
+	UGameplayStatics::SaveGameToSlot(SaveGameInstance, WeaponSaveSlotName, 0);
+}
+
+void AIconoclasmCharacter::LoadWeaponState()
+{
+	UWeaponSaveGame* SaveGameInstance =
+		Cast<UWeaponSaveGame>(UGameplayStatics::LoadGameFromSlot(WeaponSaveSlotName, 0));
+
+	if (!SaveGameInstance)
+	{
+		return; // no save yet
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Spawn each owned weapon and apply unlocks
+	for (const FWeaponSaveData& Data : SaveGameInstance->UnlockedWeapons)
+	{
+		if (!Data.bHasWeapon)
+		{
+			continue;
+		}
+
+		TSubclassOf<AActor> WeaponActorClass = nullptr;
+
+		switch (Data.WeaponType)
+		{
+		case EWeaponType::Revolver:
+			WeaponActorClass = RevolverWeaponActorClass;
+			break;
+		case EWeaponType::Shotgun:
+			WeaponActorClass = ShotgunWeaponActorClass;
+			break;
+		case EWeaponType::GrenadeLauncher:
+			WeaponActorClass = GrenadeLauncherWeaponActorClass;
+			break;
+		default:
+			break;
+		}
+
+		if (!WeaponActorClass)
+		{
+			continue;
+		}
+
+		// Spawn at player location (can be refined later)
+		FActorSpawnParameters Params;
+		Params.Owner = this;
+		Params.SpawnCollisionHandlingOverride =
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		AActor* WeaponActor = World->SpawnActor<AActor>(
+			WeaponActorClass,
+			GetActorLocation(),
+			GetActorRotation(),
+			Params
+		);
+
+		if (!WeaponActor)
+		{
+			continue;
+		}
+
+		// Grab the right weapon component and apply unlocks
+		if (URevolver_WeaponComponent* Revolver =
+			WeaponActor->FindComponentByClass<URevolver_WeaponComponent>())
+		{
+			Revolver->SetHellfireUnlocked(Data.bHellfireModeUnlocked);
+			EquipWeapon(Revolver); // will hide pickup, attach, etc.
+		}
+		else if (UShotgun_WeaponComponent* Shotgun =
+			WeaponActor->FindComponentByClass<UShotgun_WeaponComponent>())
+		{
+			Shotgun->SetDefconUnlocked(Data.bDefconModeUnlocked);
+			EquipWeapon(Shotgun);
+		}
+		else if (UTP_WeaponComponent* GL =
+			WeaponActor->FindComponentByClass<UTP_WeaponComponent>())
+		{
+			GL->SetImpulseUnlocked(Data.bImpulseModeUnlocked);
+			EquipWeapon(GL);
+		}
+	}
 }
 
 void AIconoclasmCharacter::Tick(float DeltaTime)
@@ -927,7 +1142,6 @@ void AIconoclasmCharacter::EquipWeapon(UTP_WeaponComponent* Weapon)
 			if (CurrentWeaponIndex >= 0 && CurrentWeaponIndex < WeaponInventory.Num())
 			{
 				WeaponInventory[CurrentWeaponIndex]->DetachFromCharacter();
-				// Hide the previously equipped weapon's actor
 				if (WeaponInventory[CurrentWeaponIndex]->GetOwner())
 				{
 					WeaponInventory[CurrentWeaponIndex]->GetOwner()->SetActorHiddenInGame(true);
@@ -950,6 +1164,9 @@ void AIconoclasmCharacter::EquipWeapon(UTP_WeaponComponent* Weapon)
 
 			Weapon->AttachWeapon(this);
 			UE_LOG(LogTemp, Warning, TEXT("Equipped weapon: %s"), *Weapon->GetName());
+
+			//  NEW: Save this pickup to the save slot
+			SaveWeaponPickup(Weapon);
 		}
 		else
 		{
@@ -972,6 +1189,9 @@ void AIconoclasmCharacter::AddWeaponToInventory(UTP_WeaponComponent* Weapon)
 			WeaponOwner->SetActorEnableCollision(false);
 			UE_LOG(LogTemp, Warning, TEXT("Hidden weapon pickup %s from ground"), *Weapon->GetName());
 		}
+
+		//  NEW: Save as soon as it’s added to inventory
+		SaveWeaponPickup(Weapon);
 	}
 }
 

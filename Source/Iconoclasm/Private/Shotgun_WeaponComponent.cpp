@@ -20,6 +20,7 @@ UShotgun_WeaponComponent::UShotgun_WeaponComponent()
 	// Default offset from the character location for projectiles to spawn
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
 	CurrentWeaponMode = EShotgunMode::ShotgunMode1;
+	WeaponType = EWeaponType::Shotgun;
 }
 
 void UShotgun_WeaponComponent::BeginPlay()
@@ -967,5 +968,29 @@ void UShotgun_WeaponComponent::UnlockDefconMode()
 	bDefconModeUnlocked = true;
 	UE_LOG(LogTemp, Warning, TEXT("Defcon mode unlocked! Spent %d money."), DefconUnlockCost);
 
-	// Play unlock sound, show notification, etc.
+	
+
+	UWeaponSaveGame* SaveGameInstance =
+		Cast<UWeaponSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("WeaponSaveSlot"), 0));
+
+	if (!SaveGameInstance)
+	{
+		SaveGameInstance = Cast<UWeaponSaveGame>(
+			UGameplayStatics::CreateSaveGameObject(UWeaponSaveGame::StaticClass()));
+	}
+
+	if (SaveGameInstance)
+	{
+		SaveGameInstance->AddWeapon(WeaponType);
+		FWeaponSaveData* Data = SaveGameInstance->GetWeaponData(WeaponType);
+		if (Data)
+		{
+			Data->bHasWeapon = true;
+			Data->bDefconModeUnlocked = true;
+		}
+
+		UGameplayStatics::SaveGameToSlot(SaveGameInstance, TEXT("WeaponSaveSlot"), 0);
+
+		// Play unlock sound, show notification, etc.
+	}
 }

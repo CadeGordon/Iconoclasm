@@ -7,6 +7,7 @@
 #include "HealthComponent.h"
 #include "ShotgunHUD.h"
 #include "ShotgunProjectile.h"
+#include "WeaponTypes.h"
 #include "Shotgun_WeaponComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -62,6 +63,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	bool IsDefconModeUnlocked() const { return bDefconModeUnlocked; }
+
+	EWeaponType GetWeaponType() const { return WeaponType; }
+
+	bool IsDefconUnlocked() const { return bDefconModeUnlocked; }
+	void SetDefconUnlocked(bool bNew) { bDefconModeUnlocked = bNew; }
 
 public:
 	

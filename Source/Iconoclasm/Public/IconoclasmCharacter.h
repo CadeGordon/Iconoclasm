@@ -8,6 +8,8 @@
 #include "Logging/LogMacros.h"
 #include "TP_WeaponComponent.h"
 #include "DashHUD.h"
+#include "WeaponTypes.h"
+#include "WeaponSaveGame.h"
 #include "IconoclasmCharacter.generated.h"
 
 class UInputComponent;
@@ -63,6 +65,16 @@ class AIconoclasmCharacter : public ACharacter
 	
 public:
 	AIconoclasmCharacter();
+
+	// Classes used to spawn permanent weapons when loading from save
+	UPROPERTY(EditDefaultsOnly, Category = "Weapons|Save")
+	TSubclassOf<AActor> RevolverWeaponActorClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Weapons|Save")
+	TSubclassOf<AActor> ShotgunWeaponActorClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Weapons|Save")
+	TSubclassOf<AActor> GrenadeLauncherWeaponActorClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UUserWidget> WeaponWheelWidgetClass;
@@ -390,6 +402,14 @@ public:
 		bool bCanSlamSlide;
 		float SlamSlideWindowTime;
 		FTimerHandle SlamSlideWindowTimerHandle;
+
+		// Used for saves
+		static const FString WeaponSaveSlotName;
+
+		void SaveWeaponState();
+		void LoadWeaponState();
+
+		void SaveWeaponPickup(class UActorComponent* WeaponComponent);
 		
 };
 

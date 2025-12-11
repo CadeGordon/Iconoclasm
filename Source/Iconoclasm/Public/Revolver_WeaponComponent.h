@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraSystem.h"
 #include "NiagaraComponent.h"
+#include "WeaponTypes.h"
 #include "Revolver_WeaponComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -43,6 +44,14 @@ public:
 
 	virtual void PerformHitscan(FVector& ImpactLocation) override;
 
+	
+
+
+	EWeaponType GetWeaponType() const { return WeaponType; }
+
+	bool IsHellfireUnlocked() const { return bHellfireModeUnlocked; }
+	void SetHellfireUnlocked(bool bNew) { bHellfireModeUnlocked = bNew; }
+
 
 
 	// Fire mode particle systems
@@ -73,7 +82,7 @@ public:
 
 	// Cost to unlock hellfire mode
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hellfire")
-	int32 HellfireUnlockCost = 1000000; // Set the cost here
+	int32 HellfireUnlockCost = 10; // Set the cost here
 
 protected:
 	/** Ends gameplay for this component. */
