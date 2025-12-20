@@ -16,6 +16,7 @@
 #include "Components/SphereComponent.h"
 #include "RevolverHUD.h"
 #include "BestResultsSubsystem.h"
+#include "Components/AudioComponent.h" 
 
 
 URevolver_WeaponComponent::URevolver_WeaponComponent()
@@ -25,6 +26,10 @@ URevolver_WeaponComponent::URevolver_WeaponComponent()
 	CurrentWeaponMode = ERevolverMode::RevolverMode1;
 
 	WeaponType = EWeaponType::Revolver;
+
+	// Initialize audio component pointer
+	ChargeLoopAudioComponent = nullptr;
+	bHasPlayedFullChargeSound = false;
 
 }
 
@@ -181,13 +186,9 @@ URevolver_WeaponComponent* URevolver_WeaponComponent::GetRevolverComponentFromPl
 
 void URevolver_WeaponComponent::SwitchFireMode()
 {
-	// Store the current mode
 	ERevolverMode PreviousMode = CurrentWeaponMode;
-
-	// Cycle through the weapon modes
 	CurrentWeaponMode = static_cast<ERevolverMode>((static_cast<uint8>(CurrentWeaponMode) + 1) % (static_cast<uint8>(ERevolverMode::RevolverMode2) + 1));
 
-	// If we switched to Hellfire mode but it's locked, switch back
 	if (CurrentWeaponMode == ERevolverMode::RevolverMode2 && !bHellfireModeUnlocked)
 	{
 		CurrentWeaponMode = PreviousMode;
@@ -195,12 +196,16 @@ void URevolver_WeaponComponent::SwitchFireMode()
 		return;
 	}
 
-	// Update UI color
+	// Play mode switch sound
+	if (ModeSwitchSound != nullptr && Character)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ModeSwitchSound, Character->GetActorLocation());
+	}
+
 	if (RevolverHUD)
 	{
 		RevolverHUD->UpdateRevolverModeColor(static_cast<uint8>(CurrentWeaponMode));
 
-		// Update progress bar visibility based on the current mode
 		if (CurrentWeaponMode == ERevolverMode::RevolverMode1)
 		{
 			RevolverHUD->SetAltGunslingerCooldownVisibility(true);
@@ -480,17 +485,13 @@ void URevolver_WeaponComponent::GunslingerMode()
 	FVector ImpactLocation;
 	PerformHitscan(ImpactLocation);
 
-
-	// Perform a line trace to find the hit actor
 	FHitResult HitResult;
 	FVector StartLocation = Character->GetActorLocation();
 	FVector EndLocation = ImpactLocation;
 
 	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(Character); // Ignore the player
-	QueryParams.bTraceComplex = true;       // Trace against complex collision
-	
-
+	QueryParams.AddIgnoredActor(Character);
+	QueryParams.bTraceComplex = true;
 
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
 	{
@@ -498,7 +499,7 @@ void URevolver_WeaponComponent::GunslingerMode()
 
 		if (HitActor)
 		{
-			float DamageAmount = 100.0f; // Set the damage amount
+			float DamageAmount = 100.0f;
 			UGameplayStatics::ApplyDamage(
 				HitActor,
 				DamageAmount,
@@ -509,13 +510,13 @@ void URevolver_WeaponComponent::GunslingerMode()
 		}
 	}
 
-	// Play fire sound
-	if (FireSound != nullptr)
+	// Play Gunslinger fire sound (use specific sound or fall back to generic)
+	USoundBase* SoundToPlay = GunslingerFireSound ? GunslingerFireSound : FireSound;
+	if (SoundToPlay != nullptr)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, Character->GetActorLocation());
 	}
 
-	// Play fire animation
 	if (FireAnimation != nullptr)
 	{
 		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
@@ -530,12 +531,10 @@ void URevolver_WeaponComponent::GunslingerMode()
 		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
 		FRotator CameraRotation = Character->GetControlRotation();
 
-		// Spawn the Niagara system
 		NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), GunslingerParticle, MuzzleLocation);
 
 		if (NiagaraComp)
 		{
-			// Set the initial direction of the Niagara component
 			NiagaraComp->SetWorldRotation(CameraRotation);
 		}
 	}
@@ -568,22 +567,18 @@ void URevolver_WeaponComponent::HellfireMode()
 			FVector ImpactLocation;
 			PerformHitscan(ImpactLocation);
 
-			// Trace for hits using the same logic as PerformHitscan
 			FVector StartLocation = Character->GetActorLocation();
 			FVector EndLocation = ImpactLocation;
 			FHitResult HitResult;
 
-			// Perform a line trace to determine if an actor is hit
 			FCollisionQueryParams QueryParams;
 			QueryParams.AddIgnoredActor(Character);
-			
 
 			if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Pawn, QueryParams))
 			{
-				// Apply damage if an actor is hit
 				if (HitResult.GetActor())
 				{
-					float DamageAmount = 100.0f; // Adjust the damage amount as needed
+					float DamageAmount = 100.0f;
 					UGameplayStatics::ApplyDamage(
 						HitResult.GetActor(),
 						DamageAmount,
@@ -594,13 +589,13 @@ void URevolver_WeaponComponent::HellfireMode()
 				}
 			}
 
-			// Play fire sound
-			if (FireSound != nullptr)
+			// Play Hellfire fire sound
+			USoundBase* SoundToPlay = HellfireFireSound ? HellfireFireSound : FireSound;
+			if (SoundToPlay != nullptr)
 			{
-				UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+				UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, Character->GetActorLocation());
 			}
 
-			// Play fire animation
 			if (FireAnimation != nullptr)
 			{
 				UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
@@ -610,26 +605,22 @@ void URevolver_WeaponComponent::HellfireMode()
 				}
 			}
 
-			// Spawn particle effect
 			if (HellfireParticle && Character)
 			{
 				FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
 				FRotator CameraRotation = Character->GetControlRotation();
 
-				// Spawn the Niagara system
 				NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), HellfireParticle, MuzzleLocation);
 
 				if (NiagaraComp)
 				{
-					// Set the initial direction of the Niagara component
 					NiagaraComp->SetWorldRotation(CameraRotation);
 				}
 			}
 
 			HitscanCount--;
-		};
+	};
 
-	// Set the timer to call the lambda function every 0.25 seconds
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle_AltGunslingerFire, FireHitscan, 0.05f, true);
 }
 
@@ -641,6 +632,12 @@ void URevolver_WeaponComponent::AltHellfireMode()
 	}
 
 	bCanFireAltHellfire = false; // Set to false to trigger cooldown
+
+	// Play Alt Hellfire sound at the start
+	if (AltHellfireFireSound != nullptr && Character)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, AltHellfireFireSound, Character->GetActorLocation());
+	}
 
 	float BaseDamage = 5000.0f; // Base damage for initial line trace
 	float EnemyHitSplitDamage = 30000.0f; // Damage for each split trace when hitting enemy
@@ -947,13 +944,12 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		}
 	}
 
-	// Play fire sound
-	if (FireSound != nullptr)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
-	}
+	//// Play fire sound
+	//if (FireSound != nullptr)
+	//{
+	//	UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	//}
 
-	// Play fire animation
 	if (FireAnimation != nullptr)
 	{
 		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
@@ -963,7 +959,6 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		}
 	}
 
-	// Set the cooldown timer for AltHellfire
 	GetWorld()->GetTimerManager().SetTimer(
 		TimerHandle_AltHellfireCooldown,
 		[this]()
@@ -974,13 +969,11 @@ void URevolver_WeaponComponent::AltHellfireMode()
 		false
 	);
 
-	// Update AltHellfire cooldown progress bar to 0% when activated
 	if (RevolverHUD != nullptr)
 	{
 		RevolverHUD->UpdateAltHellfireCooldownProgress(0.0f);
 	}
 
-	// Start updating the progress for the cooldown
 	GetWorld()->GetTimerManager().SetTimer(
 		TimerHandle_AltHellfireProgress,
 		this,
@@ -1095,11 +1088,32 @@ void URevolver_WeaponComponent::StartChargingShot()
 	bIsChargingShot = true;
 	ChargeStartTime = GetWorld()->GetTimeSeconds();
 	CurrentChargeLevel = 0.0f;
+	bHasPlayedFullChargeSound = false;
 
-	// Start charge timer
+	// Play charge start sound
+	if (ChargeStartSound != nullptr && Character)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ChargeStartSound, Character->GetActorLocation());
+	}
+
+	// Start looping charge sound
+	if (ChargeLoopSound != nullptr && Character)
+	{
+		ChargeLoopAudioComponent = UGameplayStatics::SpawnSoundAtLocation(
+			this,
+			ChargeLoopSound,
+			Character->GetActorLocation(),
+			FRotator::ZeroRotator,
+			1.0f,  // Volume
+			1.0f,  // Pitch
+			0.0f,  // Start time
+			nullptr,
+			nullptr,
+			true  // Auto destroy
+		);
+	}
+
 	GetWorld()->GetTimerManager().SetTimer(ChargeTimerHandle, this, &URevolver_WeaponComponent::UpdateCharge, 0.02f, true);
-
-	// Start visual trace timer
 	GetWorld()->GetTimerManager().SetTimer(TraceVisualizationHandle, this, &URevolver_WeaponComponent::UpdateChargeTrace, 0.02f, true);
 }
 
@@ -1111,15 +1125,19 @@ void URevolver_WeaponComponent::UpdateCharge()
 	float ElapsedChargeTime = GetWorld()->GetTimeSeconds() - ChargeStartTime;
 	CurrentChargeLevel = FMath::Clamp(ElapsedChargeTime / MaxChargeTime, 0.0f, 1.0f);
 
-	// Update HUD to show charge level
 	if (RevolverHUD != nullptr)
 	{
 		RevolverHUD->UpdateAltFireCooldownProgress(CurrentChargeLevel);
 	}
 
-	// Stop charging at 100%
-	if (CurrentChargeLevel >= 1.0f)
+	// Play full charge sound once when reaching 100%
+	if (CurrentChargeLevel >= 1.0f && !bHasPlayedFullChargeSound)
 	{
+		if (ChargeFullSound != nullptr && Character)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, ChargeFullSound, Character->GetActorLocation());
+		}
+		bHasPlayedFullChargeSound = true;
 		CurrentChargeLevel = 1.0f;
 		GetWorld()->GetTimerManager().ClearTimer(ChargeTimerHandle);
 	}
@@ -1184,20 +1202,24 @@ void URevolver_WeaponComponent::ReleaseChargedShot()
 	if (!bIsChargingShot)
 		return;
 
-	// Stop charging
+	// Stop charging sounds
 	bIsChargingShot = false;
 	GetWorld()->GetTimerManager().ClearTimer(ChargeTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(TraceVisualizationHandle);
 
-	// Calculate damage multiplier based on charge level
+	// Stop the looping charge sound
+	if (ChargeLoopAudioComponent && ChargeLoopAudioComponent->IsValidLowLevel())
+	{
+		ChargeLoopAudioComponent->Stop();
+		ChargeLoopAudioComponent = nullptr;
+	}
+
 	float DamageMultiplier = GetDamageMultiplier(CurrentChargeLevel);
 	float BaseDamage = 100.0f;
 	float FinalDamage = BaseDamage * DamageMultiplier;
 
-	// Fire the charged shot
 	FireChargedShot(FinalDamage);
 
-	// Start cooldown
 	bCanFireAltGunslinger = false;
 	ElapsedTime = 0.0f;
 
@@ -1333,25 +1355,24 @@ void URevolver_WeaponComponent::FireChargedShot(float DamageAmount)
 
 void URevolver_WeaponComponent::PlayChargedShotEffects(float ChargeLevel)
 {
-	// Play sound (could vary based on charge level)
-	if (FireSound != nullptr)
+	// Play charged shot fire sound (specific sound or fall back to regular fire sound)
+	USoundBase* SoundToPlay = ChargedShotFireSound ? ChargedShotFireSound : FireSound;
+	if (SoundToPlay != nullptr)
 	{
-		float VolumeMultiplier = 1.0f + (ChargeLevel * 0.5f); // Louder for higher charges
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation(), VolumeMultiplier);
+		float VolumeMultiplier = 1.0f + (ChargeLevel * 0.5f);
+		UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, Character->GetActorLocation(), VolumeMultiplier);
 	}
 
-	// Play animation
 	if (FireAnimation != nullptr)
 	{
 		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
 		if (AnimInstance != nullptr)
 		{
-			float AnimSpeed = 1.0f + (ChargeLevel * 0.3f); // Faster animation for higher charges
+			float AnimSpeed = 1.0f + (ChargeLevel * 0.3f);
 			AnimInstance->Montage_Play(FireAnimation, AnimSpeed);
 		}
 	}
 
-	// Spawn enhanced particle effect
 	if (AltGunslingerParticle && Character)
 	{
 		FVector MuzzleLocation = Character->GetActorLocation() + Character->GetControlRotation().RotateVector(MuzzleOffset);
@@ -1361,13 +1382,8 @@ void URevolver_WeaponComponent::PlayChargedShotEffects(float ChargeLevel)
 		if (NiagaraComp)
 		{
 			NiagaraComp->SetWorldRotation(CameraRotation);
-
-			// Scale particle effect based on charge level
 			float EffectScale = 1.0f + (ChargeLevel * 1.0f);
 			NiagaraComp->SetWorldScale3D(FVector(EffectScale));
-
-			// You could also set Niagara parameters based on charge level
-			// NiagaraComp->SetFloatParameter(TEXT("ChargeLevel"), ChargeLevel);
 		}
 	}
 }

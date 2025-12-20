@@ -44,7 +44,37 @@ public:
 
 	virtual void PerformHitscan(FVector& ImpactLocation) override;
 
-	
+	/** Sound to play when switching fire modes */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* ModeSwitchSound;
+
+	/** Sound to play when charging starts */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* ChargeStartSound;
+
+	/** Sound to play while charging (looping) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* ChargeLoopSound;
+
+	/** Sound to play when charge reaches 100% */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* ChargeFullSound;
+
+	/** Sound to play when firing charged shot */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* ChargedShotFireSound;
+
+	/** Sound to play for Gunslinger mode fire */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* GunslingerFireSound;
+
+	/** Sound to play for Hellfire mode fire */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* HellfireFireSound;
+
+	/** Sound to play for Alt Hellfire mode */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* AltHellfireFireSound;
 
 
 	EWeaponType GetWeaponType() const { return WeaponType; }
@@ -89,6 +119,9 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+
+	UAudioComponent* ChargeLoopAudioComponent;
+	bool bHasPlayedFullChargeSound;
 
 	// Cooldown flags
 	bool bCanFireAltGunslinger = true;

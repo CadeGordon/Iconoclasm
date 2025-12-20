@@ -11,128 +11,257 @@
 #include "FlyingEnemyCharacter.h"
 #include "FlyingAIController.h"
 #include "CombatMusicManager.h"
+#include "HealthComponent.h"
+#include "SlidingDoor.h"
+#include "TimerManager.h"
 
-// Sets default values
 AEnemySpawner::AEnemySpawner()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = true;
 
-    // Create the trigger box
     SpawnTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("SpawnTrigger"));
     RootComponent = SpawnTrigger;
 
-    // Bind the overlap event
     SpawnTrigger->OnComponentBeginOverlap.AddDynamic(this, &AEnemySpawner::OnTriggerEnter);
-
 }
 
-// Called when the game starts or when spawned
 void AEnemySpawner::BeginPlay()
 {
-	Super::BeginPlay();
-	
+    Super::BeginPlay();
 }
 
-void AEnemySpawner::OnTriggerEnter(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void AEnemySpawner::OnTriggerEnter(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+    bool bFromSweep, const FHitResult& SweepResult)
 {
-    if (OtherActor && OtherActor != this && OtherActor->IsA(AIconoclasmCharacter::StaticClass()))  // Replace with your actual player class
+    if (OtherActor && OtherActor != this && OtherActor->IsA(AIconoclasmCharacter::StaticClass()))
     {
-        // Add a debug log message
-        UE_LOG(LogTemp, Warning, TEXT("Overlap detected with player!"));
-
-        SpawnEnemies();
-        SpawnTrigger->SetCollisionEnabled(ECollisionEnabled::NoCollision);  // Disable after trigger
-    }
-    else
-    {
-        // Add a debug log message for other actors
-        UE_LOG(LogTemp, Warning, TEXT("Overlap detected, but it's not the player."));
+        UE_LOG(LogTemp, Warning, TEXT("Player triggered spawner!"));
+        StartWaveSpawning();
+        SpawnTrigger->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     }
 }
 
-// Called every frame
 void AEnemySpawner::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
-
+    Super::Tick(DeltaTime);
 }
 
-void AEnemySpawner::SpawnEnemies()
+void AEnemySpawner::StartWaveSpawning()
 {
-    if (EnemyTypes.Num() == 0 || EnemyCounts.Num() == 0 || SpawnPoints.Num() == 0)
+    if (Waves.Num() == 0)
     {
-        UE_LOG(LogTemp, Error, TEXT("Enemy types, counts, or spawn points not set!"));
+        UE_LOG(LogTemp, Error, TEXT("No waves configured!"));
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Array Sizes - EnemyTypes: %d, EnemyCounts: %d, SpawnPoints: %d"),
-        EnemyTypes.Num(), EnemyCounts.Num(), SpawnPoints.Num());
+    bSpawningActive = true;
+    CurrentWaveIndex = 0;
+    SpawnNextWave();
+}
 
-    int32 MaxSpawns = FMath::Min3(EnemyTypes.Num(), EnemyCounts.Num(), SpawnPoints.Num());
-    int32 TotalSpawnedCount = 0;
-
-    for (int32 i = 0; i < MaxSpawns; ++i)
+void AEnemySpawner::SpawnNextWave()
+{
+    if (!bSpawningActive)
     {
-        if (!IsValid(SpawnPoints[i]))
+        UE_LOG(LogTemp, Warning, TEXT("Spawning not active!"));
+        return;
+    }
+
+    if (CurrentWaveIndex >= Waves.Num())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("All waves completed!"));
+        bSpawningActive = false;
+
+        // Unlock doors when all waves are complete
+        UnlockCompletionDoors();
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Starting wave %d of %d"), CurrentWaveIndex + 1, Waves.Num());
+    SpawnWave(CurrentWaveIndex);
+    CurrentWaveIndex++;
+}
+
+void AEnemySpawner::SpawnWave(int32 WaveIndex)
+{
+    if (!Waves.IsValidIndex(WaveIndex))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Invalid wave index: %d"), WaveIndex);
+        return;
+    }
+
+    const FEnemyWave& Wave = Waves[WaveIndex];
+    SpawnEnemiesInWave(Wave);
+}
+
+void AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
+{
+    if (Wave.Enemies.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Wave has no enemies configured!"));
+
+        if (bAutoStartNextWave)
         {
-            UE_LOG(LogTemp, Error, TEXT("SpawnPoint at index %d is NULL or invalid! Skipping..."), i);
+            GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
+                &AEnemySpawner::SpawnNextWave, Wave.DelayBeforeNextWave, false);
+        }
+        return;
+    }
+
+    int32 WaveSpawnedCount = 0;
+
+    for (const FEnemySpawnInfo& SpawnInfo : Wave.Enemies)
+    {
+        if (!SpawnInfo.EnemyClass)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Enemy class not set in spawn info!"));
             continue;
         }
 
-        if (!EnemyTypes[i])
+        if (!IsValid(SpawnInfo.SpawnPoint))
         {
-            UE_LOG(LogTemp, Error, TEXT("Enemy class at index %d is NULL! Skipping..."), i);
+            UE_LOG(LogTemp, Error, TEXT("Spawn point not set or invalid!"));
             continue;
         }
 
-        FVector SpawnLocation = SpawnPoints[i]->GetActorLocation();
-        int32 SpawnCount = EnemyCounts[i];
+        FVector SpawnLocation = SpawnInfo.SpawnPoint->GetActorLocation();
+        FRotator SpawnRotation = SpawnInfo.SpawnPoint->GetActorRotation();
 
-        UE_LOG(LogTemp, Warning, TEXT("Spawning %d enemies at index %d, location: %s"),
-            SpawnCount, i, *SpawnLocation.ToString());
-
-        for (int32 j = 0; j < SpawnCount; ++j)
+        for (int32 i = 0; i < SpawnInfo.Count; ++i)
         {
             FActorSpawnParameters SpawnParams;
-            SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+            SpawnParams.SpawnCollisionHandlingOverride =
+                ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-            AActor* SpawnedEnemy = GetWorld()->SpawnActor<AActor>(EnemyTypes[i], SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+            // Add slight offset for multiple enemies at same point
+            FVector FinalLocation = SpawnLocation;
+            if (i > 0)
+            {
+                FinalLocation += FVector(
+                    FMath::RandRange(-100.0f, 100.0f),
+                    FMath::RandRange(-100.0f, 100.0f),
+                    0.0f
+                );
+            }
+
+            AActor* SpawnedEnemy = GetWorld()->SpawnActor<AActor>(
+                SpawnInfo.EnemyClass, FinalLocation, SpawnRotation, SpawnParams);
 
             if (IsValid(SpawnedEnemy))
             {
-                TotalSpawnedCount++;
-                UE_LOG(LogTemp, Warning, TEXT("Successfully spawned: %s"), *SpawnedEnemy->GetName());
+                WaveSpawnedCount++;
+                ActiveEnemiesCount++;
+                UE_LOG(LogTemp, Warning, TEXT("Spawned: %s"), *SpawnedEnemy->GetName());
+
+                // Bind to health component's death event
+                if (UHealthComponent* HealthComp = SpawnedEnemy->FindComponentByClass<UHealthComponent>())
+                {
+                    HealthComp->OnDeath.AddDynamic(this, &AEnemySpawner::OnEnemyDestroyed);
+                    UE_LOG(LogTemp, Log, TEXT("Bound to health component death event"));
+                }
             }
             else
             {
-                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy %d at spawn point %d!"), j, i);
+                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy!"));
             }
         }
     }
 
-    // Notify the music manager about spawned enemies
-    if (TotalSpawnedCount > 0)
+    // Notify music manager
+    if (WaveSpawnedCount > 0)
     {
         ACombatMusicManager* MusicManager = ACombatMusicManager::GetInstance(GetWorld());
         if (MusicManager)
         {
-            MusicManager->RegisterEnemies(TotalSpawnedCount);
-            UE_LOG(LogTemp, Warning, TEXT("Notified music manager of %d spawned enemies"), TotalSpawnedCount);
+            MusicManager->RegisterEnemies(WaveSpawnedCount);
+            UE_LOG(LogTemp, Warning, TEXT("Registered %d enemies with music manager"), WaveSpawnedCount);
+        }
+    }
+
+    // Handle next wave spawning
+    if (bAutoStartNextWave)
+    {
+        if (bRequireWaveClearBeforeNext)
+        {
+            // Check wave completion will handle starting next wave
+            UE_LOG(LogTemp, Warning, TEXT("Waiting for wave clear before next wave..."));
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("Music Manager not found in level!"));
+            // Start next wave after delay
+            GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
+                &AEnemySpawner::SpawnNextWave, Wave.DelayBeforeNextWave, false);
+        }
+    }
+}
+
+void AEnemySpawner::OnEnemyDestroyed()
+{
+    ActiveEnemiesCount--;
+    UE_LOG(LogTemp, Warning, TEXT("Enemy destroyed. Remaining: %d"), ActiveEnemiesCount);
+
+    CheckWaveCompletion();
+}
+
+void AEnemySpawner::CheckWaveCompletion()
+{
+    UE_LOG(LogTemp, Warning, TEXT("CheckWaveCompletion - Active enemies: %d, bSpawningActive: %s, CurrentWaveIndex: %d/%d"),
+        ActiveEnemiesCount, bSpawningActive ? TEXT("true") : TEXT("false"), CurrentWaveIndex, Waves.Num());
+
+    if (ActiveEnemiesCount <= 0 && bSpawningActive && bRequireWaveClearBeforeNext)
+    {
+        // Check if there are more waves to spawn
+        if (CurrentWaveIndex < Waves.Num())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Wave cleared! Starting next wave (wave %d)..."), CurrentWaveIndex + 1);
+
+            if (Waves.IsValidIndex(CurrentWaveIndex - 1))
+            {
+                float Delay = Waves[CurrentWaveIndex - 1].DelayBeforeNextWave;
+                GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
+                    &AEnemySpawner::SpawnNextWave, Delay, false);
+            }
+            else
+            {
+                SpawnNextWave();
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("All waves completed after final wave clear!"));
+            bSpawningActive = false;
+            UnlockCompletionDoors();
         }
     }
 }
 
 void AEnemySpawner::ResetSpawner()
 {
-    // Re-enable the trigger so it can spawn enemies again
     SpawnTrigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    UE_LOG(LogTemp, Warning, TEXT("Enemy spawner reset, trigger re-enabled."));
+    CurrentWaveIndex = 0;
+    ActiveEnemiesCount = 0;
+    bSpawningActive = false;
+    GetWorld()->GetTimerManager().ClearTimer(WaveDelayTimerHandle);
+    UE_LOG(LogTemp, Warning, TEXT("Enemy spawner reset."));
 }
 
+void AEnemySpawner::UnlockCompletionDoors()
+{
+    if (DoorsToUnlockOnCompletion.Num() == 0)
+    {
+        UE_LOG(LogTemp, Log, TEXT("No doors to unlock."));
+        return;
+    }
 
+    UE_LOG(LogTemp, Warning, TEXT("Unlocking %d doors after wave completion!"), DoorsToUnlockOnCompletion.Num());
 
+    for (ASlidingDoor* Door : DoorsToUnlockOnCompletion)
+    {
+        if (IsValid(Door))
+        {
+            Door->UnlockDoor();
+            UE_LOG(LogTemp, Warning, TEXT("Unlocked door: %s"), *Door->GetName());
+        }
+    }
+}
