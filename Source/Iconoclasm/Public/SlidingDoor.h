@@ -61,6 +61,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door Settings")
     FLinearColor UnlockedDoorColor = FLinearColor::White;
 
+    // Internal curve for fallback
+    UPROPERTY()
+    UCurveFloat* DefaultCurve;
+
     // Functions
     UFUNCTION(BlueprintCallable, Category = "Door")
     void OpenDoor();

@@ -9,20 +9,25 @@ ASlidingDoor::ASlidingDoor()
 {
     PrimaryActorTick.bCanEverTick = true;
 
+    // Create root component
     DoorRoot = CreateDefaultSubobject<USceneComponent>(TEXT("DoorRoot"));
     RootComponent = DoorRoot;
 
+    // Create door frame
     DoorFrame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DoorFrame"));
     DoorFrame->SetupAttachment(DoorRoot);
 
+    // Create left door
     LeftDoor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LeftDoor"));
     LeftDoor->SetupAttachment(DoorRoot);
     LeftDoor->SetRelativeLocation(FVector(0.0f, -50.0f, 0.0f));
 
+    // Create right door
     RightDoor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RightDoor"));
     RightDoor->SetupAttachment(DoorRoot);
     RightDoor->SetRelativeLocation(FVector(0.0f, 50.0f, 0.0f));
 
+    // Create trigger box
     TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
     TriggerBox->SetupAttachment(DoorRoot);
     TriggerBox->SetBoxExtent(FVector(200.0f, 200.0f, 100.0f));
@@ -32,19 +37,22 @@ ASlidingDoor::ASlidingDoor()
 void ASlidingDoor::BeginPlay()
 {
     Super::BeginPlay();
-
+    
+    // Store initial positions
     LeftDoorStartPos = LeftDoor->GetRelativeLocation();
     RightDoorStartPos = RightDoor->GetRelativeLocation();
 
-    UE_LOG(LogTemp, Warning, TEXT("Door BeginPlay - Left Start: %s, Right Start: %s"),
-        *LeftDoorStartPos.ToString(), *RightDoorStartPos.ToString());
+    UE_LOG(LogTemp, Warning, TEXT("Door BeginPlay - Left Start: %s, Right Start: %s"), 
+           *LeftDoorStartPos.ToString(), *RightDoorStartPos.ToString());
 
+    // Bind overlap events
     TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ASlidingDoor::OnTriggerBeginOverlap);
     TriggerBox->OnComponentEndOverlap.AddDynamic(this, &ASlidingDoor::OnTriggerEndOverlap);
 
+    // Setup timeline with or without curve
     FOnTimelineFloat TimelineProgress;
     TimelineProgress.BindUFunction(this, FName("UpdateDoorPosition"));
-
+    
     if (OpenCurve)
     {
         DoorTimeline.AddInterpFloat(OpenCurve, TimelineProgress);
@@ -52,11 +60,19 @@ void ASlidingDoor::BeginPlay()
     }
     else
     {
-        UCurveFloat* DefaultCurve = NewObject<UCurveFloat>();
-        DefaultCurve->FloatCurve.AddKey(0.0f, 0.0f);
-        DefaultCurve->FloatCurve.AddKey(1.0f, 1.0f);
-        DoorTimeline.AddInterpFloat(DefaultCurve, TimelineProgress);
-        UE_LOG(LogTemp, Warning, TEXT("Door using default linear curve"));
+        // Create a simple linear curve if no curve is assigned
+        DefaultCurve = NewObject<UCurveFloat>(this);
+        if (DefaultCurve)
+        {
+            DefaultCurve->FloatCurve.AddKey(0.0f, 0.0f);
+            DefaultCurve->FloatCurve.AddKey(1.0f, 1.0f);
+            DoorTimeline.AddInterpFloat(DefaultCurve, TimelineProgress);
+            UE_LOG(LogTemp, Warning, TEXT("Door using default linear curve"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to create default curve!"));
+        }
     }
 
     FOnTimelineEvent TimelineFinished;
@@ -76,21 +92,23 @@ void ASlidingDoor::BeginPlay()
 void ASlidingDoor::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+    
     DoorTimeline.TickTimeline(DeltaTime);
 }
 
-void ASlidingDoor::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
-    bool bFromSweep, const FHitResult& SweepResult)
+void ASlidingDoor::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, 
+                                         UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
+                                         bool bFromSweep, const FHitResult& SweepResult)
 {
     UE_LOG(LogTemp, Warning, TEXT("Door Overlap Begin - Actor: %s"), *OtherActor->GetName());
-
+    
+    // Check if the overlapping actor is a character (player)
     if (OtherActor && OtherActor->IsA(ACharacter::StaticClass()))
     {
         PlayersInTrigger++;
-        UE_LOG(LogTemp, Warning, TEXT("Player detected! Players in trigger: %d, Locked: %s"),
-            PlayersInTrigger, bIsLocked ? TEXT("YES") : TEXT("NO"));
-
+        UE_LOG(LogTemp, Warning, TEXT("Player detected! Players in trigger: %d, Locked: %s"), PlayersInTrigger,
+            bIsLocked ? TEXT("YES") : TEXT("NO"));
+        
         if (PlayersInTrigger > 0 && !bIsOpen && !bIsLocked)
         {
             UE_LOG(LogTemp, Warning, TEXT("Opening door!"));
@@ -103,19 +121,19 @@ void ASlidingDoor::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponen
     }
 }
 
-void ASlidingDoor::OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+void ASlidingDoor::OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, 
+                                       UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
     UE_LOG(LogTemp, Warning, TEXT("Door Overlap End - Actor: %s"), *OtherActor->GetName());
-
+    
     if (OtherActor && OtherActor->IsA(ACharacter::StaticClass()))
     {
         PlayersInTrigger--;
         UE_LOG(LogTemp, Warning, TEXT("Player left! Players in trigger: %d"), PlayersInTrigger);
-
+        
         if (PlayersInTrigger <= 0 && bIsOpen && !bIsLocked)
         {
-            PlayersInTrigger = 0;
+            PlayersInTrigger = 0; // Ensure it doesn't go negative
             UE_LOG(LogTemp, Warning, TEXT("Closing door!"));
             CloseDoor();
         }
@@ -124,17 +142,19 @@ void ASlidingDoor::OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComponent,
 
 void ASlidingDoor::UpdateDoorPosition(float Value)
 {
+    // Calculate new positions based on timeline value
     FVector LeftTargetPos = LeftDoorStartPos + FVector(0.0f, -OpenDistance * Value, 0.0f);
     FVector RightTargetPos = RightDoorStartPos + FVector(0.0f, OpenDistance * Value, 0.0f);
 
     LeftDoor->SetRelativeLocation(LeftTargetPos);
     RightDoor->SetRelativeLocation(RightTargetPos);
-
+    
+    // Debug every 10th frame to avoid spam
     static int DebugCounter = 0;
     if (DebugCounter++ % 10 == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UpdateDoorPosition - Value: %f, Left: %s, Right: %s"),
-            Value, *LeftTargetPos.ToString(), *RightTargetPos.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("UpdateDoorPosition - Value: %f, Left: %s, Right: %s"), 
+               Value, *LeftTargetPos.ToString(), *RightTargetPos.ToString());
     }
 }
 
