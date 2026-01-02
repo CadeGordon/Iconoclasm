@@ -13,57 +13,66 @@
 
 AIconoclasmProjectile::AIconoclasmProjectile() 
 {
-	// Use a sphere as a simple collision representation
-	CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
-	CollisionComp->InitSphereRadius(5.0f);
-	CollisionComp->BodyInstance.SetCollisionProfileName("Projectile");
-	CollisionComp->OnComponentHit.AddDynamic(this, &AIconoclasmProjectile::OnHit);
+    // Use a sphere as a simple collision representation
+    CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
+    CollisionComp->InitSphereRadius(5.0f);
+    CollisionComp->BodyInstance.SetCollisionProfileName("Projectile");
+    CollisionComp->OnComponentHit.AddDynamic(this, &AIconoclasmProjectile::OnHit);
 
-	// Set collision responses - block world static (walls) and pawns
-	CollisionComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	CollisionComp->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
-	CollisionComp->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
-	CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
-	CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block); // Block walls
+    // Set collision responses - block world static (walls) and pawns
+    CollisionComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    CollisionComp->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
+    CollisionComp->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+    CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
+    CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block);
 
-	// Players can't walk on it
-	CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
-	CollisionComp->CanCharacterStepUpOn = ECB_No;
+    // Players can't walk on it
+    CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
+    CollisionComp->CanCharacterStepUpOn = ECB_No;
 
-	// Set as root component
-	RootComponent = CollisionComp;
+    // Set as root component
+    RootComponent = CollisionComp;
 
-	// Use a ProjectileMovementComponent to govern this projectile's movement
-	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileComp"));
-	ProjectileMovement->UpdatedComponent = CollisionComp;
-	ProjectileMovement->InitialSpeed = 1900.f; // Slower for bullet hell feel
-	ProjectileMovement->MaxSpeed = 1900.f;
-	ProjectileMovement->bRotationFollowsVelocity = true;
-	ProjectileMovement->bShouldBounce = false; // No bouncing for bullet hell
+    // Use a ProjectileMovementComponent to govern this projectile's movement
+    ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileComp"));
+    ProjectileMovement->UpdatedComponent = CollisionComp;
+    ProjectileMovement->InitialSpeed = 1900.f;
+    ProjectileMovement->MaxSpeed = 1900.f;
+    ProjectileMovement->bRotationFollowsVelocity = true;
+    ProjectileMovement->bShouldBounce = false;
 
-	// DISABLE GRAVITY - Key for bullet hell projectiles
-	ProjectileMovement->ProjectileGravityScale = 0.0f;
+    // DISABLE GRAVITY
+    ProjectileMovement->ProjectileGravityScale = 0.0f;
 
-	// Disable built-in homing (we'll handle it manually)
-	ProjectileMovement->bIsHomingProjectile = false;
+    // Disable built-in homing (we'll handle it manually)
+    ProjectileMovement->bIsHomingProjectile = false;
 
-	// Bullet hell properties
-	TrackingStrength = 4500.0f; // Much more aggressive tracking
-	MaxTrackingDistance = 5500.0f;
-	bCanTrackPlayer = true;
-	TargetPlayer = nullptr;
+    // Bullet hell properties
+    TrackingStrength = 4500.0f;
+    MaxTrackingDistance = 5500.0f;
+    bCanTrackPlayer = true;
+    TargetPlayer = nullptr;
 
-	// Set tick to update tracking
-	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.TickInterval = 0.02f; // Update tracking frequently
+    // Reflection properties
+    bIsReflected = false;
+    ReflectedExplosionRadius = 400.0f;
+    ReflectedExplosionDamage = 150.0f;
+    OriginalInstigator = nullptr;
 
-	// Die after 8 seconds (longer for bullet hell)
-	InitialLifeSpan = 8.0f;
+    // Set tick to update tracking
+    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.TickInterval = 0.02f;
+
+    // Die after 8 seconds
+    InitialLifeSpan = 8.0f;
 }
 
 void AIconoclasmProjectile::BeginPlay()
 {
     Super::BeginPlay();
+
+    // Store original instigator
+    OriginalInstigator = GetInstigator();
 
     // Find the player character
     FindTargetPlayer();
@@ -73,7 +82,8 @@ void AIconoclasmProjectile::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    if (bCanTrackPlayer && TargetPlayer)
+    // Only track player if NOT reflected
+    if (!bIsReflected && bCanTrackPlayer && TargetPlayer)
     {
         UpdatePlayerTracking(DeltaTime);
     }
@@ -81,10 +91,45 @@ void AIconoclasmProjectile::Tick(float DeltaTime)
 
 void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
+    // If reflected, explode on ANY hit
+    if (bIsReflected)
+    {
+        FVector ImpactLocation = GetActorLocation();
+
+        // Draw debug sphere
+        DrawDebugSphere(GetWorld(), ImpactLocation, ReflectedExplosionRadius, 32, FColor::Orange, false, 2.0f);
+
+        // Create array to ignore the player who reflected it
+        TArray<AActor*> IgnoreActors;
+        if (GetInstigator())
+        {
+            IgnoreActors.Add(GetInstigator());
+        }
+
+        // Apply radial damage
+        UGameplayStatics::ApplyRadialDamage(
+            GetWorld(),
+            ReflectedExplosionDamage,
+            ImpactLocation,
+            ReflectedExplosionRadius,
+            UDamageType::StaticClass(),
+            IgnoreActors,
+            this,
+            GetInstigatorController(),
+            true,
+            ECC_Visibility
+        );
+
+        UE_LOG(LogTemp, Warning, TEXT("Reflected projectile exploded at: %s"), *ImpactLocation.ToString());
+
+        Destroy();
+        return;
+    }
+
+    // Original non-reflected behavior
     // Check if we hit a wall/static object
     if (OtherComp && OtherComp->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic)
     {
-        // Just destroy the projectile when hitting walls, no explosion
         Destroy();
         UE_LOG(LogTemp, Warning, TEXT("Projectile hit wall and was destroyed"));
         return;
@@ -93,22 +138,15 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
     // Only react to hitting the PLAYER character specifically
     if (OtherActor && OtherActor != this && OtherActor == TargetPlayer)
     {
-        // Destroy the projectile
         Destroy();
 
-        // Explosion parameters
         FVector ImpactLocation = GetActorLocation();
         float ExplosionRadius = 300.0f;
         float BaseDamage = 100.0f;
-        float DamageFalloff = 0.0f;
 
-        // Draw debug sphere to visualize the radius
         DrawDebugSphere(GetWorld(), ImpactLocation, ExplosionRadius, 32, FColor::Red, false, 2.0f);
 
-        // Create array of actors to ignore (all enemies)
         TArray<AActor*> IgnoreActors;
-
-        // Find all actors that are NOT the player and add them to ignore list
         UWorld* World = GetWorld();
         if (World)
         {
@@ -122,14 +160,13 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
             }
         }
 
-        // Apply radial damage, ignoring all enemies
         UGameplayStatics::ApplyRadialDamage(
             GetWorld(),
             BaseDamage,
             ImpactLocation,
             ExplosionRadius,
             UDamageType::StaticClass(),
-            IgnoreActors, // Pass the ignore list
+            IgnoreActors,
             this,
             GetInstigatorController(),
             true,
@@ -138,7 +175,30 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 
         UE_LOG(LogTemp, Warning, TEXT("Explosion at location: %s"), *ImpactLocation.ToString());
     }
-    // For all other actors (enemies, etc.), ignore the hit completely
+}
+
+void AIconoclasmProjectile::ReflectProjectile(const FVector& ReflectionDirection, AActor* NewInstigator)
+{
+    // Mark as reflected
+    bIsReflected = true;
+
+    // Disable player tracking
+    bCanTrackPlayer = false;
+    TargetPlayer = nullptr;
+
+    // Change instigator to the player
+    SetInstigator(Cast<APawn>(NewInstigator));
+    SetOwner(NewInstigator);
+
+    // Increase speed for reflected projectiles
+    float ReflectedSpeed = 2500.0f;
+    ProjectileMovement->MaxSpeed = ReflectedSpeed;
+    ProjectileMovement->Velocity = ReflectionDirection.GetSafeNormal() * ReflectedSpeed;
+
+    // Optional: Change collision to hit enemies
+    CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
+
+    UE_LOG(LogTemp, Warning, TEXT("Projectile reflected! New direction: %s"), *ReflectionDirection.ToString());
 }
 
 void AIconoclasmProjectile::AltOnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)

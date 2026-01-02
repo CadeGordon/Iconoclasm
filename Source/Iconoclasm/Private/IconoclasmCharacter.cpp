@@ -1260,7 +1260,7 @@ void AIconoclasmCharacter::PerformMelee()
 		UHealthComponent* PlayerHealthComp = FindComponentByClass<UHealthComponent>();
 		if (PlayerHealthComp)
 		{
-			float HealAmount = 50.0f; // Adjust this value as needed
+			float HealAmount = 50.0f;
 			PlayerHealthComp->Heal(HealAmount);
 			UE_LOG(LogTemp, Log, TEXT("Enemy executed! Healed for %f"), HealAmount);
 		}
@@ -1274,11 +1274,10 @@ void AIconoclasmCharacter::PerformMelee()
 			}, MeleeCooldownDuration, false);
 
 		bLastAttackWasMelee = true;
-		return; // Exit early, don't do regular melee
+		return;
 	}
 
-	// === Regular melee logic if not holding an enemy ===
-
+	// === Enhanced melee logic with sphere sweep ===
 	// Start cooldown
 	bCanMelee = false;
 	GetWorldTimerManager().SetTimer(MeleeCooldownTimerHandle, [this]()
@@ -1288,46 +1287,92 @@ void AIconoclasmCharacter::PerformMelee()
 		}, MeleeCooldownDuration, false);
 
 	float MeleeDamage = 1000000.0f;
-
 	FVector Start = FirstPersonCameraComponent->GetComponentLocation();
 	FVector ForwardVector = FirstPersonCameraComponent->GetForwardVector();
 	FVector End = Start + (ForwardVector * MeleeRange);
 
-	FHitResult HitResult;
+	// Use sphere sweep for easier projectile hitting
+	float SphereRadius = 100.0f; // Larger radius for easier hits
+	TArray<FHitResult> HitResults;
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
 
-	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Pawn, QueryParams);
+	// Sweep a sphere to detect multiple hits
+	bool bHit = GetWorld()->SweepMultiByChannel(
+		HitResults,
+		Start,
+		End,
+		FQuat::Identity,
+		ECC_Pawn,
+		FCollisionShape::MakeSphere(SphereRadius),
+		QueryParams
+	);
 
-	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 1.0f, 0, 1.0f);
+	// Draw debug sphere to visualize melee range
+	DrawDebugSphere(GetWorld(), End, SphereRadius, 12, FColor::Red, false, 0.5f, 0, 2.0f);
+	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 0.5f, 0, 2.0f);
 
+	// First priority: Check for projectiles
 	if (bHit)
 	{
-		AActor* HitActor = HitResult.GetActor();
-		if (HitActor)
+		for (const FHitResult& HitResult : HitResults)
 		{
-			UPrimitiveComponent* HitComponent = HitResult.GetComponent();
-			if (HitComponent && HitComponent->IsSimulatingPhysics())
+			AActor* HitActor = HitResult.GetActor();
+			if (HitActor)
 			{
-				FVector KnockbackDirection = (HitResult.ImpactPoint - Start).GetSafeNormal();
-				HitComponent->AddImpulse(KnockbackDirection * KnockbackStrength, NAME_None, true);
-			}
-
-			bLastAttackWasMelee = true;
-			UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, UDamageType::StaticClass());
-
-			UHealthComponent* EnemyHealthComp = HitActor->FindComponentByClass<UHealthComponent>();
-			if (EnemyHealthComp)
-			{
-				UHealthComponent* PlayerHealthComp = FindComponentByClass<UHealthComponent>();
-				if (PlayerHealthComp)
+				// Check if we hit a projectile
+				AIconoclasmProjectile* HitProjectile = Cast<AIconoclasmProjectile>(HitActor);
+				if (HitProjectile)
 				{
-					float HealAmount = MeleeDamage * 0.5f;
-					PlayerHealthComp->Heal(HealAmount);
+					// Calculate reflection direction (away from player in melee direction)
+					FVector ReflectionDirection = ForwardVector;
+
+					// Reflect the projectile
+					HitProjectile->ReflectProjectile(ReflectionDirection, this);
+
+					UE_LOG(LogTemp, Warning, TEXT("Projectile reflected!"));
+					bLastAttackWasMelee = true;
+
+					// Continue to check for more projectiles in this sweep
+					continue;
 				}
 			}
+		}
 
-			UE_LOG(LogTemp, Log, TEXT("Melee hit: %s"), *HitActor->GetName());
+		// Second priority: Damage enemies and other actors
+		for (const FHitResult& HitResult : HitResults)
+		{
+			AActor* HitActor = HitResult.GetActor();
+			if (HitActor)
+			{
+				// Skip if it's a projectile (already handled above)
+				if (Cast<AIconoclasmProjectile>(HitActor))
+					continue;
+
+				// Regular melee damage logic
+				UPrimitiveComponent* HitComponent = HitResult.GetComponent();
+				if (HitComponent && HitComponent->IsSimulatingPhysics())
+				{
+					FVector KnockbackDirection = (HitResult.ImpactPoint - Start).GetSafeNormal();
+					HitComponent->AddImpulse(KnockbackDirection * KnockbackStrength, NAME_None, true);
+				}
+
+				bLastAttackWasMelee = true;
+				UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, UDamageType::StaticClass());
+
+				UHealthComponent* EnemyHealthComp = HitActor->FindComponentByClass<UHealthComponent>();
+				if (EnemyHealthComp)
+				{
+					UHealthComponent* PlayerHealthComp = FindComponentByClass<UHealthComponent>();
+					if (PlayerHealthComp)
+					{
+						float HealAmount = MeleeDamage * 0.5f;
+						PlayerHealthComp->Heal(HealAmount);
+					}
+				}
+
+				UE_LOG(LogTemp, Log, TEXT("Melee hit: %s"), *HitActor->GetName());
+			}
 		}
 	}
 }

@@ -71,5 +71,21 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
 	void SetTrackingStrength(float NewStrength);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
+	bool bIsReflected = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
+	float ReflectedExplosionRadius = 400.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
+	float ReflectedExplosionDamage = 150.0f;
+
+	// Function to reflect the projectile
+	UFUNCTION(BlueprintCallable, Category = "Projectile")
+	void ReflectProjectile(const FVector& ReflectionDirection, AActor* NewInstigator);
+
+private:
+	AActor* OriginalInstigator;
 };
 
