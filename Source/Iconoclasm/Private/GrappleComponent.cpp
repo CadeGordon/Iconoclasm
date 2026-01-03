@@ -14,863 +14,862 @@
 #include "Components/StaticMeshComponent.h"
 #include "WallRunComponent.h"
 #include "GruntAIController.h"
+#include "IconoclasmProjectile.h"
 
 
 // Sets default values for this component's properties
 UGrappleComponent::UGrappleComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
-    IsGrappleActive = false;
-    GrappleOnCooldown = false;
+	IsGrappleActive = false;
+	GrappleOnCooldown = false;
 
+	OriginalFOV = 110.0f;
+	GrappleFOV = 120.0f;
+	InterpSpeed = 5.0f;
 
-    // Set default values for FOV and interpolation speed
-    OriginalFOV = 110.0f;
-    GrappleFOV = 120.0f;
-    InterpSpeed = 5.0f;
+	SwingForce = 2000.0f;
+	MaxSwingSpeed = 3000.0f;
+	SwingDamping = 0.95f;
+	GrappleReleaseThreshold = 300.0f;
+	SwingTransitionSpeed = 1500.0f;
+	MinimumPullForce = 1500.0f;
 
-    // Swing parameters
-    SwingForce = 2000.0f;
-    MaxSwingSpeed = 3000.0f;
-    SwingDamping = 0.95f;
-    GrappleReleaseThreshold = 300.0f; // Distance threshold for auto-release
-    SwingTransitionSpeed = 1500.0f; // Speed threshold to transition from pull to swing
-    MinimumPullForce = 1500.0f;
+	CurrentFOV = OriginalFOV;
+	TargetFOV = OriginalFOV;
 
+	GrappleVisualMesh = nullptr;
+	bWasGroundedWhenGrappleStarted = false;
 
+	// Enemy
+	GrappledActor = nullptr;
+	GrabbedEnemy = nullptr;
+	bIsHoldingEnemy = false;
 
-    CurrentFOV = OriginalFOV;
-    TargetFOV = OriginalFOV;
-    
-    // Initialize grapple visual component
-    GrappleVisualMesh = nullptr;
-
-    bWasGroundedWhenGrappleStarted = false;
-
-	// ...
+	// NEW: projectile
+	GrappledProjectile = nullptr;
+	HeldProjectile = nullptr;
+	bIsHoldingProjectile = false;
 }
 
-// Called when the game starts
 void UGrappleComponent::BeginPlay()
 {
-    Super::BeginPlay();
+	Super::BeginPlay();
 
-    OwningCharacter = Cast<ACharacter>(GetOwner());
+	OwningCharacter = Cast<ACharacter>(GetOwner());
 
-    // Get the original FOV
-    if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
-    {
-        if (UCameraComponent* CameraComponent = OwnerCharacter->FindComponentByClass<UCameraComponent>())
-        {
-            OriginalFOV = CameraComponent->FieldOfView;
-            CurrentFOV = OriginalFOV; // Initialize CurrentFOV to OriginalFOV
-            TargetFOV = OriginalFOV; // Initialize TargetFOV to OriginalFOV
-        }
-    }
+	// Get the original FOV
+	if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+	{
+		if (UCameraComponent* CameraComponent = OwnerCharacter->FindComponentByClass<UCameraComponent>())
+		{
+			OriginalFOV = CameraComponent->FieldOfView;
+			CurrentFOV = OriginalFOV;
+			TargetFOV = OriginalFOV;
+		}
+	}
 
-    // Create the HUD
-    if (GrappleHUDClass)
-    {
-        GrappleHUD = CreateWidget<UGrappleHUD>(GetWorld(), GrappleHUDClass);
-        if (GrappleHUD)
-        {
-            GrappleHUD->AddToViewport();
-            GrappleHUD->UpdateProgressBar(1.0f); // Set full progress initially
-        }
-    }
+	// Create the HUD
+	if (GrappleHUDClass)
+	{
+		GrappleHUD = CreateWidget<UGrappleHUD>(GetWorld(), GrappleHUDClass);
+		if (GrappleHUD)
+		{
+			GrappleHUD->AddToViewport();
+			GrappleHUD->UpdateProgressBar(1.0f);
+		}
+	}
 
-    // Create grapple visual mesh component
-    CreateGrappleVisual();
+	CreateGrappleVisual();
 }
 
 void UGrappleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    UpdateGrabbedEnemyPosition();
+	UpdateGrabbedEnemyPosition();
 
-    if (IsGrappleActive)
-    {
-        // Check if grounded and release grapple if true (but only if we weren't grounded when we started)
-        if (OwningCharacter && OwningCharacter->GetCharacterMovement() &&
-            OwningCharacter->GetCharacterMovement()->IsMovingOnGround() &&
-            !bWasGroundedWhenGrappleStarted)
-        {
-            ReleaseGrapple();
-            return;
-        }
+	// NEW: if we're pulling a projectile, handle it
+	if (IsGrappleActive && GrappledProjectile)
+	{
+		ApplyProjectileGrapplePhysics(DeltaTime);
+		UpdateGrappleVisual();
+	}
 
-        // Check if wall running and release grapple if true
-        if (OwningCharacter)
-        {
-            // Try to find the wallrun component
-            if (UWallRunComponent* WallRunComp = OwningCharacter->FindComponentByClass<UWallRunComponent>())
-            {
-                if (WallRunComp->IsWallRunning)
-                {
-                    ReleaseGrapple();
-                    return;
-                }
-            }
-        }
+	if (IsGrappleActive)
+	{
+		// Check if grounded and release grapple if true (but only if we weren't grounded when we started)
+		if (OwningCharacter && OwningCharacter->GetCharacterMovement() &&
+			OwningCharacter->GetCharacterMovement()->IsMovingOnGround() &&
+			!bWasGroundedWhenGrappleStarted)
+		{
+			ReleaseGrapple();
+			return;
+		}
 
-        // Apply both pulling and swinging physics simultaneously
-        ApplyCombinedGrapplePhysics(DeltaTime);
-        UpdateGrappleVisual();
-    }
+		// Check if wall running and release grapple if true
+		if (OwningCharacter)
+		{
+			if (UWallRunComponent* WallRunComp = OwningCharacter->FindComponentByClass<UWallRunComponent>())
+			{
+				if (WallRunComp->IsWallRunning)
+				{
+					ReleaseGrapple();
+					return;
+				}
+			}
+		}
 
-    // Interpolate FOV
-    if (CurrentFOV != TargetFOV)
-    {
-        CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, InterpSpeed);
+		// Only apply player/world/enemy physics if we are NOT projectile grappling
+		if (!GrappledProjectile)
+		{
+			ApplyCombinedGrapplePhysics(DeltaTime);
+			UpdateGrappleVisual();
+		}
+	}
 
-        // Apply FOV to camera component
-        if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
-        {
-            if (UCameraComponent* CameraComponent = OwnerCharacter->FindComponentByClass<UCameraComponent>())
-            {
-                CameraComponent->SetFieldOfView(CurrentFOV);
-            }
-        }
-    }
+	// Interpolate FOV
+	if (CurrentFOV != TargetFOV)
+	{
+		CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, InterpSpeed);
 
-    if (GrappleOnCooldown && GrappleCooldownDuration > 0.0f)
-    {
-        // Calculate recharge progress
-        float ElapsedTime = GetWorld()->GetTimerManager().GetTimerElapsed(GrappleCooldownTimerHandle);
-        float Progress = ElapsedTime / GrappleCooldownDuration;
+		if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+		{
+			if (UCameraComponent* CameraComponent = OwnerCharacter->FindComponentByClass<UCameraComponent>())
+			{
+				CameraComponent->SetFieldOfView(CurrentFOV);
+			}
+		}
+	}
 
-        // Update HUD progress bar
-        if (GrappleHUD)
-        {
-            GrappleHUD->UpdateProgressBar(Progress);
-        }
-    }
-    else if (GrappleHUD)
-    {
-        // Ensure progress bar is full when not on cooldown
-        GrappleHUD->UpdateProgressBar(1.0f);
-    }
+	if (GrappleOnCooldown && GrappleCooldownDuration > 0.0f)
+	{
+		float ElapsedTime = GetWorld()->GetTimerManager().GetTimerElapsed(GrappleCooldownTimerHandle);
+		float Progress = ElapsedTime / GrappleCooldownDuration;
 
-
- 
+		if (GrappleHUD)
+		{
+			GrappleHUD->UpdateProgressBar(Progress);
+		}
+	}
+	else if (GrappleHUD)
+	{
+		GrappleHUD->UpdateProgressBar(1.0f);
+	}
 }
 
 void UGrappleComponent::FireGrapple()
 {
+	// NEW: If holding a projectile, pressing grapple again throws it
+	if (IsHoldingProjectile())
+	{
+		ThrowHeldProjectile();
+		return;
+	}
 
-    // Can't grapple while holding an enemy
-    if (bIsHoldingEnemy)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot grapple while holding an enemy! Execute or release them first."));
-        return;
-    }
+	// Can't grapple while holding an enemy
+	if (bIsHoldingEnemy)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Cannot grapple while holding an enemy! Execute or release them first."));
+		return;
+	}
 
-    // If already grappling, release the grapple instead of firing a new one
-    if (IsGrappleActive)
-    {
-        ReleaseGrapple();
-        return;
-    }
+	// If already grappling, release the grapple instead of firing a new one
+	if (IsGrappleActive)
+	{
+		ReleaseGrapple();
+		return;
+	}
 
-    if (GrappleOnCooldown || !OwningCharacter)
-    {
-        return;
-    }
+	if (GrappleOnCooldown || !OwningCharacter)
+	{
+		return;
+	}
 
-    // Store whether we were grounded when starting the grapple
-    if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
-    {
-        bWasGroundedWhenGrappleStarted = CharacterMovement->IsMovingOnGround();
-    }
+	// Store whether we were grounded when starting the grapple
+	if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+	{
+		bWasGroundedWhenGrappleStarted = CharacterMovement->IsMovingOnGround();
+	}
 
-    // Get the player's viewpoint
-    FVector ViewPointLocation;
-    FRotator ViewPointRotation;
-    OwningCharacter->GetActorEyesViewPoint(ViewPointLocation, ViewPointRotation);
+	// Get the player's viewpoint
+	FVector ViewPointLocation;
+	FRotator ViewPointRotation;
+	OwningCharacter->GetActorEyesViewPoint(ViewPointLocation, ViewPointRotation);
 
-    // Calculate the end point of the grapple
-    FVector EndPoint = ViewPointLocation + ViewPointRotation.Vector() * GrappleLength;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwningCharacter);
 
-    // Perform line trace for world geometry first
-    FHitResult HitResult;
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(OwningCharacter);
+	// -------------------------
+	// Trace for world (Visibility)
+	// -------------------------
+	FHitResult HitResult;
+	FVector WorldEndPoint = ViewPointLocation + ViewPointRotation.Vector() * GrappleLength;
+	bool bHitWorld = GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, WorldEndPoint, ECC_Visibility, QueryParams);
 
-    bool bHitWorld = GetWorld()->LineTraceSingleByChannel(HitResult, ViewPointLocation, EndPoint, ECC_Visibility, QueryParams);
+	// -------------------------
+	// Trace for enemies (Pawn)
+	// -------------------------
+	FHitResult EnemyHitResult;
+	bool bHitEnemy = false;
+	if (bCanGrappleEnemies)
+	{
+		FVector EnemyEndPoint = ViewPointLocation + ViewPointRotation.Vector() * EnemyGrappleRange;
+		bHitEnemy = GetWorld()->LineTraceSingleByChannel(EnemyHitResult, ViewPointLocation, EnemyEndPoint, ECC_Pawn, QueryParams);
+	}
 
-    // Perform a separate trace for enemies using the Pawn collision channel
-    FHitResult EnemyHitResult;
-    FCollisionQueryParams EnemyQueryParams;
-    EnemyQueryParams.AddIgnoredActor(OwningCharacter);
-    bool bHitEnemy = false;
+	// -------------------------
+	// NEW: Trace for projectiles (Object trace for WorldDynamic)
+	// We use a multi trace and pick the closest AIconoclasmProjectile
+	// -------------------------
+	bool bHitProjectile = false;
+	FHitResult ProjectileHitResult;
 
-    if (bCanGrappleEnemies)
-    {
-        // Use a shorter range for enemy grappling
-        FVector EnemyEndPoint = ViewPointLocation + ViewPointRotation.Vector() * EnemyGrappleRange;
-        bHitEnemy = GetWorld()->LineTraceSingleByChannel(EnemyHitResult, ViewPointLocation, EnemyEndPoint, ECC_Pawn, EnemyQueryParams);
-    }
+	{
+		TArray<FHitResult> Hits;
+		FCollisionObjectQueryParams ObjParams;
+		ObjParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 
-    // Determine which target to grapple to
-    FHitResult* TargetHit = nullptr;
-    bool bGrapplingEnemy = false;
+		FVector ProjEndPoint = ViewPointLocation + ViewPointRotation.Vector() * ProjectileGrappleRange;
 
-    if (bHitEnemy && bHitWorld)
-    {
-        // If we hit both, choose the closer one
-        float EnemyDistance = FVector::Dist(ViewPointLocation, EnemyHitResult.ImpactPoint);
-        float WorldDistance = FVector::Dist(ViewPointLocation, HitResult.ImpactPoint);
+		if (GetWorld()->LineTraceMultiByObjectType(Hits, ViewPointLocation, ProjEndPoint, ObjParams, QueryParams))
+		{
+			float BestDist = TNumericLimits<float>::Max();
+			for (const FHitResult& H : Hits)
+			{
+				if (AIconoclasmProjectile* P = Cast<AIconoclasmProjectile>(H.GetActor()))
+				{
+					float D = FVector::Dist(ViewPointLocation, H.ImpactPoint);
+					if (D < BestDist)
+					{
+						BestDist = D;
+						ProjectileHitResult = H;
+						bHitProjectile = true;
+					}
+				}
+			}
+		}
+	}
 
-        if (EnemyDistance < WorldDistance)
-        {
-            TargetHit = &EnemyHitResult;
-            bGrapplingEnemy = true;
-        }
-        else
-        {
-            TargetHit = &HitResult;
-        }
-    }
-    else if (bHitEnemy)
-    {
-        TargetHit = &EnemyHitResult;
-        bGrapplingEnemy = true;
-    }
-    else if (bHitWorld)
-    {
-        TargetHit = &HitResult;
-    }
+	// -------------------------
+	// Decide closest target among: projectile, enemy, world
+	// -------------------------
+	enum class ETargetType { None, Projectile, Enemy, World };
+	ETargetType TargetType = ETargetType::None;
 
-    if (TargetHit)
-    {
-        // Check if we're grappling an enemy
-        if (bGrapplingEnemy && TargetHit->GetActor())
-        {
-            // Verify the hit actor has the "Enemy" tag
-            if (TargetHit->GetActor()->Tags.Contains(FName("Enemy")))
-            {
-                GrappledActor = TargetHit->GetActor();
-                GrappleLocation = TargetHit->ImpactPoint;
-                IsGrappleActive = true;
+	float BestDistance = TNumericLimits<float>::Max();
 
-                // For enemy grappling, pull the enemy toward the player instead of player toward enemy
-                StartEnemyGrapple();
-            }
-            else
-            {
-                // Not a valid enemy, treat as world geometry
-                GrappledActor = nullptr;
-                GrappleLocation = TargetHit->ImpactPoint;
-                IsGrappleActive = true;
+	if (bHitProjectile)
+	{
+		float D = FVector::Dist(ViewPointLocation, ProjectileHitResult.ImpactPoint);
+		if (D < BestDistance)
+		{
+			BestDistance = D;
+			TargetType = ETargetType::Projectile;
+		}
+	}
 
-                // Force character off ground if grounded (for world grapple only)
-                if (bWasGroundedWhenGrappleStarted && OwningCharacter)
-                {
-                    if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
-                    {
-                        CharacterMovement->SetMovementMode(MOVE_Falling);
-                        FVector LaunchVelocity = FVector(0, 0, 500.0f);
-                        CharacterMovement->Launch(LaunchVelocity);
-                    }
-                }
+	if (bHitEnemy)
+	{
+		float D = FVector::Dist(ViewPointLocation, EnemyHitResult.ImpactPoint);
+		if (D < BestDistance)
+		{
+			BestDistance = D;
+			TargetType = ETargetType::Enemy;
+		}
+	}
 
-                StartWorldGrapple();
-            }
-        }
-        else
-        {
-            // Regular world grappling
-            GrappledActor = nullptr;
-            GrappleLocation = TargetHit->ImpactPoint;
-            IsGrappleActive = true;
+	if (bHitWorld)
+	{
+		float D = FVector::Dist(ViewPointLocation, HitResult.ImpactPoint);
+		if (D < BestDistance)
+		{
+			BestDistance = D;
+			TargetType = ETargetType::World;
+		}
+	}
 
-            // Force character off ground if grounded (for world grapple only)
-            if (bWasGroundedWhenGrappleStarted && OwningCharacter)
-            {
-                if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
-                {
-                    CharacterMovement->SetMovementMode(MOVE_Falling);
-                    FVector LaunchVelocity = FVector(0, 0, 500.0f);
-                    CharacterMovement->Launch(LaunchVelocity);
-                }
-            }
+	// -------------------------
+	// Execute chosen grapple
+	// -------------------------
+	if (TargetType == ETargetType::Projectile)
+	{
+		AIconoclasmProjectile* Proj = Cast<AIconoclasmProjectile>(ProjectileHitResult.GetActor());
+		if (Proj && Proj->IsGrapplable())
+		{
+			StartProjectileGrapple(Proj);
 
-            StartWorldGrapple();
-        }
+			// cooldown + FOV + HUD + visual (same as normal grapple)
+			GrappleOnCooldown = true;
+			GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
 
-        // Common grapple setup
-        GrappleDistance = FVector::Dist(OwningCharacter->GetActorLocation(), GrappleLocation);
+			TargetFOV = GrappleFOV;
+			if (GrappleHUD) GrappleHUD->UpdateProgressBar(0.0f);
+			ShowGrappleVisual();
 
-        GrappleOnCooldown = true;
-        GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
+			return;
+		}
+	}
 
-        // Set target FOV for when grapple is active
-        TargetFOV = GrappleFOV;
+	if (TargetType == ETargetType::Enemy)
+	{
+		if (EnemyHitResult.GetActor() && EnemyHitResult.GetActor()->Tags.Contains(FName("Enemy")))
+		{
+			GrappledActor = EnemyHitResult.GetActor();
+			GrappleLocation = EnemyHitResult.ImpactPoint;
+			IsGrappleActive = true;
 
-        // Set progress to zero immediately
-        if (GrappleHUD)
-        {
-            GrappleHUD->UpdateProgressBar(0.0f);
-        }
+			StartEnemyGrapple();
+		}
+		else
+		{
+			GrappledActor = nullptr;
+			GrappleLocation = EnemyHitResult.ImpactPoint;
+			IsGrappleActive = true;
 
-        // Show grapple visual
-        ShowGrappleVisual();
-    }
-    else
-    {
-        // If no trace hits anything, do not fire the grapple
-        IsGrappleActive = false;
-    }
-    
+			if (bWasGroundedWhenGrappleStarted && OwningCharacter)
+			{
+				if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+				{
+					CharacterMovement->SetMovementMode(MOVE_Falling);
+					CharacterMovement->Launch(FVector(0, 0, 500.0f));
+				}
+			}
+
+			StartWorldGrapple();
+		}
+	}
+	else if (TargetType == ETargetType::World)
+	{
+		GrappledActor = nullptr;
+		GrappleLocation = HitResult.ImpactPoint;
+		IsGrappleActive = true;
+
+		if (bWasGroundedWhenGrappleStarted && OwningCharacter)
+		{
+			if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+			{
+				CharacterMovement->SetMovementMode(MOVE_Falling);
+				CharacterMovement->Launch(FVector(0, 0, 500.0f));
+			}
+		}
+
+		StartWorldGrapple();
+	}
+	else
+	{
+		IsGrappleActive = false;
+		return;
+	}
+
+	// Common grapple setup for world/enemy
+	GrappleDistance = FVector::Dist(OwningCharacter->GetActorLocation(), GrappleLocation);
+
+	GrappleOnCooldown = true;
+	GetWorld()->GetTimerManager().SetTimer(GrappleCooldownTimerHandle, this, &UGrappleComponent::ResetGrappleCooldown, GrappleCooldownDuration, false);
+
+	TargetFOV = GrappleFOV;
+
+	if (GrappleHUD)
+	{
+		GrappleHUD->UpdateProgressBar(0.0f);
+	}
+
+	ShowGrappleVisual();
 }
 
-// New function to handle enemy grappling
 void UGrappleComponent::StartEnemyGrapple()
 {
-    // For enemy grappling, we pull the enemy toward us rather than us toward the enemy
-    // Set different physics parameters if needed
-    if (OwningCharacter && OwningCharacter->GetCharacterMovement())
-    {
-        OwningCharacter->GetCharacterMovement()->GravityScale = 2.0f;
-    }
+	if (OwningCharacter && OwningCharacter->GetCharacterMovement())
+	{
+		OwningCharacter->GetCharacterMovement()->GravityScale = 2.0f;
+	}
 }
 
-// New function to handle world grappling  
 void UGrappleComponent::StartWorldGrapple()
 {
-    // Standard world grappling setup
-    if (OwningCharacter && OwningCharacter->GetCharacterMovement())
-    {
-        OwningCharacter->GetCharacterMovement()->GravityScale = 0.4f;
-    }
+	if (OwningCharacter && OwningCharacter->GetCharacterMovement())
+	{
+		OwningCharacter->GetCharacterMovement()->GravityScale = 0.4f;
+	}
 }
 
 void UGrappleComponent::ReleaseGrapple()
 {
-    IsGrappleActive = false;
-    GrappledActor = nullptr;
+	IsGrappleActive = false;
+	GrappledActor = nullptr;
 
-    TargetFOV = OriginalFOV;
+	// NEW: cancel projectile pull too
+	if (GrappledProjectile)
+	{
+		GrappledProjectile->StopGrapplePull();
+		GrappledProjectile = nullptr;
+	}
 
-    // Restore normal gravity
-    if (OwningCharacter)
-    {
-        if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
-        {
-            CharacterMovement->GravityScale = 2.7f;
-        }
-    }
+	TargetFOV = OriginalFOV;
 
-    // Hide grapple visual
-    HideGrappleVisual();
+	if (OwningCharacter)
+	{
+		if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+		{
+			CharacterMovement->GravityScale = 2.7f;
+		}
+	}
 
+	HideGrappleVisual();
 }
 
 void UGrappleComponent::PullCharacterToLocation(const FVector& Location)
 {
-    if (!OwningCharacter)
-    {
-        return;
-    }
+	if (!OwningCharacter) return;
 
-    FVector CharacterLocation = OwningCharacter->GetActorLocation();
-    float DistanceToLocationSquared = FVector::DistSquared(CharacterLocation, Location);
-    float DistanceThresholdSquared = GrappleEndThreshold * GrappleEndThreshold; // Adjust this threshold as needed
+	FVector CharacterLocation = OwningCharacter->GetActorLocation();
+	float DistanceToLocationSquared = FVector::DistSquared(CharacterLocation, Location);
+	float DistanceThresholdSquared = GrappleEndThreshold * GrappleEndThreshold;
 
-    if (DistanceToLocationSquared <= DistanceThresholdSquared)
-    {
-        ReleaseGrapple();
-        return;
-    }
+	if (DistanceToLocationSquared <= DistanceThresholdSquared)
+	{
+		ReleaseGrapple();
+		return;
+	}
 
-    FVector Direction = Location - CharacterLocation;
-    Direction.Normalize();
-    FVector Force = Direction * GrappleSpeed;
+	FVector Direction = Location - CharacterLocation;
+	Direction.Normalize();
+	FVector Force = Direction * GrappleSpeed;
 
-    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
-    if (CharacterMovement)
-    {
-        CharacterMovement->Launch(Force);
-    }
+	if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+	{
+		CharacterMovement->Launch(Force);
+	}
 }
 
 void UGrappleComponent::ApplyCombinedGrapplePhysics(float DeltaTime)
 {
-    if (!OwningCharacter)
-        return;
+	if (!OwningCharacter)
+		return;
 
-    // If we're grappling an enemy, handle enemy pulling
-    if (GrappledActor && GrappledActor->Tags.Contains(FName("Enemy")))
-    {
-        ApplyEnemyGrapplePhysics(DeltaTime);
-        return; // Exit early - don't apply world grapple physics for enemies
-    }
+	// Enemy grapple
+	if (GrappledActor && GrappledActor->Tags.Contains(FName("Enemy")))
+	{
+		ApplyEnemyGrapplePhysics(DeltaTime);
+		return;
+	}
 
-    // Only apply falling mode and world grapple physics for non-enemy grapples
-    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
-    if (!CharacterMovement)
-        return;
+	UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
+	if (!CharacterMovement)
+		return;
 
-    // NEW: Ensure we stay in falling mode during world grapple
-    if (CharacterMovement->MovementMode != MOVE_Falling)
-    {
-        CharacterMovement->SetMovementMode(MOVE_Falling);
-    }
+	if (CharacterMovement->MovementMode != MOVE_Falling)
+	{
+		CharacterMovement->SetMovementMode(MOVE_Falling);
+	}
 
-    FVector CharacterLocation = OwningCharacter->GetActorLocation();
-    FVector CurrentVelocity = CharacterMovement->Velocity;
+	FVector CharacterLocation = OwningCharacter->GetActorLocation();
+	FVector CurrentVelocity = CharacterMovement->Velocity;
 
-    // Calculate vector from character to grapple point
-    FVector ToGrapplePoint = GrappleLocation - CharacterLocation;
-    float CurrentDistance = ToGrapplePoint.Size();
+	FVector ToGrapplePoint = GrappleLocation - CharacterLocation;
+	float CurrentDistance = ToGrapplePoint.Size();
 
-    // Check if we're close enough to release
-    if (CurrentDistance <= GrappleEndThreshold)
-    {
-        ReleaseGrapple();
-        return;
-    }
+	if (CurrentDistance <= GrappleEndThreshold)
+	{
+		ReleaseGrapple();
+		return;
+	}
 
-    ToGrapplePoint.Normalize();
-    float CurrentSpeed = CurrentVelocity.Size();
+	ToGrapplePoint.Normalize();
+	float CurrentSpeed = CurrentVelocity.Size();
 
-    // MODIFIED: Use direct pull for slower speeds OR if we just started grappling from ground
-    // This prevents the "dragging" effect
-    if (CurrentSpeed < 500.0f) // Increased threshold
-    {
-        // Use the original direct pull method
-        FVector DirectPullForce = ToGrapplePoint * GrappleSpeed;
-        CharacterMovement->Launch(DirectPullForce);
-        return;
-    }
+	if (CurrentSpeed < 500.0f)
+	{
+		FVector DirectPullForce = ToGrapplePoint * GrappleSpeed;
+		CharacterMovement->Launch(DirectPullForce);
+		return;
+	}
 
-    // For moving players, apply FULL POWER swing physics
-    float BasePullStrength = FMath::Max(GrappleSpeed, MinimumPullForce);
-    float AdaptivePullStrength = FMath::Max(BasePullStrength, CurrentSpeed * 1.2f);
+	float BasePullStrength = FMath::Max(GrappleSpeed, MinimumPullForce);
+	float AdaptivePullStrength = FMath::Max(BasePullStrength, CurrentSpeed * 1.2f);
 
-    // 1. PULLING FORCE - Adaptive strength that scales with player momentum
-    FVector PullForce = ToGrapplePoint * AdaptivePullStrength;
-    CurrentVelocity += PullForce * DeltaTime;
+	FVector PullForce = ToGrapplePoint * AdaptivePullStrength;
+	CurrentVelocity += PullForce * DeltaTime;
 
-    // 2. PENDULUM CONSTRAINT - Strong constraint to maintain rope length
-    float DistanceError = CurrentDistance - GrappleDistance;
-    if (DistanceError > 0)
-    {
-        FVector ConstraintForce = ToGrapplePoint * DistanceError * SwingForce;
-        CurrentVelocity += ConstraintForce * DeltaTime;
-    }
+	float DistanceError = CurrentDistance - GrappleDistance;
+	if (DistanceError > 0)
+	{
+		FVector ConstraintForce = ToGrapplePoint * DistanceError * SwingForce;
+		CurrentVelocity += ConstraintForce * DeltaTime;
+	}
 
-    // 3. SWING INPUT - Full power swing input
-    ApplySwingInput(CurrentVelocity, ToGrapplePoint, DeltaTime);
+	ApplySwingInput(CurrentVelocity, ToGrapplePoint, DeltaTime);
 
-    // 4. Apply minimal damping to maintain momentum
-    CurrentVelocity *= SwingDamping;
+	CurrentVelocity *= SwingDamping;
 
-    // 5. Adaptive max swing speed
-    float AdaptiveMaxSpeed = FMath::Max(MaxSwingSpeed, CurrentSpeed * 1.1f);
-    if (CurrentVelocity.Size() > AdaptiveMaxSpeed)
-    {
-        CurrentVelocity = CurrentVelocity.GetSafeNormal() * AdaptiveMaxSpeed;
-    }
+	float AdaptiveMaxSpeed = FMath::Max(MaxSwingSpeed, CurrentSpeed * 1.1f);
+	if (CurrentVelocity.Size() > AdaptiveMaxSpeed)
+	{
+		CurrentVelocity = CurrentVelocity.GetSafeNormal() * AdaptiveMaxSpeed;
+	}
 
-    // Apply the final velocity
-    CharacterMovement->Velocity = CurrentVelocity;
+	CharacterMovement->Velocity = CurrentVelocity;
 
-    // Check for auto-release if rope stretches too much
-    if (CurrentDistance > GrappleDistance + GrappleReleaseThreshold)
-    {
-        ReleaseGrapple();
-    }
+	if (CurrentDistance > GrappleDistance + GrappleReleaseThreshold)
+	{
+		ReleaseGrapple();
+	}
 }
 
-// New function to handle enemy grapple physics
 void UGrappleComponent::ApplyEnemyGrapplePhysics(float DeltaTime)
 {
-    if (!GrappledActor || !OwningCharacter)
-    {
-        ReleaseGrapple();
-        return;
-    }
+	if (!GrappledActor || !OwningCharacter)
+	{
+		ReleaseGrapple();
+		return;
+	}
 
-    // Check if the enemy is still valid and has the Enemy tag
-    if (!GrappledActor->Tags.Contains(FName("Enemy")))
-    {
-        ReleaseGrapple();
-        return;
-    }
+	if (!GrappledActor->Tags.Contains(FName("Enemy")))
+	{
+		ReleaseGrapple();
+		return;
+	}
 
-    FVector PlayerLocation = OwningCharacter->GetActorLocation();
-    FVector EnemyLocation = GrappledActor->GetActorLocation();
-    FVector ToPlayer = PlayerLocation - EnemyLocation;
-    float DistanceToPlayer = ToPlayer.Size();
+	FVector PlayerLocation = OwningCharacter->GetActorLocation();
+	FVector EnemyLocation = GrappledActor->GetActorLocation();
+	FVector ToPlayer = PlayerLocation - EnemyLocation;
+	float DistanceToPlayer = ToPlayer.Size();
 
-    // Release if enemy gets too close
-    if (DistanceToPlayer <= EnemyGrappleEndThreshold)
-    {
-        GrabEnemy();
-        return;
-    }
+	if (DistanceToPlayer <= EnemyGrappleEndThreshold)
+	{
+		GrabEnemy();
+		return;
+	}
 
-    // Pull the enemy toward the player
-    ToPlayer.Normalize();
-    FVector PullForce = ToPlayer * EnemyPullForce;
+	ToPlayer.Normalize();
+	FVector PullForce = ToPlayer * EnemyPullForce;
 
-    // Try to get the enemy's character movement component
-    if (ACharacter* EnemyCharacter = Cast<ACharacter>(GrappledActor))
-    {
-        if (UCharacterMovementComponent* EnemyMovement = EnemyCharacter->GetCharacterMovement())
-        {
-            // Launch the enemy toward the player
-            EnemyMovement->Launch(PullForce);
-        }
-    }
-    else
-    {
-        // If it's not a character, try to move it using physics
-        if (UPrimitiveComponent* EnemyPrimitive = Cast<UPrimitiveComponent>(GrappledActor->GetRootComponent()))
-        {
-            if (EnemyPrimitive->IsSimulatingPhysics())
-            {
-                EnemyPrimitive->AddForce(PullForce, NAME_None, true);
-            }
-        }
-    }
+	if (ACharacter* EnemyCharacter = Cast<ACharacter>(GrappledActor))
+	{
+		if (UCharacterMovementComponent* EnemyMovement = EnemyCharacter->GetCharacterMovement())
+		{
+			EnemyMovement->Launch(PullForce);
+		}
+	}
+	else
+	{
+		if (UPrimitiveComponent* EnemyPrimitive = Cast<UPrimitiveComponent>(GrappledActor->GetRootComponent()))
+		{
+			if (EnemyPrimitive->IsSimulatingPhysics())
+			{
+				EnemyPrimitive->AddForce(PullForce, NAME_None, true);
+			}
+		}
+	}
 
-    // Update grapple location to enemy's current position
-    GrappleLocation = EnemyLocation;
+	GrappleLocation = EnemyLocation;
 }
 
-// New function to grab and hold the enemy
 void UGrappleComponent::GrabEnemy()
 {
-    if (!GrappledActor || !OwningCharacter)
-    {
-        ReleaseGrapple();
-        return;
-    }
+	if (!GrappledActor || !OwningCharacter)
+	{
+		ReleaseGrapple();
+		return;
+	}
 
-    // Store the grabbed enemy
-    GrabbedEnemy = GrappledActor;
-    bIsHoldingEnemy = true;
+	GrabbedEnemy = GrappledActor;
+	bIsHoldingEnemy = true;
 
-    // End the grapple phase
-    IsGrappleActive = false;
-    GrappledActor = nullptr;
+	IsGrappleActive = false;
+	GrappledActor = nullptr;
 
-    // Hide grapple visual
-    HideGrappleVisual();
+	HideGrappleVisual();
 
-    // Disable enemy AI and physics
-    if (ACharacter* EnemyCharacter = Cast<ACharacter>(GrabbedEnemy))
-    {
-        //// Disable AI
-        //if (AGruntAIController* GruntAIController = Cast<AGruntAIController>(EnemyCharacter->GetController()))
-        //{
-        //    GruntAIController->GetBrainComponent()->StopLogic("Grabbed");
-        //}
+	if (ACharacter* EnemyCharacter = Cast<ACharacter>(GrabbedEnemy))
+	{
+		if (UCharacterMovementComponent* EnemyMovement = EnemyCharacter->GetCharacterMovement())
+		{
+			EnemyMovement->DisableMovement();
+		}
 
-        // Disable movement
-        if (UCharacterMovementComponent* EnemyMovement = EnemyCharacter->GetCharacterMovement())
-        {
-            EnemyMovement->DisableMovement();
-        }
+		EnemyCharacter->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	}
 
-        // Disable collision with the player
-        EnemyCharacter->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-    }
+	UpdateGrabbedEnemyPosition();
 
-    // Position enemy in front of player
-    UpdateGrabbedEnemyPosition();
-
-    UE_LOG(LogTemp, Warning, TEXT("Enemy grabbed! Press melee to execute."));
+	UE_LOG(LogTemp, Warning, TEXT("Enemy grabbed! Press melee to execute."));
 }
 
-// Update the grabbed enemy's position every frame
 void UGrappleComponent::UpdateGrabbedEnemyPosition()
 {
-    if (!bIsHoldingEnemy || !GrabbedEnemy || !OwningCharacter)
-    {
-        //ReleaseGrabbedEnemy();
-        return;
-    }
+	if (!bIsHoldingEnemy || !GrabbedEnemy || !OwningCharacter)
+	{
+		return;
+	}
 
-    // Check if the enemy is still valid
-    if (!IsValid(GrabbedEnemy))
-    {
-        bIsHoldingEnemy = false;
-        GrabbedEnemy = nullptr;
-        return;
-    }
+	if (!IsValid(GrabbedEnemy))
+	{
+		bIsHoldingEnemy = false;
+		GrabbedEnemy = nullptr;
+		return;
+	}
 
-    // Calculate position in front of player
-    FVector PlayerLocation = OwningCharacter->GetActorLocation();
-    FVector PlayerForward = OwningCharacter->GetActorForwardVector();
-    FVector HoldPosition = PlayerLocation + (PlayerForward * EnemyHoldDistance) + FVector(0, 0, EnemyHoldHeight);
+	FVector PlayerLocation = OwningCharacter->GetActorLocation();
+	FVector PlayerForward = OwningCharacter->GetActorForwardVector();
+	FVector HoldPosition = PlayerLocation + (PlayerForward * EnemyHoldDistance) + FVector(0, 0, EnemyHoldHeight);
 
-    // Smoothly interpolate to the hold position for better visuals
-    FVector CurrentEnemyLocation = GrabbedEnemy->GetActorLocation();
-    FVector NewLocation = FMath::VInterpTo(CurrentEnemyLocation, HoldPosition, GetWorld()->GetDeltaSeconds(), 15.0f);
+	GrabbedEnemy->SetActorLocation(HoldPosition);
 
-    // Set enemy location
-    GrabbedEnemy->SetActorLocation(HoldPosition);
-
-    // Make enemy face the player
-    FRotator LookAtPlayer = UKismetMathLibrary::FindLookAtRotation(GrabbedEnemy->GetActorLocation(), PlayerLocation);
-    GrabbedEnemy->SetActorRotation(LookAtPlayer);
+	FRotator LookAtPlayer = UKismetMathLibrary::FindLookAtRotation(GrabbedEnemy->GetActorLocation(), PlayerLocation);
+	GrabbedEnemy->SetActorRotation(LookAtPlayer);
 }
 
-// Execute (destroy) the grabbed enemy - call this from melee input
 void UGrappleComponent::ExecuteGrabbedEnemy()
 {
-    if (!bIsHoldingEnemy || !GrabbedEnemy)
-    {
-        return;
-    }
+	if (!bIsHoldingEnemy || !GrabbedEnemy)
+	{
+		return;
+	}
 
-    UE_LOG(LogTemp, Warning, TEXT("Executing grabbed enemy!"));
+	UE_LOG(LogTemp, Warning, TEXT("Executing grabbed enemy!"));
 
-    // Optional: Spawn particles, play sound, etc. here
-    // You could also play an execution animation on the player
+	GrabbedEnemy->Destroy();
 
-    // Destroy the enemy
-    GrabbedEnemy->Destroy();
+	GrabbedEnemy = nullptr;
+	bIsHoldingEnemy = false;
 
-    // Clear references
-    GrabbedEnemy = nullptr;
-    bIsHoldingEnemy = false;
-
-    // Restore normal FOV if it was changed
-    TargetFOV = OriginalFOV;
+	TargetFOV = OriginalFOV;
 }
-
-
-//bool UGrappleComponent::ShouldTransitionToSwing()
-//{
-//    if (!OwningCharacter)
-//        return false;
-//
-//    // Get player's current velocity
-//    FVector CurrentVelocity = OwningCharacter->GetCharacterMovement()->Velocity;
-//    float CurrentSpeed = CurrentVelocity.Size();
-//
-//    // Get direction to grapple point
-//    FVector ToGrapplePoint = (GrappleLocation - OwningCharacter->GetActorLocation()).GetSafeNormal();
-//
-//    // Check if player has sufficient speed and isn't moving directly toward grapple point
-//    float DotProduct = FVector::DotProduct(CurrentVelocity.GetSafeNormal(), ToGrapplePoint);
-//
-//    // Transition to swing if:
-//    // 1. Player has enough speed
-//    // 2. Player isn't moving directly toward the grapple point (allows for pendulum motion)
-//    // 3. Player has some horizontal velocity component
-//    return CurrentSpeed > SwingTransitionSpeed &&
-//        DotProduct < 0.8f &&
-//        FMath::Abs(CurrentVelocity.Z) < CurrentSpeed * 0.8f;
-//}
 
 void UGrappleComponent::StartSwinging()
 {
-    IsSwinging = true;
+	IsSwinging = true;
 
-    if (OwningCharacter)
-    {
-        // Disable gravity temporarily for smoother swinging
-        UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
-        if (CharacterMovement)
-        {
-            CharacterMovement->GravityScale = 0.3f; // Reduce gravity for swing feel
-        }
-    }
+	if (OwningCharacter)
+	{
+		if (UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement())
+		{
+			CharacterMovement->GravityScale = 0.3f;
+		}
+	}
 }
-
-//void UGrappleComponent::ApplySwingPhysics(float DeltaTime)
-//{
-//    if (!OwningCharacter)
-//        return;
-//
-//    UCharacterMovementComponent* CharacterMovement = OwningCharacter->GetCharacterMovement();
-//    if (!CharacterMovement)
-//        return;
-//
-//    FVector CharacterLocation = OwningCharacter->GetActorLocation();
-//    FVector CurrentVelocity = CharacterMovement->Velocity;
-//
-//    // Calculate vector from character to grapple point
-//    FVector ToGrapplePoint = GrappleLocation - CharacterLocation;
-//    float CurrentDistance = ToGrapplePoint.Size();
-//    ToGrapplePoint.Normalize();
-//
-//    // Constraint force to maintain grapple distance (pendulum constraint)
-//    float DistanceError = CurrentDistance - GrappleDistance;
-//    FVector ConstraintForce = ToGrapplePoint * DistanceError * SwingForce;
-//
-//    // Only apply inward constraint force (prevent stretching, allow compression)
-//    if (DistanceError > 0)
-//    {
-//        CurrentVelocity += ConstraintForce * DeltaTime;
-//    }
-//
-//    // Apply player input for swinging control
-//    ApplySwingInput(CurrentVelocity, ToGrapplePoint, DeltaTime);
-//
-//    // Apply damping to prevent infinite swinging
-//    CurrentVelocity *= SwingDamping;
-//
-//    // Clamp maximum swing speed
-//    if (CurrentVelocity.Size() > MaxSwingSpeed)
-//    {
-//        CurrentVelocity = CurrentVelocity.GetSafeNormal() * MaxSwingSpeed;
-//    }
-//
-//    // Apply the velocity
-//    CharacterMovement->Velocity = CurrentVelocity;
-//
-//    // Check for release conditions
-//    if (CurrentDistance > GrappleDistance + GrappleReleaseThreshold)
-//    {
-//        ReleaseGrapple();
-//
-//        // Restore normal gravity
-//        CharacterMovement->GravityScale = 1.0f;
-//    }
-//}
 
 void UGrappleComponent::ApplySwingInput(FVector& CurrentVelocity, const FVector& ToGrapplePoint, float DeltaTime)
 {
-    if (!OwningCharacter)
-        return;
+	if (!OwningCharacter)
+		return;
 
-    // Get player input
-    FVector InputVector = OwningCharacter->GetLastMovementInputVector();
+	FVector InputVector = OwningCharacter->GetLastMovementInputVector();
 
-    if (!InputVector.IsZero())
-    {
-        // Convert input to world space
-        FRotator ControlRotation = OwningCharacter->GetControlRotation();
-        FVector ForwardVector = ControlRotation.Vector();
-        FVector RightVector = FRotationMatrix(ControlRotation).GetUnitAxis(EAxis::Y);
+	if (!InputVector.IsZero())
+	{
+		FRotator ControlRotation = OwningCharacter->GetControlRotation();
+		FVector ForwardVector = ControlRotation.Vector();
+		FVector RightVector = FRotationMatrix(ControlRotation).GetUnitAxis(EAxis::Y);
 
-        FVector WorldInput = (ForwardVector * InputVector.X + RightVector * InputVector.Y);
-        WorldInput.Z = 0; // Remove vertical component for horizontal swing control
-        WorldInput.Normalize();
+		FVector WorldInput = (ForwardVector * InputVector.X + RightVector * InputVector.Y);
+		WorldInput.Z = 0;
+		WorldInput.Normalize();
 
-        // Apply swing input force perpendicular to grapple line
-        FVector GrappleDirection = ToGrapplePoint;
-        GrappleDirection.Z = 0; // Project to horizontal plane
-        GrappleDirection.Normalize();
+		FVector GrappleDirection = ToGrapplePoint;
+		GrappleDirection.Z = 0;
+		GrappleDirection.Normalize();
 
-        // Get perpendicular direction for swinging
-        FVector SwingDirection = FVector::CrossProduct(GrappleDirection, FVector::UpVector);
+		FVector SwingDirection = FVector::CrossProduct(GrappleDirection, FVector::UpVector);
 
-        // Apply input in swing direction
-        float InputDot = FVector::DotProduct(WorldInput, SwingDirection);
-        FVector SwingInputForce = SwingDirection * InputDot * SwingForce * 0.5f;
+		float InputDot = FVector::DotProduct(WorldInput, SwingDirection);
+		FVector SwingInputForce = SwingDirection * InputDot * SwingForce * 0.5f;
 
-        CurrentVelocity += SwingInputForce * DeltaTime;
-    }
+		CurrentVelocity += SwingInputForce * DeltaTime;
+	}
 }
-
 
 void UGrappleComponent::ResetGrappleCooldown()
 {
-    GrappleOnCooldown = false;
+	GrappleOnCooldown = false;
 }
+
+// =========================
+// NEW: Projectile Grapple / Hold / Throw
+// =========================
+
+void UGrappleComponent::StartProjectileGrapple(AIconoclasmProjectile* Projectile)
+{
+	if (!Projectile || !OwningCharacter)
+		return;
+
+	GrappledProjectile = Projectile;
+	GrappledActor = nullptr;
+
+	GrappleLocation = Projectile->GetActorLocation();
+	IsGrappleActive = true;
+
+	// Tell projectile to begin being pulled
+	Projectile->StartGrapplePull(OwningCharacter);
+}
+
+void UGrappleComponent::ApplyProjectileGrapplePhysics(float DeltaTime)
+{
+	if (!OwningCharacter || !GrappledProjectile)
+	{
+		ReleaseGrapple();
+		return;
+	}
+
+	if (!IsValid(GrappledProjectile) || GrappledProjectile->IsHeldByPlayer())
+	{
+		GrappledProjectile = nullptr;
+		ReleaseGrapple();
+		return;
+	}
+
+	FVector PlayerLocation = OwningCharacter->GetActorLocation();
+	FVector HoldPoint = PlayerLocation + OwningCharacter->GetActorForwardVector() * 120.0f + FVector(0, 0, 60.0f);
+
+	FVector ProjLocation = GrappledProjectile->GetActorLocation();
+	float Dist = FVector::Dist(ProjLocation, HoldPoint);
+
+	// Update grapple visual endpoint
+	GrappleLocation = ProjLocation;
+
+	// Pull it manually (projectile also self-moves in its Tick; this just makes it deterministic)
+	FVector ToHold = (HoldPoint - ProjLocation);
+	if (!ToHold.IsNearlyZero())
+	{
+		FVector Step = ToHold.GetSafeNormal() * ProjectilePullForce * DeltaTime;
+		GrappledProjectile->SetActorLocation(ProjLocation + Step);
+	}
+
+	if (Dist <= ProjectileCatchDistance)
+	{
+		HoldProjectile(GrappledProjectile);
+	}
+}
+
+void UGrappleComponent::HoldProjectile(AIconoclasmProjectile* Projectile)
+{
+	if (!OwningCharacter || !Projectile)
+	{
+		ReleaseGrapple();
+		return;
+	}
+
+	// End grapple
+	IsGrappleActive = false;
+	GrappledProjectile = nullptr;
+	HideGrappleVisual();
+	TargetFOV = OriginalFOV;
+
+	// Hold it
+	HeldProjectile = Projectile;
+	bIsHoldingProjectile = true;
+
+	Projectile->AttachToPlayer(OwningCharacter, ProjectileHoldSocketName, ProjectileHoldRelativeOffset);
+
+	UE_LOG(LogTemp, Warning, TEXT("Projectile held! Press grapple again to throw."));
+}
+
+void UGrappleComponent::ThrowHeldProjectile()
+{
+	if (!OwningCharacter || !HeldProjectile)
+		return;
+
+	FVector ViewLoc;
+	FRotator ViewRot;
+	OwningCharacter->GetActorEyesViewPoint(ViewLoc, ViewRot);
+
+	FVector ThrowDir = ViewRot.Vector();
+
+	AIconoclasmProjectile* Proj = HeldProjectile;
+
+	// Clear hold state first
+	HeldProjectile = nullptr;
+	bIsHoldingProjectile = false;
+
+	// Throw it (this makes it explode on any hit using bIsReflected logic)
+	Proj->ThrowFromPlayer(ThrowDir, ProjectileThrowSpeed, OwningCharacter);
+
+	UE_LOG(LogTemp, Warning, TEXT("Projectile thrown!"));
+}
+
+// =========================
+// Grapple Visuals (unchanged from your code)
+// =========================
 
 void UGrappleComponent::CreateGrappleVisual()
 {
-    if (!OwningCharacter || !GetWorld())
-    {
-        return;
-    }
+	if (!OwningCharacter || !GetWorld())
+	{
+		return;
+	}
 
-    // Create a static mesh actor for the grapple line
-    GrappleVisualActor = GetWorld()->SpawnActor<AStaticMeshActor>();
-    if (GrappleVisualActor)
-    {
-        GrappleVisualMesh = GrappleVisualActor->GetStaticMeshComponent();
+	GrappleVisualActor = GetWorld()->SpawnActor<AStaticMeshActor>();
+	if (GrappleVisualActor)
+	{
+		GrappleVisualMesh = GrappleVisualActor->GetStaticMeshComponent();
 
-        // Load a default cylinder mesh (you can replace this with your own mesh)
-        UStaticMesh* CylinderMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-        if (CylinderMesh && GrappleVisualMesh)
-        {
-            GrappleVisualMesh->SetStaticMesh(CylinderMesh);
+		UStaticMesh* CylinderMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+		if (CylinderMesh && GrappleVisualMesh)
+		{
+			GrappleVisualMesh->SetStaticMesh(CylinderMesh);
+			GrappleVisualMesh->SetMobility(EComponentMobility::Movable);
+			GrappleVisualMesh->SetWorldScale3D(FVector(0.02f, 1.02f, 1.0f));
+		}
 
-            GrappleVisualMesh->SetMobility(EComponentMobility::Movable);
-
-            // Create a material for the grapple line (optional - you can set this in Blueprint)
-            // Make it thin like a rope/cable
-            GrappleVisualMesh->SetWorldScale3D(FVector(0.02f, 1.02f, 1.0f)); // Thin cylinder
-        }
-
-        // Initially hide the visual
-        GrappleVisualActor->SetActorHiddenInGame(true);
-        GrappleVisualActor->SetActorEnableCollision(false); // Disable collision for visual
-    }
+		GrappleVisualActor->SetActorHiddenInGame(true);
+		GrappleVisualActor->SetActorEnableCollision(false);
+	}
 }
 
 void UGrappleComponent::ShowGrappleVisual()
 {
-    if (GrappleVisualActor)
-    {
-        GrappleVisualActor->SetActorHiddenInGame(false);
-        UpdateGrappleVisual();
-    }
+	if (GrappleVisualActor)
+	{
+		GrappleVisualActor->SetActorHiddenInGame(false);
+		UpdateGrappleVisual();
+	}
 }
 
 void UGrappleComponent::HideGrappleVisual()
 {
-    if (GrappleVisualActor)
-    {
-        GrappleVisualActor->SetActorHiddenInGame(true);
-    }
+	if (GrappleVisualActor)
+	{
+		GrappleVisualActor->SetActorHiddenInGame(true);
+	}
 }
 
 void UGrappleComponent::UpdateGrappleVisual()
 {
-    if (!GrappleVisualActor || !GrappleVisualMesh || !OwningCharacter)
-    {
-        return;
-    }
+	if (!GrappleVisualActor || !GrappleVisualMesh || !OwningCharacter)
+	{
+		return;
+	}
 
-    // Get start and end points
-    FVector StartPoint = OwningCharacter->GetActorLocation();
-    FVector EndPoint = GrappleLocation;
+	FVector StartPoint = OwningCharacter->GetActorLocation();
+	FVector EndPoint = GrappleLocation;
 
-    // If we're grappling an enemy, use their current location
-    if (GrappledActor)
-    {
-        EndPoint = GrappledActor->GetActorLocation();
-    }
-    else
-    {
-        EndPoint = GrappleLocation;
-    }
+	if (GrappledActor)
+	{
+		EndPoint = GrappledActor->GetActorLocation();
+	}
+	else if (GrappledProjectile)
+	{
+		EndPoint = GrappledProjectile->GetActorLocation();
+	}
 
-    // Calculate midpoint
-    FVector MidPoint = (StartPoint + EndPoint) * 0.5f;
+	FVector MidPoint = (StartPoint + EndPoint) * 0.5f;
 
-    // Calculate distance and direction
-    FVector Direction = EndPoint - StartPoint;
-    float Distance = Direction.Size();
-    Direction.Normalize();
+	FVector Direction = EndPoint - StartPoint;
+	float Distance = Direction.Size();
+	Direction.Normalize();
 
-    // Position the visual at midpoint
-    GrappleVisualActor->SetActorLocation(MidPoint);
+	GrappleVisualActor->SetActorLocation(MidPoint);
 
-    // Rotate to point from start to end
-    FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(StartPoint, EndPoint);
-    // Adjust rotation because cylinder's default orientation is Z-up, but we want it along the grapple line
-    FRotator AdjustedRotation = LookAtRotation + FRotator(90.0f, 0.0f, 0.0f);
-    GrappleVisualActor->SetActorRotation(AdjustedRotation);
+	FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(StartPoint, EndPoint);
+	FRotator AdjustedRotation = LookAtRotation + FRotator(90.0f, 0.0f, 0.0f);
+	GrappleVisualActor->SetActorRotation(AdjustedRotation);
 
-    // Scale the cylinder to match the distance
-    FVector Scale = GrappleVisualMesh->GetComponentScale();
-    Scale.Z = Distance / 100.0f; // Adjust the divisor based on your mesh size
-    GrappleVisualMesh->SetWorldScale3D(Scale);
+	FVector Scale = GrappleVisualMesh->GetComponentScale();
+	Scale.Z = Distance / 100.0f;
+	GrappleVisualMesh->SetWorldScale3D(Scale);
 }
 
 

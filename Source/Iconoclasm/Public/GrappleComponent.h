@@ -9,6 +9,13 @@
 #include "GrappleHUD.h"
 #include "GrappleComponent.generated.h"
 
+class ACharacter;
+class UCameraComponent;
+class UGrappleHUD;
+class AStaticMeshActor;
+class UStaticMeshComponent;
+class AIconoclasmProjectile;
+
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class ICONOCLASM_API UGrappleComponent : public UActorComponent
@@ -40,6 +47,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Grapple")
 	bool IsHoldingEnemy() const { return bIsHoldingEnemy; }
+
+	bool IsHoldingProjectile() const { return bIsHoldingProjectile && HeldProjectile != nullptr; }
 
 private:
 	void PullCharacterToLocation(const FVector& Location);
@@ -166,6 +175,41 @@ public:
 
 	UPROPERTY()
 	class UStaticMeshComponent* GrappleVisualMesh;
+
+	// Projectile we are currently pulling (grapple active)
+	UPROPERTY()
+	AIconoclasmProjectile* GrappledProjectile;
+
+	// Projectile we are currently holding (attached/childed)
+	UPROPERTY()
+	AIconoclasmProjectile* HeldProjectile;
+
+	UPROPERTY()
+	bool bIsHoldingProjectile;
+
+	UPROPERTY(EditAnywhere, Category = "Projectile Grapple")
+	float ProjectileGrappleRange = 3500.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Projectile Grapple")
+	float ProjectilePullForce = 5200.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Projectile Hold")
+	FName ProjectileHoldSocketName = FName("GrappleHoldSocket");
+
+	UPROPERTY(EditAnywhere, Category = "Projectile Hold")
+	FVector ProjectileHoldRelativeOffset = FVector(0.f, 0.f, 0.f);
+
+	UPROPERTY(EditAnywhere, Category = "Projectile Throw")
+	float ProjectileThrowSpeed = 3200.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Projectile Throw")
+	float ProjectileCatchDistance = 140.0f;
+
+	void StartProjectileGrapple(AIconoclasmProjectile* Projectile);
+	void ApplyProjectileGrapplePhysics(float DeltaTime);
+
+	void HoldProjectile(AIconoclasmProjectile* Projectile);
+	void ThrowHeldProjectile();
 
 private:
 

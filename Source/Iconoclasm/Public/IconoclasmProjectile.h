@@ -25,67 +25,108 @@ class AIconoclasmProjectile : public AActor
 public:
 	AIconoclasmProjectile();
 
-	// Tracking properties
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bullet Hell")
-	float TrackingStrength;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bullet Hell")
-	float MaxTrackingDistance;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bullet Hell")
-	bool bCanTrackPlayer;
-
-	// Reference to the target player
-	UPROPERTY(BlueprintReadOnly, Category = "Bullet Hell")
-	class ACharacter* TargetPlayer;
-
-	/** called when projectile hits something */
-	UFUNCTION()
-	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
-
-	/** called when projectile hits something */
-	UFUNCTION()
-	void AltOnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
-
-	/** Returns CollisionComp subobject **/
-	USphereComponent* GetCollisionComp() const { return CollisionComp; }
-	/** Returns ProjectileMovement subobject **/
-	UProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
-
-	/** Function to initialize the projectile's velocity in the shoot direction */
-	void FireInDirection(const FVector& ShootDirection);
-
-	// Override BeginPlay and Tick
+protected:
 	virtual void BeginPlay() override;
+
+public:
 	virtual void Tick(float DeltaTime) override;
 
-	// Tracking functions
-	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
-	void FindTargetPlayer();
+	// Existing
+	UFUNCTION()
+	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		FVector NormalImpulse, const FHitResult& Hit);
 
-	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
-	void UpdatePlayerTracking(float DeltaTime);
+	void FireInDirection(const FVector& ShootDirection);
 
-	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
-	void SetTrackingEnabled(bool bEnabled);
-
-	UFUNCTION(BlueprintCallable, Category = "Bullet Hell")
-	void SetTrackingStrength(float NewStrength);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
-	bool bIsReflected = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
-	float ReflectedExplosionRadius = 400.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
-	float ReflectedExplosionDamage = 150.0f;
-
-	// Function to reflect the projectile
-	UFUNCTION(BlueprintCallable, Category = "Projectile")
+	// Existing reflect behavior (melee punch)
 	void ReflectProjectile(const FVector& ReflectionDirection, AActor* NewInstigator);
 
-private:
-	AActor* OriginalInstigator;
+	// Existing
+	UFUNCTION()
+	void AltOnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		FVector NormalImpulse, const FHitResult& Hit);
+
+	void SetTrackingEnabled(bool bEnabled);
+	void SetTrackingStrength(float NewStrength);
+
+	// =========================
+	// NEW: Grapple + Hold + Throw
+	// =========================
+
+	// Start being pulled by grapple
+	void StartGrapplePull(ACharacter* PullingCharacter);
+
+	// Stop being pulled (cancel)
+	void StopGrapplePull();
+
+	// True if we can currently be grabbed by grapple
+	bool IsGrapplable() const;
+
+	// Attach/child to player (held)
+	void AttachToPlayer(ACharacter* NewHolder, const FName& SocketName, const FVector& RelativeOffset);
+
+	// Throw from player (explodes on impact using reflected explosion logic)
+	void ThrowFromPlayer(const FVector& ThrowDirection, float ThrowSpeed, AActor* NewInstigator);
+
+	// Is it currently held?
+	bool IsHeldByPlayer() const { return bIsHeldByPlayer; }
+
+	// Get current holder
+	ACharacter* GetHoldingCharacter() const { return HoldingCharacter.Get(); }
+
+	
+
+
+	// Bullet-hell tracking
+	void FindTargetPlayer();
+	void UpdatePlayerTracking(float DeltaTime);
+
+	UPROPERTY()
+	ACharacter* TargetPlayer;
+
+	UPROPERTY(EditAnywhere, Category = "Tracking")
+	float TrackingStrength;
+
+	UPROPERTY(EditAnywhere, Category = "Tracking")
+	float MaxTrackingDistance;
+
+	UPROPERTY(EditAnywhere, Category = "Tracking")
+	bool bCanTrackPlayer;
+
+	// Reflection/explosion
+	UPROPERTY()
+	bool bIsReflected;
+
+	UPROPERTY(EditAnywhere, Category = "Reflection")
+	float ReflectedExplosionRadius;
+
+	UPROPERTY(EditAnywhere, Category = "Reflection")
+	float ReflectedExplosionDamage;
+
+	UPROPERTY()
+	APawn* OriginalInstigator;
+
+	// =========================
+	// NEW: Grapple state
+	// =========================
+	UPROPERTY()
+	bool bIsBeingGrappled;
+
+	UPROPERTY()
+	bool bIsHeldByPlayer;
+
+	UPROPERTY()
+	TWeakObjectPtr<ACharacter> HoldingCharacter;
+
+	UPROPERTY(EditAnywhere, Category = "Grapple")
+	float GrapplePullSpeed;
+
+	// When held, we usually want to disable collision, then re-enable when thrown
+	void SetHeldCollision(bool bHeld);
+
+	// Small safety: ignore player collision briefly after throw to prevent instant self-hit
+	void ReenablePawnCollision();
+
+	FTimerHandle TimerHandle_ReenablePawnCollision;
 };
 

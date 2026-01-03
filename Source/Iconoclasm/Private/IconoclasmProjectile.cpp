@@ -26,6 +26,9 @@ AIconoclasmProjectile::AIconoclasmProjectile()
     CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
     CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block);
 
+    // NEW: allow grapple traces (your grapple uses Visibility traces)
+    CollisionComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+
     // Players can't walk on it
     CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
     CollisionComp->CanCharacterStepUpOn = ECB_No;
@@ -59,6 +62,12 @@ AIconoclasmProjectile::AIconoclasmProjectile()
     ReflectedExplosionDamage = 150.0f;
     OriginalInstigator = nullptr;
 
+    // NEW: grapple state
+    bIsBeingGrappled = false;
+    bIsHeldByPlayer = false;
+    GrapplePullSpeed = 4200.0f;
+    HoldingCharacter = nullptr;
+
     // Set tick to update tracking
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.TickInterval = 0.02f;
@@ -82,8 +91,40 @@ void AIconoclasmProjectile::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    // Only track player if NOT reflected
-    if (!bIsReflected && bCanTrackPlayer && TargetPlayer)
+    // NEW: if grapple is pulling us, move toward holder
+    if (bIsBeingGrappled && !bIsHeldByPlayer)
+    {
+        ACharacter* Holder = HoldingCharacter.Get();
+        if (!Holder)
+        {
+            StopGrapplePull();
+        }
+        else
+        {
+            // Pull toward a point in front of the player (not necessarily a socket yet)
+            FVector TargetPoint = Holder->GetActorLocation() + Holder->GetActorForwardVector() * 120.0f + FVector(0, 0, 60.0f);
+            FVector Current = GetActorLocation();
+            FVector ToTarget = (TargetPoint - Current);
+            float Dist = ToTarget.Size();
+
+            if (Dist <= 120.0f)
+            {
+                // Close enough - actual attach is done by grapple component
+                // (We stay stable here)
+                SetActorLocation(TargetPoint);
+            }
+            else
+            {
+                FVector Step = ToTarget.GetSafeNormal() * GrapplePullSpeed * DeltaTime;
+                SetActorLocation(Current + Step);
+            }
+        }
+
+        return; // don't do tracking while being grappled
+    }
+
+    // Only track player if NOT reflected and not held
+    if (!bIsHeldByPlayer && !bIsReflected && bCanTrackPlayer && TargetPlayer)
     {
         UpdatePlayerTracking(DeltaTime);
     }
@@ -91,7 +132,13 @@ void AIconoclasmProjectile::Tick(float DeltaTime)
 
 void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-    // If reflected, explode on ANY hit
+    // NEW: if held, ignore any hit logic (shouldn't happen if collision is disabled)
+    if (bIsHeldByPlayer)
+    {
+        return;
+    }
+
+    // If reflected (OR thrown by grapple), explode on ANY hit
     if (bIsReflected)
     {
         FVector ImpactLocation = GetActorLocation();
@@ -99,14 +146,13 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
         // Draw debug sphere
         DrawDebugSphere(GetWorld(), ImpactLocation, ReflectedExplosionRadius, 32, FColor::Orange, false, 2.0f);
 
-        // Create array to ignore the player who reflected it
+        // Create array to ignore the player who reflected/threw it
         TArray<AActor*> IgnoreActors;
         if (GetInstigator())
         {
             IgnoreActors.Add(GetInstigator());
         }
 
-        // Apply radial damage
         UGameplayStatics::ApplyRadialDamage(
             GetWorld(),
             ReflectedExplosionDamage,
@@ -120,7 +166,7 @@ void AIconoclasmProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
             ECC_Visibility
         );
 
-        UE_LOG(LogTemp, Warning, TEXT("Reflected projectile exploded at: %s"), *ImpactLocation.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("Reflected/thrown projectile exploded at: %s"), *ImpactLocation.ToString());
 
         Destroy();
         return;
@@ -294,4 +340,169 @@ void AIconoclasmProjectile::SetTrackingStrength(float NewStrength)
 	TrackingStrength = NewStrength;
 
 	
+}
+
+bool AIconoclasmProjectile::IsGrapplable() const
+{
+    // Can grapple it if it's not already held
+    return !bIsHeldByPlayer;
+}
+
+void AIconoclasmProjectile::StartGrapplePull(ACharacter* PullingCharacter)
+{
+    if (!PullingCharacter || bIsHeldByPlayer)
+        return;
+
+    bIsBeingGrappled = true;
+    HoldingCharacter = PullingCharacter;
+
+    // Stop tracking while being pulled
+    bCanTrackPlayer = false;
+    TargetPlayer = nullptr;
+
+    // Stop movement component influence while we manually move it
+    if (ProjectileMovement)
+    {
+        ProjectileMovement->StopMovementImmediately();
+        ProjectileMovement->Deactivate();
+    }
+
+    // Prevent it from hitting stuff while being pulled
+    CollisionComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AIconoclasmProjectile::StopGrapplePull()
+{
+    bIsBeingGrappled = false;
+    HoldingCharacter = nullptr;
+
+    // If we are not held, restore collision + movement (but still no tracking by default)
+    if (!bIsHeldByPlayer)
+    {
+        CollisionComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+        if (ProjectileMovement)
+        {
+            ProjectileMovement->Activate();
+        }
+    }
+}
+
+void AIconoclasmProjectile::AttachToPlayer(ACharacter* NewHolder, const FName& SocketName, const FVector& RelativeOffset)
+{
+    if (!NewHolder)
+        return;
+
+    bIsBeingGrappled = false;
+    bIsHeldByPlayer = true;
+    HoldingCharacter = NewHolder;
+
+    // We are now "owned" by the player
+    SetOwner(NewHolder);
+    SetInstigator(Cast<APawn>(NewHolder));
+
+    // Disable tracking and reflection until thrown
+    bCanTrackPlayer = false;
+    TargetPlayer = nullptr;
+
+    // Freeze movement
+    if (ProjectileMovement)
+    {
+        ProjectileMovement->StopMovementImmediately();
+        ProjectileMovement->Deactivate();
+    }
+
+    // Collision off while held
+    SetHeldCollision(true);
+
+    // Attach to mesh if possible, otherwise attach to root
+    if (USkeletalMeshComponent* Mesh = NewHolder->GetMesh())
+    {
+        FAttachmentTransformRules Rules(EAttachmentRule::SnapToTarget, true);
+        AttachToComponent(Mesh, Rules, SocketName);
+        SetActorRelativeLocation(RelativeOffset);
+        SetActorRelativeRotation(FRotator::ZeroRotator);
+    }
+    else
+    {
+        FAttachmentTransformRules Rules(EAttachmentRule::KeepWorld, true);
+        AttachToComponent(NewHolder->GetRootComponent(), Rules);
+    }
+}
+
+void AIconoclasmProjectile::ThrowFromPlayer(const FVector& ThrowDirection, float ThrowSpeed, AActor* NewInstigator)
+{
+    if (!bIsHeldByPlayer)
+        return;
+
+    ACharacter* Holder = HoldingCharacter.Get();
+
+    // Detach from player
+    DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+    bIsHeldByPlayer = false;
+    bIsBeingGrappled = false;
+    HoldingCharacter = nullptr;
+
+    // Now treat as "reflected" so it explodes on any impact (your existing behavior)
+    bIsReflected = true;
+
+    // Set instigator/owner to player
+    SetOwner(NewInstigator);
+    SetInstigator(Cast<APawn>(NewInstigator));
+
+    // Restore collision and movement
+    SetHeldCollision(false);
+
+    if (ProjectileMovement)
+    {
+        ProjectileMovement->Activate(true);
+        ProjectileMovement->Velocity = ThrowDirection.GetSafeNormal() * ThrowSpeed;
+        ProjectileMovement->MaxSpeed = ThrowSpeed;
+        ProjectileMovement->bRotationFollowsVelocity = true;
+    }
+
+    // Important: ignore pawn collision briefly so it doesn't instantly hit the player capsule
+    CollisionComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_ReenablePawnCollision);
+        GetWorld()->GetTimerManager().SetTimer(
+            TimerHandle_ReenablePawnCollision,
+            this,
+            &AIconoclasmProjectile::ReenablePawnCollision,
+            0.12f,
+            false
+        );
+    }
+}
+
+void AIconoclasmProjectile::SetHeldCollision(bool bHeld)
+{
+    if (!CollisionComp)
+        return;
+
+    if (bHeld)
+    {
+        CollisionComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+    else
+    {
+        CollisionComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+        // Restore normal responses
+        CollisionComp->SetCollisionResponseToAllChannels(ECR_Ignore);
+        CollisionComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        CollisionComp->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+        CollisionComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    }
+}
+
+void AIconoclasmProjectile::ReenablePawnCollision()
+{
+    if (CollisionComp)
+    {
+        CollisionComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+    }
 }
