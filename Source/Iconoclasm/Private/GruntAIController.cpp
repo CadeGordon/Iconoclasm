@@ -11,60 +11,70 @@
 #include "EngineUtils.h"
 #include "Perception/AIPerceptionComponent.h"
 
+#include "GruntAIController.h"
+#include "Kismet/GameplayStatics.h"
+#include "GruntEnemyCharacter.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Engine/World.h"
+#include "NavigationSystem.h"
+#include "EngineUtils.h"
+#include "Perception/AIPerceptionComponent.h"
+
 AGruntAIController::AGruntAIController()
 {
     PrimaryActorTick.bCanEverTick = true;
 
     bCanAttack = true;
-    AttackCooldown = 2.0f;
+    AttackCooldown = 1.5f; // Faster base attack
 
     bCanJump = true;
-    JumpCooldown = 3.0f;
+    JumpCooldown = 2.5f; // Jump more often
 
-    // Lunge system initialization
+    // Lunge system - more aggressive
     bCanLunge = true;
-    LungeCooldown = FMath::RandRange(4.0f, 7.0f);
-    LungeChance = FMath::RandRange(0.3f, 0.7f);
+    LungeCooldown = FMath::RandRange(2.5f, 4.5f); // Lunge more frequently
+    LungeChance = FMath::RandRange(0.6f, 0.9f); // Much higher lunge chance
     NextLungeCheckTime = 0.0f;
 
-    // NEW: Circle strafe initialization
+    // Circle strafe - less common, more aggressive
     bIsCircling = false;
     CircleDirection = FMath::RandBool() ? 1.0f : -1.0f;
     CircleDuration = 0.0f;
     CircleTimer = 0.0f;
 
-    // NEW: Dodge initialization
+    // Dodge - much less frequent, only when necessary
     bCanDodge = true;
-    DodgeCooldown = 2.5f;
+    DodgeCooldown = 5.0f; // Longer cooldown
     LastPlayerForward = FVector::ZeroVector;
 
-    // NEW: Feint initialization
+    // Feint - rare, only for alphas
     bCanFeint = true;
-    FeintCooldown = FMath::RandRange(6.0f, 10.0f);
+    FeintCooldown = FMath::RandRange(12.0f, 18.0f); // Much less frequent
 
-    // NEW: Retreat initialization
+    // Retreat - very rare
     bIsRetreating = false;
     RetreatTimer = 0.0f;
 
-    // Flanking initialization
+    // Flanking - but always pressing forward
     MyFlankAngle = FMath::RandRange(0.0f, 360.0f);
-    FlankDistance = FMath::RandRange(200.0f, 400.0f);
+    FlankDistance = FMath::RandRange(150.0f, 250.0f); // Stay closer
     RepositionTimer = 0.0f;
 
-    // NEW: Personality traits - gives each grunt unique behavior
-    Aggression = FMath::RandRange(0.3f, 1.0f);
-    Caution = FMath::RandRange(0.2f, 0.8f);
-    bIsAlpha = FMath::RandRange(0.0f, 1.0f) < 0.15f; // 15% chance to be alpha
+    // Personality traits - overall more aggressive
+    Aggression = FMath::RandRange(0.7f, 1.0f); // High base aggression
+    Caution = FMath::RandRange(0.1f, 0.3f); // Low caution
+    bIsAlpha = FMath::RandRange(0.0f, 1.0f) < 0.2f; // 20% chance to be alpha
 
-    // Alpha grunts are more aggressive
+    // Alpha grunts are extremely aggressive
     if (bIsAlpha)
     {
-        Aggression = FMath::RandRange(0.8f, 1.0f);
-        LungeChance = FMath::RandRange(0.6f, 0.9f);
-        AttackCooldown = 1.5f; // Faster attacks
+        Aggression = 1.0f;
+        LungeChance = FMath::RandRange(0.8f, 1.0f);
+        AttackCooldown = 1.0f;
+        Caution = 0.0f; // Fearless
     }
 
-    // Make AI more responsive and aggressive
     SetPerceptionComponent(*CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("PerceptionComp")));
 }
 
@@ -79,13 +89,13 @@ void AGruntAIController::Tick(float DeltaTime)
         if (RepositionTimer <= 0.0f)
         {
             CalculateFlankPosition();
-            RepositionTimer = FMath::RandRange(1.0f, 2.0f);
+            RepositionTimer = FMath::RandRange(1.5f, 3.0f); // Less frequent repositioning
         }
 
         // Update lunge check timer
         NextLungeCheckTime -= DeltaTime;
 
-        // NEW: Update circle timer
+        // Update circle timer
         if (bIsCircling)
         {
             CircleTimer -= DeltaTime;
@@ -95,7 +105,7 @@ void AGruntAIController::Tick(float DeltaTime)
             }
         }
 
-        // NEW: Update retreat timer
+        // Update retreat timer
         if (bIsRetreating)
         {
             RetreatTimer -= DeltaTime;
@@ -105,18 +115,22 @@ void AGruntAIController::Tick(float DeltaTime)
             }
         }
 
-        // NEW: Check for pack behavior
+        // Check behaviors - prioritize aggression
         CheckPackBehavior();
+        TryLungeAtPlayer(); // Check lunge first - highest priority
 
-        // NEW: Try various behaviors
-        TryCircleStrafe();
-        TryDodge();
-        TryFeint();
-        CheckRetreat();
+        // Only try defensive moves rarely
+        if (FMath::FRand() < 0.3f) // 30% chance per frame to even consider
+        {
+            TryCircleStrafe();
+            TryDodge();
+            if (bIsAlpha) TryFeint(); // Only alphas feint
+        }
+
+        CheckRetreat(); // Still check, but very rare
 
         MoveToPlayer();
         TryJumpToPlayer();
-        TryLungeAtPlayer();
     }
 }
 
@@ -132,10 +146,9 @@ void AGruntAIController::BeginPlay()
         MoveToPlayer();
     }
 
-    // Randomize initial lunge check time to prevent synchronized lunges
-    NextLungeCheckTime = FMath::RandRange(0.5f, 2.0f);
+    // Randomize initial lunge check time
+    NextLungeCheckTime = FMath::RandRange(0.2f, 1.0f); // Shorter initial delay
 
-    // Enable continuous movement updates - prevents stopping
     SetFocus(PlayerPawn);
 }
 
@@ -246,88 +259,81 @@ void AGruntAIController::MoveToPlayer()
 
     FVector TargetLocation;
 
-    // NEW: Handle retreating - back away while facing player
+    // Handle retreating - still back away while facing player
     if (bIsRetreating)
     {
-        // Always face the player while retreating
         FVector DirectionToPlayer = PlayerLocation - MyLocation;
         DirectionToPlayer.Z = 0.0f;
         FRotator LookAtRotation = DirectionToPlayer.Rotation();
         GetPawn()->SetActorRotation(FMath::RInterpTo(GetPawn()->GetActorRotation(), LookAtRotation, GetWorld()->GetDeltaSeconds(), 5.0f));
 
-        // Move away from player (backing up)
         FVector AwayDirection = (MyLocation - PlayerLocation).GetSafeNormal();
-        TargetLocation = MyLocation + (AwayDirection * 300.0f); // Retreat distance
+        TargetLocation = MyLocation + (AwayDirection * 300.0f);
         TargetLocation.Z = MyLocation.Z;
 
-        // Use slower movement for backing away
         FVector Direction = (TargetLocation - MyLocation).GetSafeNormal();
-        MovementComp->AddInputVector(Direction * 0.6f); // 60% speed for retreating
+        MovementComp->AddInputVector(Direction * 0.7f); // Slightly faster retreat
         MoveToLocation(TargetLocation, 50.0f, true, true, false, true, 0, true);
-
-        // Stop attacking while retreating
         return;
     }
 
-    // NEW: Handle circling
+    // Handle circling - but move forward while circling
     if (bIsCircling)
     {
         FVector ToPlayer = PlayerLocation - MyLocation;
         ToPlayer.Z = 0.0f;
         FVector RightVector = FVector::CrossProduct(ToPlayer, FVector::UpVector).GetSafeNormal();
 
-        // Circle around player
-        FVector CircleOffset = RightVector * CircleDirection * 300.0f;
-        TargetLocation = PlayerLocation + CircleOffset;
+        // Circle while moving closer
+        FVector CircleOffset = RightVector * CircleDirection * 200.0f;
+        FVector ForwardBias = ToPlayer.GetSafeNormal() * 100.0f; // Push forward while circling
+        TargetLocation = PlayerLocation + CircleOffset + ForwardBias;
         TargetLocation.Z = MyLocation.Z;
 
         FVector Direction = (TargetLocation - MyLocation).GetSafeNormal();
-        MovementComp->AddInputVector(Direction);
+        MovementComp->AddInputVector(Direction * 1.2f); // Move faster while circling
         MoveToLocation(TargetLocation, 50.0f, true, true, false, true, 0, true);
         return;
     }
 
-    // NEW: Check if should hang back
-    if (ShouldHangBack())
+    // AGGRESSIVE MOVEMENT - Always push toward player
+    if (ShouldHangBack() && !bIsAlpha)
     {
-        // Stay at flank distance
+        // Even when hanging back, stay closer
         TargetLocation = TargetFlankPosition;
-    }
-    else if (DistanceToPlayer > FlankDistance * 1.5f)
-    {
-        TargetLocation = TargetFlankPosition;
-    }
-    else if (DistanceToPlayer > 200.0f)
-    {
-        // Alpha grunts push in more aggressively
-        float BlendFactor = (DistanceToPlayer - 200.0f) / (FlankDistance * 1.5f - 200.0f);
-        if (bIsAlpha)
+
+        // But if too far, push in
+        if (DistanceToPlayer > FlankDistance * 1.2f)
         {
-            BlendFactor *= 0.5f; // Alphas stay closer
+            TargetLocation = FMath::Lerp(PlayerLocation, TargetFlankPosition, 0.3f);
         }
+    }
+    else if (DistanceToPlayer > 300.0f) // Increased threshold
+    {
+        // Move more directly toward player when far
+        float BlendFactor = FMath::Clamp((DistanceToPlayer - 150.0f) / 300.0f, 0.0f, 0.5f);
         TargetLocation = FMath::Lerp(PlayerLocation, TargetFlankPosition, BlendFactor);
     }
     else
     {
+        // Close range - go straight for the player
         TargetLocation = PlayerLocation;
     }
 
     TargetLocation.Z = MyLocation.Z;
 
-    // Use direct movement input for more responsive behavior
+    // Aggressive movement input - move faster
     FVector Direction = (TargetLocation - MyLocation).GetSafeNormal();
-    MovementComp->AddInputVector(Direction);
+    MovementComp->AddInputVector(Direction * 1.3f); // Boost movement speed
 
-    // Still use MoveToLocation for pathfinding, but with tighter acceptance radius
     MoveToLocation(TargetLocation, 5.0f, true, true, false, true, 0, true);
 
-    // Check attack range with FULL 3D distance (not just horizontal)
+    // Attack check
     float AttackRange = 150.0f;
     float MaxAttackHeight = 200.0f;
     float FullDistance = FVector::Dist(MyLocation, PlayerLocation);
     float HeightDifference = FMath::Abs(PlayerLocation.Z - MyLocation.Z);
 
-    // Only attack if within range AND within reasonable height
     if (FullDistance <= AttackRange && HeightDifference <= MaxAttackHeight)
     {
         AttackPlayer();
@@ -343,11 +349,9 @@ void AGruntAIController::TryJumpToPlayer()
 
     if (!GruntCharacter || !PlayerCharacter) return;
 
-    // Check if player is in the air
     UCharacterMovementComponent* PlayerMovement = PlayerCharacter->GetCharacterMovement();
     if (!PlayerMovement || !PlayerMovement->IsFalling()) return;
 
-    // Check if grunt is on the ground
     UCharacterMovementComponent* GruntMovement = GruntCharacter->GetCharacterMovement();
     if (!GruntMovement || GruntMovement->IsFalling()) return;
 
@@ -362,8 +366,8 @@ void AGruntAIController::TryJumpToPlayer()
 
     float VerticalDistance = PlayerLocation.Z - GruntLocation.Z;
 
-    float MaxJumpRange = 600.0f;
-    float MinVerticalDiff = 100.0f;
+    float MaxJumpRange = 700.0f; // Increased range
+    float MinVerticalDiff = 80.0f; // Lower threshold
 
     if (HorizontalDistance <= MaxJumpRange && VerticalDistance >= MinVerticalDiff)
     {
@@ -393,7 +397,6 @@ void AGruntAIController::TryJumpToPlayer()
     }
 }
 
-// NEW: Lunge attack function
 void AGruntAIController::TryLungeAtPlayer()
 {
     if (!bCanLunge || !PlayerPawn || NextLungeCheckTime > 0.0f) return;
@@ -403,11 +406,9 @@ void AGruntAIController::TryLungeAtPlayer()
 
     if (!GruntCharacter || !PlayerCharacter) return;
 
-    // Check if player is on the ground (not airborne)
     UCharacterMovementComponent* PlayerMovement = PlayerCharacter->GetCharacterMovement();
     if (!PlayerMovement || PlayerMovement->IsFalling()) return;
 
-    // Check if grunt is on the ground
     UCharacterMovementComponent* GruntMovement = GruntCharacter->GetCharacterMovement();
     if (!GruntMovement || GruntMovement->IsFalling()) return;
 
@@ -416,26 +417,24 @@ void AGruntAIController::TryLungeAtPlayer()
     FVector GruntLocation = GruntCharacter->GetActorLocation();
     FVector PlayerLocation = PlayerCharacter->GetActorLocation();
 
-    // Calculate horizontal distance
     FVector HorizontalDiff = PlayerLocation - GruntLocation;
     HorizontalDiff.Z = 0.0f;
     float HorizontalDistance = HorizontalDiff.Size();
 
-    // Lunge range: not too close, not too far
-    float MinLungeRange = 300.0f;
-    float MaxLungeRange = 800.0f;
+    // More aggressive lunge range
+    float MinLungeRange = 200.0f; // Can lunge from closer
+    float MaxLungeRange = 900.0f; // Can lunge from farther
 
     if (HorizontalDistance >= MinLungeRange && HorizontalDistance <= MaxLungeRange)
     {
-        // Random chance to lunge - creates unpredictability
+        // Much higher chance to lunge
         if (FMath::FRand() <= LungeChance)
         {
-            // Calculate lunge velocity (lower arc than jump, more horizontal)
             FVector Direction = HorizontalDiff.GetSafeNormal();
 
-            // Lunge parameters - fast and low
-            float LungeSpeed = FMath::Clamp(HorizontalDistance * 1.8f, 600.0f, 1200.0f);
-            float LungeAngle = 25.0f; // Lower angle = more aggressive, ground-hugging lunge
+            // Faster, more aggressive lunge
+            float LungeSpeed = FMath::Clamp(HorizontalDistance * 2.0f, 700.0f, 1400.0f);
+            float LungeAngle = 22.0f; // Even lower, more aggressive angle
             float AngleRad = FMath::DegreesToRadians(LungeAngle);
 
             FVector LungeVelocity;
@@ -443,7 +442,6 @@ void AGruntAIController::TryLungeAtPlayer()
             LungeVelocity.Y = Direction.Y * LungeSpeed * FMath::Cos(AngleRad);
             LungeVelocity.Z = LungeSpeed * FMath::Sin(AngleRad);
 
-            // Execute lunge
             GruntCharacter->Jump();
 
             FTimerHandle LungeTimerHandle;
@@ -458,15 +456,14 @@ void AGruntAIController::TryLungeAtPlayer()
             GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow,
                 FString::Printf(TEXT("Grunt lunging! Distance: %.0f"), HorizontalDistance));
 
-            // Start cooldown with randomization
             bCanLunge = false;
-            float RandomizedCooldown = LungeCooldown + FMath::RandRange(-1.0f, 1.0f);
+            float RandomizedCooldown = LungeCooldown + FMath::RandRange(-0.5f, 0.5f);
             GetWorld()->GetTimerManager().SetTimer(LungeCooldownTimerHandle,
                 this, &AGruntAIController::ResetLunge, RandomizedCooldown);
         }
 
-        // Reset check timer with randomization to prevent synchronized attempts
-        NextLungeCheckTime = FMath::RandRange(0.3f, 0.8f);
+        // Check more frequently
+        NextLungeCheckTime = FMath::RandRange(0.2f, 0.5f);
     }
 }
 
@@ -559,7 +556,6 @@ void AGruntAIController::ResetAttack()
     bCanAttack = true;
 }
 
-// NEW: Circle strafe behavior - makes grunts circle around player
 void AGruntAIController::TryCircleStrafe()
 {
     if (bIsCircling || !PlayerPawn || !GetPawn()) return;
@@ -568,11 +564,11 @@ void AGruntAIController::TryCircleStrafe()
     FVector PlayerLocation = PlayerPawn->GetActorLocation();
     float Distance = FVector::Dist2D(MyLocation, PlayerLocation);
 
-    // Circle if at medium range and based on aggression
-    if (Distance > 250.0f && Distance < 500.0f && FMath::FRand() < (0.05f * Aggression))
+    // Only circle if already close and occasionally
+    if (Distance > 200.0f && Distance < 350.0f && FMath::FRand() < (0.02f * Aggression))
     {
         bIsCircling = true;
-        CircleTimer = FMath::RandRange(1.5f, 3.0f);
+        CircleTimer = FMath::RandRange(1.0f, 2.0f); // Shorter circle time
         CircleDirection = FMath::RandBool() ? 1.0f : -1.0f;
 
         GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan,
@@ -586,7 +582,6 @@ void AGruntAIController::StopCircling()
     CircleTimer = 0.0f;
 }
 
-// NEW: Dodge/sidestep when player is looking at them
 void AGruntAIController::TryDodge()
 {
     if (!bCanDodge || !PlayerPawn || bIsCircling) return;
@@ -597,11 +592,10 @@ void AGruntAIController::TryDodge()
     FVector PlayerForward = PlayerCharacter->GetActorForwardVector();
     FVector ToGrunt = (GetPawn()->GetActorLocation() - PlayerCharacter->GetActorLocation()).GetSafeNormal();
 
-    // Check if player is facing the grunt
     float DotProduct = FVector::DotProduct(PlayerForward, ToGrunt);
 
-    // If player suddenly aims at grunt and grunt is cautious
-    if (DotProduct > 0.8f && FMath::FRand() < (Caution * 0.3f))
+    // Only dodge if very cautious and player is aiming directly
+    if (DotProduct > 0.95f && FMath::FRand() < (Caution * 0.15f)) // Much lower chance
     {
         AGruntEnemyCharacter* GruntCharacter = Cast<AGruntEnemyCharacter>(GetPawn());
         if (GruntCharacter)
@@ -609,15 +603,13 @@ void AGruntAIController::TryDodge()
             UCharacterMovementComponent* MovementComp = GruntCharacter->GetCharacterMovement();
             if (MovementComp && !MovementComp->IsFalling())
             {
-                // Quick ground-based sidestep dodge (no jumping)
                 FVector RightVector = PlayerCharacter->GetActorRightVector();
                 FVector DodgeDirection = RightVector * (FMath::RandBool() ? 1.0f : -1.0f);
 
-                // Ground dash - just horizontal velocity, no vertical component
-                FVector DodgeVelocity = DodgeDirection * 800.0f;
-                DodgeVelocity.Z = 0.0f; // Keep on ground
+                // Quick sidestep
+                FVector DodgeVelocity = DodgeDirection * 700.0f;
+                DodgeVelocity.Z = 0.0f;
 
-                // Apply velocity directly without jumping
                 MovementComp->AddImpulse(DodgeVelocity, true);
 
                 GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange,
@@ -638,17 +630,16 @@ void AGruntAIController::ResetDodge()
     bCanDodge = true;
 }
 
-// NEW: Feint - fake lunge to bait player reactions
 void AGruntAIController::TryFeint()
 {
-    if (!bCanFeint || !PlayerPawn || !GetPawn()) return;
+    if (!bCanFeint || !PlayerPawn || !GetPawn() || !bIsAlpha) return; // Only alphas feint
 
     FVector MyLocation = GetPawn()->GetActorLocation();
     FVector PlayerLocation = PlayerPawn->GetActorLocation();
     float Distance = FVector::Dist2D(MyLocation, PlayerLocation);
 
-    // Feint at medium-close range
-    if (Distance > 300.0f && Distance < 600.0f && FMath::FRand() < (0.02f * Aggression))
+    // Rare feint at medium range
+    if (Distance > 350.0f && Distance < 600.0f && FMath::FRand() < 0.01f)
     {
         AGruntEnemyCharacter* GruntCharacter = Cast<AGruntEnemyCharacter>(GetPawn());
         if (GruntCharacter && GruntCharacter->CanAIJump())
@@ -656,16 +647,15 @@ void AGruntAIController::TryFeint()
             UCharacterMovementComponent* MovementComp = GruntCharacter->GetCharacterMovement();
             if (MovementComp && !MovementComp->IsFalling())
             {
-                // Small forward hop (looks like starting a lunge)
                 FVector Direction = (PlayerLocation - MyLocation).GetSafeNormal();
-                FVector FeintVelocity = Direction * 400.0f;
-                FeintVelocity.Z = 150.0f;
+                FVector FeintVelocity = Direction * 500.0f;
+                FeintVelocity.Z = 200.0f;
 
                 GruntCharacter->Jump();
                 MovementComp->AddImpulse(FeintVelocity, true);
 
                 GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Magenta,
-                    TEXT("Grunt feinting!"));
+                    TEXT("Alpha grunt feinting!"));
 
                 bCanFeint = false;
                 GetWorld()->GetTimerManager().SetTimer(FeintCooldownTimerHandle,
@@ -680,23 +670,22 @@ void AGruntAIController::ResetFeint()
     bCanFeint = true;
 }
 
-// NEW: Pack behavior - coordinate with other grunts
 void AGruntAIController::CheckPackBehavior()
 {
-    // Implementation for pack tactics
+    // Pack behavior check - implementation for coordination
 }
 
 bool AGruntAIController::ShouldHangBack()
 {
-    if (!PlayerPawn) return false;
+    if (!PlayerPawn || bIsAlpha) return false; // Alphas never hang back
 
     // Count allies within attack range of player
-    int32 NearbyAllies = GetNearbyAlliesCount(300.0f);
+    int32 NearbyAllies = GetNearbyAlliesCount(250.0f);
 
-    // If 3+ allies are close, hang back unless alpha
-    if (NearbyAllies >= 3 && !bIsAlpha)
+    // Only hang back if 4+ allies are already swarming
+    if (NearbyAllies >= 4)
     {
-        return FMath::FRand() < 0.6f;
+        return FMath::FRand() < 0.4f; // 40% chance to hang back briefly
     }
 
     return false;
@@ -726,10 +715,9 @@ int32 AGruntAIController::GetNearbyAlliesCount(float Radius)
     return Count;
 }
 
-// NEW: Tactical retreat when last enemy standing
 void AGruntAIController::CheckRetreat()
 {
-    if (!PlayerPawn || !GetPawn()) return;
+    if (!PlayerPawn || !GetPawn() || bIsAlpha) return; // Alphas NEVER retreat
 
     // Count remaining allies
     int32 AllyCount = 0;
@@ -744,38 +732,20 @@ void AGruntAIController::CheckRetreat()
         }
     }
 
-    // If this is the last enemy or only 1-2 left, cautious grunts retreat
     bool bShouldRetreat = false;
 
-    if (AllyCount == 0) // Last one standing
+    // Only retreat if last one standing AND very cautious
+    if (AllyCount == 0 && Caution > 0.5f)
     {
-        // 50% chance to retreat if cautious, alphas never retreat
-        if (!bIsAlpha && Caution > 0.4f)
-        {
-            bShouldRetreat = FMath::FRand() < 0.15f;
-        }
-    }
-    else if (AllyCount <= 2 && !bIsAlpha) // 1-2 allies left and not an alpha
-    {
-        // Only very cautious grunts retreat, and only sometimes
-        bShouldRetreat = (Caution > 0.6f && FMath::FRand() < 0.05f);
+        bShouldRetreat = FMath::FRand() < 0.08f; // 8% chance - rare
     }
 
-    // Start retreat if conditions met
     if (bShouldRetreat && !bIsRetreating)
     {
         bIsRetreating = true;
-        RetreatTimer = FMath::RandRange(3.0f, 6.0f); // Retreat for a while
+        RetreatTimer = FMath::RandRange(2.0f, 4.0f); // Shorter retreat duration
 
-        if (AllyCount == 0)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Purple,
-                TEXT("Last grunt standing - retreating!"));
-        }
-        else
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Purple,
-                TEXT("Grunt retreating - outnumbered!"));
-        }
+        GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Purple,
+            TEXT("Last grunt standing - brief retreat!"));
     }
 }

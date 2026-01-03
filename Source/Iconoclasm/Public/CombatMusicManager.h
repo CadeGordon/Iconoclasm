@@ -13,76 +13,70 @@ UCLASS()
 class ICONOCLASM_API ACombatMusicManager : public AActor
 {
 	GENERATED_BODY()
-	
+
 public:
     ACombatMusicManager();
 
-protected:
     virtual void BeginPlay() override;
-
-public:
     virtual void Tick(float DeltaTime) override;
 
-    // Called by spawner when enemies are spawned
     UFUNCTION(BlueprintCallable, Category = "Combat Music")
     void RegisterEnemies(int32 Count);
 
-    // Called when an enemy dies
     UFUNCTION(BlueprintCallable, Category = "Combat Music")
     void OnEnemyKilled();
 
-    // Manual combat state control
-    UFUNCTION(BlueprintCallable, Category = "Combat Music")
-    void StartCombat();
-
-    UFUNCTION(BlueprintCallable, Category = "Combat Music")
-    void EndCombat();
-
-    // Stop all music tracks
-    UFUNCTION(BlueprintCallable, Category = "Combat Music")
-    void StopAllMusic(bool bImmediate = false, float FadeOutDuration = 2.0f);
-
-protected:
-    // Music tracks
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music")
-    USoundBase* ChillTrack;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music")
-    USoundBase* ActionTrack;
-
-    // Audio components
-    UPROPERTY()
-    UAudioComponent* ChillAudioComponent;
-
-    UPROPERTY()
-    UAudioComponent* ActionAudioComponent;
-
-    // Fade settings
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music")
-    float FadeTime = 2.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music")
-    float MusicVolume = 0.5f;
-
-private:
-    int32 ActiveEnemyCount = 0;
-    bool bInCombat = false;
-    bool bIsFading = false;
-    float FadeTimer = 0.0f;
-    bool bFadingToAction = false;
-    bool bStoppingMusic = false;
-    float StopFadeTime = 2.0f;
-
-    void UpdateMusicState();
-    void CrossfadeToAction();
-    void CrossfadeToChill();
-    void UpdateFade(float DeltaTime);
-    void UpdateStopFade(float DeltaTime);
-
-public:
-    // Singleton access
     static ACombatMusicManager* GetInstance(UWorld* World);
 
-private:
+    UFUNCTION(BlueprintCallable, Category = "Combat Music")
+    void StopAllMusic(bool bImmediate = false, float FadeOutDuration = 1.5f);
+
+    // Single theme track (your old ActionTrack)
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Music")
+    USoundBase* ThemeTrack = nullptr;
+
+    // Base volume when enemies exist
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Music", meta = (ClampMin = "0.0"))
+    float MusicVolume = 1.0f;
+
+    // Volume multiplier when there are NO enemies (idle/calm)
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Music", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float CalmVolumeMultiplier = 0.35f;
+
+    // How quickly we fade between calm and combat volume
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Music", meta = (ClampMin = "0.01"))
+    float FadeTime = 1.0f;
+
     static ACombatMusicManager* Instance;
+
+    UPROPERTY(VisibleAnywhere, Category = "Combat Music")
+    UAudioComponent* ThemeAudioComponent = nullptr;
+
+    int32 ActiveEnemyCount = 0;
+    bool bInCombat = false;
+
+    // NEW: track whether the theme has ever been started
+    bool bThemeStarted = false;
+
+    // Fade / ducking state
+    bool bIsFading = false;
+    bool bStoppingMusic = false;
+
+    float FadeTimer = 0.0f;
+    float StopFadeTime = 1.5f;
+
+    float CurrentVolume = 0.0f;
+    float StartFadeVolume = 0.0f;
+    float TargetVolume = 0.0f;
+
+    void StartThemeIfNeeded();           // NEW: only starts on first enemy spawn
+    void UpdateTargetFromEnemyState();
+
+    void BeginVolumeFade(float NewTargetVolume);
+    void UpdateVolumeFade(float DeltaTime);
+
+    void UpdateStopFade(float DeltaTime);
+
+    float GetCombatVolume() const { return MusicVolume; }
+    float GetCalmVolume() const { return MusicVolume * CalmVolumeMultiplier; }
 };
