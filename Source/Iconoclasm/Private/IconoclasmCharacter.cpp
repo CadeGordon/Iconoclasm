@@ -27,6 +27,7 @@
 #include "GrappleComponent.h"
 #include "WeaponSaveGame.h"
 #include "WeaponTypes.h"
+#include "Components/AudioComponent.h"
 
 const FString AIconoclasmCharacter::WeaponSaveSlotName = TEXT("WeaponSaveSlot");
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -98,6 +99,15 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 
 	ScoreComponent = CreateDefaultSubobject<UScoreComponent>(TEXT("ScoreComponent"));
+
+	// Create and attach the slide audio component
+	SlideAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("SlideAudioComponent"));
+	SlideAudioComponent->SetupAttachment(RootComponent);
+	SlideAudioComponent->bAutoActivate = false; // Don't play on spawn
+
+	DashAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("DashAudioComponent"));
+	DashAudioComponent->SetupAttachment(RootComponent);
+	DashAudioComponent->bAutoActivate = false; // Don't play on spawn
 }
 
 void AIconoclasmCharacter::EquipRevolver()
@@ -529,6 +539,38 @@ void AIconoclasmCharacter::Tick(float DeltaTime)
 		UpdateSlide();
 	}
 
+	// === CAMERA SWAY - Add this section ===
+	if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+	{
+		// Get movement input (-1 to 1, where -1 is left, 1 is right)
+		FVector MovementInput = GetLastMovementInputVector();
+		float StrafeInput = FVector::DotProduct(MovementInput, GetActorRightVector());
+
+		// Only apply sway when moving on ground (optional - remove check for air sway)
+		if (GetCharacterMovement()->IsMovingOnGround() && !IsSliding)
+		{
+			// Calculate target roll based on strafe direction
+			TargetCameraRoll = -StrafeInput * CameraSwayAmount; // Negative for natural tilt
+
+			// Smooth the input for better feel
+			LastMovementInput = FMath::FInterpTo(LastMovementInput, StrafeInput, DeltaTime, 6.0f);
+		}
+		else
+		{
+			// Return to neutral when not moving or in air
+			TargetCameraRoll = 0.0f;
+			LastMovementInput = FMath::FInterpTo(LastMovementInput, 0.0f, DeltaTime, 4.0f);
+		}
+
+		// Smoothly interpolate current roll to target
+		CurrentCameraRoll = FMath::FInterpTo(CurrentCameraRoll, TargetCameraRoll, DeltaTime, CameraSwaySpeed);
+
+		// Apply the roll to the camera
+		FRotator CurrentRotation = FirstPersonCamera->GetRelativeRotation();
+		CurrentRotation.Roll = CurrentCameraRoll;
+		FirstPersonCamera->SetRelativeRotation(CurrentRotation);
+	}
+
 	// IMPROVED: Handle slide/dash momentum deceleration
 	if (bIsDeceleratingFromSlide && !IsSliding && GetCharacterMovement()->IsMovingOnGround())
 	{
@@ -793,22 +835,24 @@ void AIconoclasmCharacter::Dash()
 	if ((CanDash || CanDashAgain) && DashCharges > 0)
 	{
 		FVector DashDirection = GetLastMovementInputVector().GetSafeNormal();
-
 		if (!DashDirection.IsNearlyZero())
 		{
+			// Play dash audio
+			if (DashAudioComponent)
+			{
+				DashAudioComponent->Stop();
+				DashAudioComponent->Play();
+			}
+
 			IsDashingForward = DashDirection.Equals(GetActorForwardVector(), 0.1f);
 			IsDashing = true;
-
 			float DashSpeed = GetCharacterMovement()->IsMovingOnGround() ? GroundDash : AirDash;
-
 			// Get current velocity
 			FVector CurrentVelocity = GetCharacterMovement()->Velocity;
 			FVector CurrentHorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
 			float CurrentHorizontalSpeed = CurrentHorizontalVelocity.Size();
-
 			// Only apply dash if it would increase speed, otherwise maintain current momentum
 			float FinalSpeed = FMath::Max(CurrentHorizontalSpeed, DashSpeed);
-
 			// If in air, reset vertical velocity to stop falling (no upward boost)
 			float VerticalVelocity = CurrentVelocity.Z;
 			if (!GetCharacterMovement()->IsMovingOnGround())
@@ -816,14 +860,11 @@ void AIconoclasmCharacter::Dash()
 				// Reset falling velocity to 0
 				VerticalVelocity = 0.0f;
 			}
-
 			// Apply velocity in dash direction with the higher speed
 			GetCharacterMovement()->Velocity = (DashDirection * FinalSpeed) + FVector(0, 0, VerticalVelocity);
-
 			// Store the higher speed for momentum deceleration
 			CurrentSlideSpeed = FinalSpeed;
 			bIsDeceleratingFromSlide = false; // Reset any ongoing deceleration
-
 			DashCharges--;
 			// Set target progress based on charges
 			TargetDashProgress = static_cast<float>(DashCharges) / 3.0f;
@@ -833,40 +874,32 @@ void AIconoclasmCharacter::Dash()
 		CanDashAgain = (DashCharges > 0);
 	}
 }
-
 void AIconoclasmCharacter::StartDashCooldown()
 {
 	CanDash = false;
 	CanDashAgain = false;
 	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
 }
-
 void AIconoclasmCharacter::ResetDashCooldown()
 {
 	CanDash = true;
-
 	if (DashCharges < 3)
 	{
 		DashCharges++;
-
 		// Update the target progress smoothly
 		TargetDashProgress = static_cast<float>(DashCharges) / 3.0f;
-
 		GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, this, &AIconoclasmCharacter::ResetDashCooldown, DashCooldown, false);
 	}
 }
-
 void AIconoclasmCharacter::EndDash()
 {
 	IsDashing = false;
-
 	// Only preserve momentum if on ground and moving fast enough
 	if (GetCharacterMovement()->IsMovingOnGround())
 	{
 		FVector HorizontalVel = GetCharacterMovement()->Velocity;
 		HorizontalVel.Z = 0;
 		float CurrentSpeed = HorizontalVel.Size();
-
 		// Only start momentum deceleration if significantly faster than walk speed
 		if (CurrentSpeed > DefaultWalkSpeed * 1.3f)
 		{
@@ -899,6 +932,12 @@ void AIconoclasmCharacter::StartSlide()
 		// Check if this is a slam slide (within window and has slam jumps)
 		if (bCanSlamSlide && SlamJumpCount > 0)
 		{
+			// Stop any playing slide audio for slam slides
+			if (SlideAudioComponent && SlideAudioComponent->IsPlaying())
+			{
+				SlideAudioComponent->Stop();
+			}
+
 			// Add bonus speed on top of base slide speed (5000 per slam jump)
 			float SlideSpeedBoost = SlideSpeed + (5000.0f * SlamJumpCount);
 			CurrentSlideSpeed = SlideSpeedBoost;
@@ -913,6 +952,14 @@ void AIconoclasmCharacter::StartSlide()
 		{
 			// Normal slide speed
 			CurrentSlideSpeed = SlideSpeed;
+
+			// Play slide audio for normal slides only
+			if (SlideAudioComponent)
+			{
+				// Stop first in case it's already playing, then play fresh
+				SlideAudioComponent->Stop();
+				SlideAudioComponent->Play();
+			}
 		}
 
 		UpdateSlide();
@@ -922,6 +969,19 @@ void AIconoclasmCharacter::StartSlide()
 		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
 		{
 			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, -50.0f));
+		}
+	}
+	else if (IsSliding && GetCharacterMovement()->IsMovingOnGround())
+	{
+		// Already sliding - check if we should restart audio for a new normal slide
+		if (!(bCanSlamSlide && SlamJumpCount > 0))
+		{
+			// This is a normal slide restart
+			if (SlideAudioComponent)
+			{
+				SlideAudioComponent->Stop();
+				SlideAudioComponent->Play();
+			}
 		}
 	}
 
@@ -1018,12 +1078,69 @@ void AIconoclasmCharacter::ApplySlideDamage(AActor* Enemy, const FHitResult& Hit
 	UE_LOG(LogTemp, Warning, TEXT("Slide Hit Enemy: %s for %f damage!"), *Enemy->GetName(), FinalDamage);
 }
 
+void AIconoclasmCharacter::GroundSlam()
+{
+	// Stop slide audio if playing
+	if (SlideAudioComponent && SlideAudioComponent->IsPlaying())
+	{
+		SlideAudioComponent->Stop();
+	}
+
+	// Cancel out the current velocity
+	FVector CurrentVelocity = GetCharacterMovement()->Velocity;
+	FVector CancelVelocity = FVector(-CurrentVelocity.X, -CurrentVelocity.Y, 0.0f);
+	GetCharacterMovement()->Velocity = CancelVelocity;
+	// Perform a slam by launching the character straight down
+	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength;
+	LaunchCharacter(LaunchVelocity, true, true);
+	// Set up timer to check for ground impact
+	GetWorld()->GetTimerManager().SetTimer(
+		GroundSlamTimerHandle,
+		this,
+		&AIconoclasmCharacter::CheckGroundSlamImpact,
+		0.1f, // Check every 0.1 seconds
+		true  // Loop
+	);
+}
+
+void AIconoclasmCharacter::SlideJump()
+{
+	if (IsSliding)
+	{
+		IsSliding = false;
+		// Clear damaged actors list when slide ends
+		DamagedActorsThisSlide.Empty();
+
+		// Stop slide audio
+		if (SlideAudioComponent && SlideAudioComponent->IsPlaying())
+		{
+			SlideAudioComponent->Stop();
+		}
+
+		// NEW: Start momentum deceleration instead of instant stop
+		bIsDeceleratingFromSlide = true;
+		// CurrentSlideSpeed retains its current value and will gradually decrease
+		TargetFOV = OriginalFOV;
+		// Adjust the camera position back
+		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
+		{
+			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
+		}
+	}
+}
+
 void AIconoclasmCharacter::StopSlide()
 {
 	if (IsSliding)
 	{
 		IsSliding = false;
 		DamagedActorsThisSlide.Empty();
+
+		// Stop slide audio
+		if (SlideAudioComponent && SlideAudioComponent->IsPlaying())
+		{
+			SlideAudioComponent->Stop();
+		}
 
 		// No momentum preservation - instant stop
 		bIsDeceleratingFromSlide = false;
@@ -1037,51 +1154,6 @@ void AIconoclasmCharacter::StopSlide()
 			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
 		}
 	}
-}
-
-void AIconoclasmCharacter::SlideJump()
-{
-	if (IsSliding)
-	{
-		IsSliding = false;
-
-		// Clear damaged actors list when slide ends
-		DamagedActorsThisSlide.Empty();
-
-		// NEW: Start momentum deceleration instead of instant stop
-		bIsDeceleratingFromSlide = true;
-		// CurrentSlideSpeed retains its current value and will gradually decrease
-
-		TargetFOV = OriginalFOV;
-
-		// Adjust the camera position back
-		if (UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent())
-		{
-			FirstPersonCamera->AddRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
-		}
-	}
-}
-
-
-void AIconoclasmCharacter::GroundSlam()
-{
-	// Cancel out the current velocity
-	FVector CurrentVelocity = GetCharacterMovement()->Velocity;
-	FVector CancelVelocity = FVector(-CurrentVelocity.X, -CurrentVelocity.Y, 0.0f);
-	GetCharacterMovement()->Velocity = CancelVelocity;
-
-	// Perform a slam by launching the character straight down
-	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength;
-	LaunchCharacter(LaunchVelocity, true, true);
-
-	// Set up timer to check for ground impact
-	GetWorld()->GetTimerManager().SetTimer(
-		GroundSlamTimerHandle,
-		this,
-		&AIconoclasmCharacter::CheckGroundSlamImpact,
-		0.1f, // Check every 0.1 seconds
-		true  // Loop
-	);
 }
 
 void AIconoclasmCharacter::Landed(const FHitResult& Hit)

@@ -334,6 +334,11 @@ public:
 	// For AltDefcon kills
 	bool bLastAttackWasZeroPoint = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
+	class UAudioComponent* SlideAudioComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
+	class UAudioComponent* DashAudioComponent;
 
 
 	FVector SlideDirection;
@@ -402,6 +407,12 @@ public:
 		bool bCanSlamSlide;
 		float SlamSlideWindowTime;
 		FTimerHandle SlamSlideWindowTimerHandle;
+
+		float CurrentCameraRoll = 0.0f;
+		float TargetCameraRoll = 0.0f;
+		float CameraSwayAmount = 2.5f; // Degrees to tilt - adjust for more/less sway
+		float CameraSwaySpeed = 8.0f;  // How fast the camera returns to center
+		float LastMovementInput = 0.0f; // Track strafe direction for smooth transitions
 
 		// Used for saves
 		static const FString WeaponSaveSlotName;
