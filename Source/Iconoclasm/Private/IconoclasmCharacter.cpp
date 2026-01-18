@@ -108,6 +108,16 @@ AIconoclasmCharacter::AIconoclasmCharacter()
 	DashAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("DashAudioComponent"));
 	DashAudioComponent->SetupAttachment(RootComponent);
 	DashAudioComponent->bAutoActivate = false; // Don't play on spawn
+
+	// Create the ground slam audio component
+	GroundSlamAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("GroundSlamAudioComponent"));
+	GroundSlamAudioComponent->bAutoActivate = false;
+	GroundSlamAudioComponent->SetupAttachment(RootComponent);
+
+	// Create the jump audio component
+	JumpAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("JumpAudioComponent"));
+	JumpAudioComponent->bAutoActivate = false;
+	JumpAudioComponent->SetupAttachment(RootComponent);
 }
 
 void AIconoclasmCharacter::EquipRevolver()
@@ -724,6 +734,7 @@ bool AIconoclasmCharacter::GetHasRifle()
 void AIconoclasmCharacter::DoubleJump()
 {
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+
 	// Check if this is a slam jump
 	if (bCanSlamJump && MoveComp->IsMovingOnGround())
 	{
@@ -731,68 +742,107 @@ void AIconoclasmCharacter::DoubleJump()
 		float JumpHeight = BaseSlamJumpHeight * FMath::Pow(SlamJumpHeightMultiplier, SlamJumpCount);
 		LaunchCharacter(FVector(0, 0, JumpHeight), false, true);
 		SlamJumpCount++;
+
+		// Play slam jump audio
+		if (JumpAudioComponent && SlamJumpSound)
+		{
+			JumpAudioComponent->SetSound(SlamJumpSound);
+			JumpAudioComponent->Play();
+		}
+
 		UE_LOG(LogTemp, Warning, TEXT("Slam Jump #%d! Height: %f"), SlamJumpCount, JumpHeight);
 		return;
 	}
+
 	// === WALL JUMP - MOST POWERFUL WITH MOMENTUM AND CAMERA CONTROL ===
 	if (WallRunComponent && WallRunComponent->IsWallRunning)
 	{
 		FVector WallNormal = WallRunComponent->GetWallNormal();
 		FVector WallDirection = WallRunComponent->GetWallRunDirection();
+
 		// Get current velocity to preserve momentum
 		FVector CurrentVelocity = MoveComp->Velocity;
 		FVector CurrentHorizontalVelocity = FVector(CurrentVelocity.X, CurrentVelocity.Y, 0.0f);
 		float CurrentSpeed = CurrentHorizontalVelocity.Size();
+
 		// Get camera direction for player control
 		FVector CameraForward = FirstPersonCameraComponent->GetForwardVector();
 		FVector CameraRight = FirstPersonCameraComponent->GetRightVector();
+
 		// Project camera forward onto horizontal plane (remove pitch)
 		FVector CameraForwardHorizontal = CameraForward;
 		CameraForwardHorizontal.Z = 0.0f;
 		CameraForwardHorizontal.Normalize();
+
 		// Build powerful wall jump velocity based on camera direction
 		FVector WallJumpVelocity = FVector::ZeroVector;
+
 		// 1. Add horizontal velocity based on where player is looking
 		float ForwardSpeed = FMath::Max(CurrentSpeed * 1.2f, 1000.0f); // Boost by 20% or minimum
 		WallJumpVelocity += CameraForwardHorizontal * ForwardSpeed;
+
 		// 2. Add push away from wall (scaled based on if player is looking away from wall)
 		float WallPushDot = FVector::DotProduct(CameraForwardHorizontal, WallNormal);
 		float WallPushMultiplier = FMath::Max(WallPushDot, 0.3f); // Minimum 30% push, max 100%
 		WallJumpVelocity += WallNormal * (800.0f * WallPushMultiplier);
+
 		// 3. High vertical boost (preserve camera pitch influence)
 		float PitchInfluence = FMath::Clamp(CameraForward.Z, -0.5f, 0.8f); // Clamp to prevent extreme angles
 		WallJumpVelocity.Z = 1800.0f + (PitchInfluence * 600.0f); // Looking up = higher jump, down = less high
+
 		// Apply the wall jump with momentum preservation
 		LaunchCharacter(WallJumpVelocity, false, true);
+
+		// Play wall jump audio
+		if (JumpAudioComponent && WallJumpSound)
+		{
+			JumpAudioComponent->SetSound(WallJumpSound);
+			JumpAudioComponent->Play();
+		}
+
 		// Stop wall running
 		WallRunComponent->StopWallRun();
+
 		// Start momentum deceleration system (like dash/slide)
 		bIsDeceleratingFromSlide = true;
 		CurrentSlideSpeed = ForwardSpeed * 1.3f; // Higher multiplier for wall jump momentum
+
 		// Mark as double jump for kill window
 		bLastActionWasDoubleJump = true;
 		LastDoubleJumpTime = GetWorld()->GetTimeSeconds();
+
 		// Reset jump count to allow one more air jump
 		JumpCount = 1;
+
 		UE_LOG(LogTemp, Warning, TEXT("Wall Jump! Looking direction, Speed: %f, Pitch: %f"),
 			ForwardSpeed, PitchInfluence);
 		return;
 	}
+
 	// === REGULAR JUMP LOGIC ===
 	if (MoveComp->IsMovingOnGround())
 	{
 		bHasLeftGround = false;
 	}
+
 	if (MoveComp->IsFalling() && JumpCount == 0 && !bHasLeftGround)
 	{
 		JumpCount = 1;
 		bHasLeftGround = true;
 	}
+
 	if (JumpCount < 2)
 	{
 		if (MoveComp->IsMovingOnGround())
 		{
 			Jump();
+
+			// Play ground jump audio
+			if (JumpAudioComponent && GroundJumpSound)
+			{
+				JumpAudioComponent->SetSound(GroundJumpSound);
+				JumpAudioComponent->Play();
+			}
 		}
 		else
 		{
@@ -823,6 +873,14 @@ void AIconoclasmCharacter::DoubleJump()
 
 			FVector LaunchVelocity = NewHorizontalVelocity + FVector(0, 0, 1000.0f);
 			LaunchCharacter(LaunchVelocity, false, true);
+
+			// Play double jump audio
+			if (JumpAudioComponent && DoubleJumpSound)
+			{
+				JumpAudioComponent->SetSound(DoubleJumpSound);
+				JumpAudioComponent->Play();
+			}
+
 			bLastActionWasDoubleJump = true;
 			LastDoubleJumpTime = GetWorld()->GetTimeSeconds();
 		}
@@ -1090,9 +1148,11 @@ void AIconoclasmCharacter::GroundSlam()
 	FVector CurrentVelocity = GetCharacterMovement()->Velocity;
 	FVector CancelVelocity = FVector(-CurrentVelocity.X, -CurrentVelocity.Y, 0.0f);
 	GetCharacterMovement()->Velocity = CancelVelocity;
+
 	// Perform a slam by launching the character straight down
 	FVector LaunchVelocity = FVector(0.0f, 0.0f, -1.0f) * GroundSlamStrength;
 	LaunchCharacter(LaunchVelocity, true, true);
+
 	// Set up timer to check for ground impact
 	GetWorld()->GetTimerManager().SetTimer(
 		GroundSlamTimerHandle,
@@ -1533,6 +1593,13 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 		// Stop the ground slam timer
 		GetWorld()->GetTimerManager().ClearTimer(GroundSlamTimerHandle);
 
+		// Play ground slam audio
+		if (GroundSlamAudioComponent && GroundSlamSound)
+		{
+			GroundSlamAudioComponent->SetSound(GroundSlamSound);
+			GroundSlamAudioComponent->Play();
+		}
+
 		// Enable slam jump window
 		bCanSlamJump = true;
 		GetWorld()->GetTimerManager().SetTimer(
@@ -1559,7 +1626,6 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 		TArray<FHitResult> HitResults;
 		FVector SphereLocation = GetActorLocation();
 		float SphereRadius = 1000.0f;
-
 		bool bHitSomething = UKismetSystemLibrary::SphereTraceMulti(
 			GetWorld(),
 			SphereLocation,
@@ -1577,18 +1643,15 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 		{
 			//  Track already damaged actors so we don't hit them multiple times
 			TSet<AActor*> DamagedActors;
-
 			for (const FHitResult& HitResult : HitResults)
 			{
 				AActor* HitActor = HitResult.GetActor();
 				if (!HitActor || DamagedActors.Contains(HitActor)) continue;
-
 				DamagedActors.Add(HitActor);
 
 				//  Deal damage
 				float DamageAmount = 50.0f; // tweak this as needed
 				bLastAttackWasSlam = true;
-
 				UGameplayStatics::ApplyDamage(
 					HitActor,
 					DamageAmount,
@@ -1612,7 +1675,6 @@ void AIconoclasmCharacter::CheckGroundSlamImpact()
 					}
 				}
 			}
-
 			// Debug visualization
 			DrawDebugSphere(GetWorld(), SphereLocation, SphereRadius, 12, FColor::Red, false, 1.0f, 0, 1.0f);
 		}

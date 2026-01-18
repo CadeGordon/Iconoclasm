@@ -27,9 +27,8 @@ URevolver_WeaponComponent::URevolver_WeaponComponent()
 
 	WeaponType = EWeaponType::Revolver;
 
-	// Initialize audio component pointer
+	bPlayingChargeLoop = false;
 	ChargeLoopAudioComponent = nullptr;
-	bHasPlayedFullChargeSound = false;
 
 }
 
@@ -194,12 +193,6 @@ void URevolver_WeaponComponent::SwitchFireMode()
 		CurrentWeaponMode = PreviousMode;
 		UE_LOG(LogTemp, Warning, TEXT("Cannot switch to Hellfire mode - it is locked!"));
 		return;
-	}
-
-	// Play mode switch sound
-	if (ModeSwitchSound != nullptr && Character)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, ModeSwitchSound, Character->GetActorLocation());
 	}
 
 	if (RevolverHUD)
@@ -466,6 +459,13 @@ void URevolver_WeaponComponent::PerformHitscan(FVector& ImpactLocation)
 
 void URevolver_WeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Stop any looping audio
+    if (ChargeLoopAudioComponent && ChargeLoopAudioComponent->IsPlaying())
+    {
+        ChargeLoopAudioComponent->Stop();
+        ChargeLoopAudioComponent = nullptr;
+    }
+
 	if (Character == nullptr)
 	{
 		return;
@@ -508,13 +508,6 @@ void URevolver_WeaponComponent::GunslingerMode()
 				UDamageType::StaticClass()
 			);
 		}
-	}
-
-	// Play Gunslinger fire sound (use specific sound or fall back to generic)
-	USoundBase* SoundToPlay = GunslingerFireSound ? GunslingerFireSound : FireSound;
-	if (SoundToPlay != nullptr)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, Character->GetActorLocation());
 	}
 
 	if (FireAnimation != nullptr)
@@ -589,12 +582,7 @@ void URevolver_WeaponComponent::HellfireMode()
 				}
 			}
 
-			// Play Hellfire fire sound
-			USoundBase* SoundToPlay = HellfireFireSound ? HellfireFireSound : FireSound;
-			if (SoundToPlay != nullptr)
-			{
-				UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, Character->GetActorLocation());
-			}
+			
 
 			if (FireAnimation != nullptr)
 			{
@@ -633,11 +621,6 @@ void URevolver_WeaponComponent::AltHellfireMode()
 
 	bCanFireAltHellfire = false; // Set to false to trigger cooldown
 
-	// Play Alt Hellfire sound at the start
-	if (AltHellfireFireSound != nullptr && Character)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, AltHellfireFireSound, Character->GetActorLocation());
-	}
 
 	float BaseDamage = 5000.0f; // Base damage for initial line trace
 	float EnemyHitSplitDamage = 30000.0f; // Damage for each split trace when hitting enemy
@@ -1088,20 +1071,14 @@ void URevolver_WeaponComponent::StartChargingShot()
 	bIsChargingShot = true;
 	ChargeStartTime = GetWorld()->GetTimeSeconds();
 	CurrentChargeLevel = 0.0f;
-	bHasPlayedFullChargeSound = false;
+	bPlayingChargeLoop = false;
 
-	// Play charge start sound
-	if (ChargeStartSound != nullptr && Character)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, ChargeStartSound, Character->GetActorLocation());
-	}
-
-	// Start looping charge sound
-	if (ChargeLoopSound != nullptr && Character)
+	// Play the charge start sound and store the audio component
+	if (ChargeStartSound && Character)
 	{
 		ChargeLoopAudioComponent = UGameplayStatics::SpawnSoundAtLocation(
 			this,
-			ChargeLoopSound,
+			ChargeStartSound,
 			Character->GetActorLocation(),
 			FRotator::ZeroRotator,
 			1.0f,  // Volume
@@ -1109,7 +1086,7 @@ void URevolver_WeaponComponent::StartChargingShot()
 			0.0f,  // Start time
 			nullptr,
 			nullptr,
-			true  // Auto destroy
+			true   // Auto destroy when finished
 		);
 	}
 
@@ -1130,15 +1107,29 @@ void URevolver_WeaponComponent::UpdateCharge()
 		RevolverHUD->UpdateAltFireCooldownProgress(CurrentChargeLevel);
 	}
 
-	// Play full charge sound once when reaching 100%
-	if (CurrentChargeLevel >= 1.0f && !bHasPlayedFullChargeSound)
+	// When reaching full charge, play the looping charge sound
+	if (CurrentChargeLevel >= 1.0f && !bPlayingChargeLoop)
 	{
-		if (ChargeFullSound != nullptr && Character)
-		{
-			UGameplayStatics::PlaySoundAtLocation(this, ChargeFullSound, Character->GetActorLocation());
-		}
-		bHasPlayedFullChargeSound = true;
 		CurrentChargeLevel = 1.0f;
+		bPlayingChargeLoop = true;
+
+		// Play the looping full charge sound
+		if (ChargeFullSound && Character)
+		{
+			ChargeLoopAudioComponent = UGameplayStatics::SpawnSoundAtLocation(
+				this,
+				ChargeFullSound,
+				Character->GetActorLocation(),
+				FRotator::ZeroRotator,
+				1.0f,  // Volume
+				1.0f,  // Pitch
+				0.0f,  // Start time
+				nullptr,
+				nullptr,
+				true   // Auto destroy when finished
+			);
+		}
+
 		GetWorld()->GetTimerManager().ClearTimer(ChargeTimerHandle);
 	}
 }
@@ -1202,21 +1193,34 @@ void URevolver_WeaponComponent::ReleaseChargedShot()
 	if (!bIsChargingShot)
 		return;
 
-	// Stop charging sounds
-	bIsChargingShot = false;
+	// Stop charging timers
 	GetWorld()->GetTimerManager().ClearTimer(ChargeTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(TraceVisualizationHandle);
 
-	// Stop the looping charge sound
-	if (ChargeLoopAudioComponent && ChargeLoopAudioComponent->IsValidLowLevel())
+	// Stop any charging sound (either the initial charge sound or the looping full charge sound)
+	if (ChargeLoopAudioComponent && ChargeLoopAudioComponent->IsPlaying())
 	{
 		ChargeLoopAudioComponent->Stop();
 		ChargeLoopAudioComponent = nullptr;
 	}
 
+	// Stop charging state
+	bIsChargingShot = false;
+	bPlayingChargeLoop = false;
+
 	float DamageMultiplier = GetDamageMultiplier(CurrentChargeLevel);
 	float BaseDamage = 100.0f;
 	float FinalDamage = BaseDamage * DamageMultiplier;
+
+	// Play the charged shot fire sound
+	if (ChargedShotFireSound && Character)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			ChargedShotFireSound,
+			Character->GetActorLocation()
+		);
+	}
 
 	FireChargedShot(FinalDamage);
 
@@ -1355,13 +1359,6 @@ void URevolver_WeaponComponent::FireChargedShot(float DamageAmount)
 
 void URevolver_WeaponComponent::PlayChargedShotEffects(float ChargeLevel)
 {
-	// Play charged shot fire sound (specific sound or fall back to regular fire sound)
-	USoundBase* SoundToPlay = ChargedShotFireSound ? ChargedShotFireSound : FireSound;
-	if (SoundToPlay != nullptr)
-	{
-		float VolumeMultiplier = 1.0f + (ChargeLevel * 0.5f);
-		UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, Character->GetActorLocation(), VolumeMultiplier);
-	}
 
 	if (FireAnimation != nullptr)
 	{
