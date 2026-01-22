@@ -57,10 +57,16 @@ void AEnemySpawner::StartWaveSpawning()
 
     bSpawningActive = true;
     CurrentWaveIndex = 0;
-    SpawnNextWave();
+    ActiveEnemiesCount = 0;
+    bWaitingForWaveClear = false;
+
+    // Clear any existing timers
+    GetWorld()->GetTimerManager().ClearTimer(WaveDelayTimerHandle);
+
+    SpawnCurrentWave();
 }
 
-void AEnemySpawner::SpawnNextWave()
+void AEnemySpawner::SpawnCurrentWave()
 {
     if (!bSpawningActive)
     {
@@ -72,44 +78,84 @@ void AEnemySpawner::SpawnNextWave()
     {
         UE_LOG(LogTemp, Warning, TEXT("All waves completed!"));
         bSpawningActive = false;
-
-        // Unlock doors when all waves are complete
+        bWaitingForWaveClear = false;
         UnlockCompletionDoors();
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Starting wave %d of %d"), CurrentWaveIndex + 1, Waves.Num());
-    SpawnWave(CurrentWaveIndex);
-    CurrentWaveIndex++;
-}
-
-void AEnemySpawner::SpawnWave(int32 WaveIndex)
-{
-    if (!Waves.IsValidIndex(WaveIndex))
+    if (!Waves.IsValidIndex(CurrentWaveIndex))
     {
-        UE_LOG(LogTemp, Error, TEXT("Invalid wave index: %d"), WaveIndex);
+        UE_LOG(LogTemp, Error, TEXT("Invalid wave index: %d"), CurrentWaveIndex);
         return;
     }
 
-    const FEnemyWave& Wave = Waves[WaveIndex];
-    SpawnEnemiesInWave(Wave);
-}
+    UE_LOG(LogTemp, Warning, TEXT("=== SPAWNING WAVE %d of %d ==="), CurrentWaveIndex + 1, Waves.Num());
 
-void AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
-{
+    const FEnemyWave& Wave = Waves[CurrentWaveIndex];
+
+    // Check if wave has enemies
     if (Wave.Enemies.Num() == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Wave has no enemies configured!"));
+        UE_LOG(LogTemp, Warning, TEXT("Wave %d has no enemies configured! Advancing immediately."), CurrentWaveIndex + 1);
+        CurrentWaveIndex++;
 
-        if (bAutoStartNextWave)
+        // Recursively spawn next wave (handles empty waves in sequence)
+        if (CurrentWaveIndex < Waves.Num())
         {
-            GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
-                &AEnemySpawner::SpawnNextWave, Wave.DelayBeforeNextWave, false);
+            SpawnCurrentWave();
+        }
+        else
+        {
+            bSpawningActive = false;
+            UnlockCompletionDoors();
         }
         return;
     }
 
+    // Spawn the enemies
+    int32 SpawnedCount = SpawnEnemiesInWave(Wave);
+
+    UE_LOG(LogTemp, Warning, TEXT("Wave %d spawned %d enemies. Total active: %d"),
+        CurrentWaveIndex + 1, SpawnedCount, ActiveEnemiesCount);
+
+    // Determine how to advance to next wave
+    if (SpawnedCount == 0)
+    {
+        // No enemies spawned, advance immediately
+        UE_LOG(LogTemp, Warning, TEXT("No enemies spawned, advancing immediately"));
+        CurrentWaveIndex++;
+        SpawnCurrentWave();
+    }
+    else if (bRequireWaveClearBeforeNext)
+    {
+        // Wait for all enemies to be killed
+        UE_LOG(LogTemp, Warning, TEXT("Waiting for wave clear before advancing..."));
+        bWaitingForWaveClear = true;
+    }
+    else if (bAutoStartNextWave)
+    {
+        // Use delay or spawn immediately
+        CurrentWaveIndex++;
+
+        if (Wave.DelayBeforeNextWave > 0.0f)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Starting next wave after %.1f second delay"), Wave.DelayBeforeNextWave);
+            GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
+                &AEnemySpawner::SpawnCurrentWave, Wave.DelayBeforeNextWave, false);
+        }
+        else
+        {
+            // Instant spawn - no delay needed
+            UE_LOG(LogTemp, Warning, TEXT("Instantly spawning next wave"));
+            SpawnCurrentWave();
+        }
+    }
+}
+
+int32 AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
+{
     int32 WaveSpawnedCount = 0;
+    int32 WaveExpectedCount = 0;
 
     for (const FEnemySpawnInfo& SpawnInfo : Wave.Enemies)
     {
@@ -124,6 +170,8 @@ void AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
             UE_LOG(LogTemp, Error, TEXT("Spawn point not set or invalid!"));
             continue;
         }
+
+        WaveExpectedCount += SpawnInfo.Count;
 
         FVector SpawnLocation = SpawnInfo.SpawnPoint->GetActorLocation();
         FRotator SpawnRotation = SpawnInfo.SpawnPoint->GetActorRotation();
@@ -152,21 +200,38 @@ void AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
             {
                 WaveSpawnedCount++;
                 ActiveEnemiesCount++;
-                UE_LOG(LogTemp, Warning, TEXT("Spawned: %s"), *SpawnedEnemy->GetName());
+
+                UE_LOG(LogTemp, Log, TEXT("Spawned: %s at location %s"),
+                    *SpawnedEnemy->GetName(), *FinalLocation.ToString());
 
                 // Bind to health component's death event
-                if (UHealthComponent* HealthComp = SpawnedEnemy->FindComponentByClass<UHealthComponent>())
+                UHealthComponent* HealthComp = SpawnedEnemy->FindComponentByClass<UHealthComponent>();
+                if (HealthComp)
                 {
-                    HealthComp->OnDeath.AddDynamic(this, &AEnemySpawner::OnEnemyDestroyed);
-                    UE_LOG(LogTemp, Log, TEXT("Bound to health component death event"));
+                    // Make sure we're not already bound
+                    if (!HealthComp->OnDeath.IsAlreadyBound(this, &AEnemySpawner::OnEnemyDestroyed))
+                    {
+                        HealthComp->OnDeath.AddDynamic(this, &AEnemySpawner::OnEnemyDestroyed);
+                    }
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("ERROR: Spawned enemy %s has NO HealthComponent! Wave tracking will break!"),
+                        *SpawnedEnemy->GetName());
+                    // Decrement since we can't track this enemy's death
+                    ActiveEnemiesCount--;
+                    WaveSpawnedCount--;
                 }
             }
             else
             {
-                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy!"));
+                UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy at location %s!"), *FinalLocation.ToString());
             }
         }
     }
+
+    UE_LOG(LogTemp, Warning, TEXT("Spawn summary: %d/%d enemies spawned successfully"),
+        WaveSpawnedCount, WaveExpectedCount);
 
     // Notify music manager
     if (WaveSpawnedCount > 0)
@@ -175,61 +240,79 @@ void AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
         if (MusicManager)
         {
             MusicManager->RegisterEnemies(WaveSpawnedCount);
-            UE_LOG(LogTemp, Warning, TEXT("Registered %d enemies with music manager"), WaveSpawnedCount);
         }
     }
 
-    // Handle next wave spawning
-    if (bAutoStartNextWave)
-    {
-        if (bRequireWaveClearBeforeNext)
-        {
-            // Check wave completion will handle starting next wave
-            UE_LOG(LogTemp, Warning, TEXT("Waiting for wave clear before next wave..."));
-        }
-        else
-        {
-            // Start next wave after delay
-            GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
-                &AEnemySpawner::SpawnNextWave, Wave.DelayBeforeNextWave, false);
-        }
-    }
+    return WaveSpawnedCount;
 }
 
 void AEnemySpawner::OnEnemyDestroyed()
 {
-    ActiveEnemiesCount--;
-    UE_LOG(LogTemp, Warning, TEXT("Enemy destroyed. Remaining: %d"), ActiveEnemiesCount);
+    ActiveEnemiesCount = FMath::Max(0, ActiveEnemiesCount - 1);
 
-    CheckWaveCompletion();
+    UE_LOG(LogTemp, Warning, TEXT("Enemy destroyed. Active count: %d, WaitingForClear: %s"),
+        ActiveEnemiesCount, bWaitingForWaveClear ? TEXT("YES") : TEXT("NO"));
+
+    // Only check wave completion if we're waiting for it
+    if (bWaitingForWaveClear)
+    {
+        CheckWaveCompletion();
+    }
 }
 
 void AEnemySpawner::CheckWaveCompletion()
 {
-    UE_LOG(LogTemp, Warning, TEXT("CheckWaveCompletion - Active enemies: %d, bSpawningActive: %s, CurrentWaveIndex: %d/%d"),
-        ActiveEnemiesCount, bSpawningActive ? TEXT("true") : TEXT("false"), CurrentWaveIndex, Waves.Num());
-
-    if (ActiveEnemiesCount <= 0 && bSpawningActive && bRequireWaveClearBeforeNext)
+    // Only proceed if we're actively waiting for wave clear
+    if (!bWaitingForWaveClear || !bSpawningActive)
     {
-        // Check if there are more waves to spawn
+        return;
+    }
+
+    // Wave is complete when all enemies are dead
+    if (ActiveEnemiesCount <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== WAVE %d CLEARED ==="), CurrentWaveIndex + 1);
+
+        bWaitingForWaveClear = false;
+
+        // Get the current wave's delay before advancing
+        float Delay = 0.0f;
+        if (Waves.IsValidIndex(CurrentWaveIndex))
+        {
+            Delay = Waves[CurrentWaveIndex].DelayBeforeNextWave;
+        }
+
+        // Advance to next wave
+        CurrentWaveIndex++;
+
+        // Check if there are more waves
         if (CurrentWaveIndex < Waves.Num())
         {
-            UE_LOG(LogTemp, Warning, TEXT("Wave cleared! Starting next wave (wave %d)..."), CurrentWaveIndex + 1);
-
-            if (Waves.IsValidIndex(CurrentWaveIndex - 1))
+            if (bAutoStartNextWave)
             {
-                float Delay = Waves[CurrentWaveIndex - 1].DelayBeforeNextWave;
-                GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
-                    &AEnemySpawner::SpawnNextWave, Delay, false);
+                if (Delay > 0.0f)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Next wave in %.1f seconds..."), Delay);
+                    GetWorld()->GetTimerManager().SetTimer(WaveDelayTimerHandle, this,
+                        &AEnemySpawner::SpawnCurrentWave, Delay, false);
+                }
+                else
+                {
+                    // Instant spawn - no delay
+                    UE_LOG(LogTemp, Warning, TEXT("Instantly spawning next wave"));
+                    SpawnCurrentWave();
+                }
             }
             else
             {
-                SpawnNextWave();
+                UE_LOG(LogTemp, Warning, TEXT("Wave cleared but auto-start disabled"));
+                bSpawningActive = false;
             }
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("All waves completed after final wave clear!"));
+            // All waves complete
+            UE_LOG(LogTemp, Warning, TEXT("=== ALL WAVES COMPLETE ==="));
             bSpawningActive = false;
             UnlockCompletionDoors();
         }
@@ -242,6 +325,7 @@ void AEnemySpawner::ResetSpawner()
     CurrentWaveIndex = 0;
     ActiveEnemiesCount = 0;
     bSpawningActive = false;
+    bWaitingForWaveClear = false;
     GetWorld()->GetTimerManager().ClearTimer(WaveDelayTimerHandle);
     UE_LOG(LogTemp, Warning, TEXT("Enemy spawner reset."));
 }
@@ -254,7 +338,7 @@ void AEnemySpawner::UnlockCompletionDoors()
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Unlocking %d doors after wave completion!"), DoorsToUnlockOnCompletion.Num());
+    UE_LOG(LogTemp, Warning, TEXT("Unlocking %d doors after completion!"), DoorsToUnlockOnCompletion.Num());
 
     for (ASlidingDoor* Door : DoorsToUnlockOnCompletion)
     {

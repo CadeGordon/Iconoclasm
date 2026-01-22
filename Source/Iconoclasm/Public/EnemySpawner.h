@@ -78,10 +78,10 @@ public:
     void StartWaveSpawning();
 
     UFUNCTION(BlueprintCallable, Category = "Wave System")
-    void SpawnNextWave();
+    void SpawnCurrentWave();
 
-    UFUNCTION(BlueprintCallable, Category = "Wave System")
-    void SpawnWave(int32 WaveIndex);
+   // UFUNCTION(BlueprintCallable, Category = "Wave System")
+    //void SpawnWave(int32 WaveIndex);
 
     UFUNCTION(BlueprintCallable, Category = "Wave System")
     void ResetSpawner();
@@ -95,7 +95,9 @@ private:
     bool bSpawningActive = false;
     FTimerHandle WaveDelayTimerHandle;
 
-    void SpawnEnemiesInWave(const FEnemyWave& Wave);
+    bool bWaitingForWaveClear = false;
+
+    int32 SpawnEnemiesInWave(const FEnemyWave& Wave);
     void CheckWaveCompletion();
     void UnlockCompletionDoors();
 
