@@ -45,6 +45,13 @@ void AEnemySpawner::OnTriggerEnter(UPrimitiveComponent* OverlappedComp, AActor* 
 void AEnemySpawner::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    // Debug: periodically validate enemy count
+    if (bSpawningActive && GetWorld()->GetTimeSeconds() - LastValidationTime > 2.0f)
+    {
+        LastValidationTime = GetWorld()->GetTimeSeconds();
+        ValidateEnemyCount();
+    }
 }
 
 void AEnemySpawner::StartWaveSpawning()
@@ -60,9 +67,13 @@ void AEnemySpawner::StartWaveSpawning()
     ActiveEnemiesCount = 0;
     bWaitingForWaveClear = false;
 
+    // Clear tracking arrays
+    TrackedEnemies.Empty();
+
     // Clear any existing timers
     GetWorld()->GetTimerManager().ClearTimer(WaveDelayTimerHandle);
 
+    UE_LOG(LogTemp, Warning, TEXT("=== SPAWNER STARTED ==="));
     SpawnCurrentWave();
 }
 
@@ -79,6 +90,7 @@ void AEnemySpawner::SpawnCurrentWave()
         UE_LOG(LogTemp, Warning, TEXT("All waves completed!"));
         bSpawningActive = false;
         bWaitingForWaveClear = false;
+        CleanupAllEnemies();
         UnlockCompletionDoors();
         return;
     }
@@ -115,8 +127,8 @@ void AEnemySpawner::SpawnCurrentWave()
     // Spawn the enemies
     int32 SpawnedCount = SpawnEnemiesInWave(Wave);
 
-    UE_LOG(LogTemp, Warning, TEXT("Wave %d spawned %d enemies. Total active: %d"),
-        CurrentWaveIndex + 1, SpawnedCount, ActiveEnemiesCount);
+    UE_LOG(LogTemp, Warning, TEXT("Wave %d spawned %d enemies. Total active: %d, Tracked: %d"),
+        CurrentWaveIndex + 1, SpawnedCount, ActiveEnemiesCount, TrackedEnemies.Num());
 
     // Determine how to advance to next wave
     if (SpawnedCount == 0)
@@ -198,29 +210,37 @@ int32 AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
 
             if (IsValid(SpawnedEnemy))
             {
-                WaveSpawnedCount++;
-                ActiveEnemiesCount++;
-
-                UE_LOG(LogTemp, Log, TEXT("Spawned: %s at location %s"),
-                    *SpawnedEnemy->GetName(), *FinalLocation.ToString());
-
-                // Bind to health component's death event
+                // Find and bind to health component
                 UHealthComponent* HealthComp = SpawnedEnemy->FindComponentByClass<UHealthComponent>();
                 if (HealthComp)
                 {
-                    // Make sure we're not already bound
+                    // Check if already dead (shouldn't happen but let's be safe)
+                    if (HealthComp->IsDead())
+                    {
+                        UE_LOG(LogTemp, Error, TEXT("Enemy spawned already dead: %s"), *SpawnedEnemy->GetName());
+                        SpawnedEnemy->Destroy();
+                        continue;
+                    }
+
+                    // Bind to death event - use lambda to capture enemy reference
                     if (!HealthComp->OnDeath.IsAlreadyBound(this, &AEnemySpawner::OnEnemyDestroyed))
                     {
                         HealthComp->OnDeath.AddDynamic(this, &AEnemySpawner::OnEnemyDestroyed);
                     }
+
+                    // Track this enemy
+                    TrackedEnemies.Add(SpawnedEnemy);
+                    WaveSpawnedCount++;
+                    ActiveEnemiesCount++;
+
+                    UE_LOG(LogTemp, Log, TEXT("Spawned and tracking: %s (Total tracked: %d)"),
+                        *SpawnedEnemy->GetName(), TrackedEnemies.Num());
                 }
                 else
                 {
-                    UE_LOG(LogTemp, Error, TEXT("ERROR: Spawned enemy %s has NO HealthComponent! Wave tracking will break!"),
+                    UE_LOG(LogTemp, Error, TEXT("ERROR: Enemy %s has NO HealthComponent! Destroying it."),
                         *SpawnedEnemy->GetName());
-                    // Decrement since we can't track this enemy's death
-                    ActiveEnemiesCount--;
-                    WaveSpawnedCount--;
+                    SpawnedEnemy->Destroy();
                 }
             }
             else
@@ -230,7 +250,7 @@ int32 AEnemySpawner::SpawnEnemiesInWave(const FEnemyWave& Wave)
         }
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Spawn summary: %d/%d enemies spawned successfully"),
+    UE_LOG(LogTemp, Warning, TEXT("Spawn summary: %d/%d enemies spawned and tracked successfully"),
         WaveSpawnedCount, WaveExpectedCount);
 
     // Notify music manager
@@ -250,8 +270,11 @@ void AEnemySpawner::OnEnemyDestroyed()
 {
     ActiveEnemiesCount = FMath::Max(0, ActiveEnemiesCount - 1);
 
-    UE_LOG(LogTemp, Warning, TEXT("Enemy destroyed. Active count: %d, WaitingForClear: %s"),
-        ActiveEnemiesCount, bWaitingForWaveClear ? TEXT("YES") : TEXT("NO"));
+    UE_LOG(LogTemp, Warning, TEXT("Enemy destroyed. Active count: %d, Tracked: %d, WaitingForClear: %s"),
+        ActiveEnemiesCount, TrackedEnemies.Num(), bWaitingForWaveClear ? TEXT("YES") : TEXT("NO"));
+
+    // Clean up null/invalid entries from tracked array
+    CleanupTrackedEnemies();
 
     // Only check wave completion if we're waiting for it
     if (bWaitingForWaveClear)
@@ -268,12 +291,18 @@ void AEnemySpawner::CheckWaveCompletion()
         return;
     }
 
+    // Validate the count before checking completion
+    ValidateEnemyCount();
+
     // Wave is complete when all enemies are dead
     if (ActiveEnemiesCount <= 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("=== WAVE %d CLEARED ==="), CurrentWaveIndex + 1);
 
         bWaitingForWaveClear = false;
+
+        // Clean up any remaining tracked enemies (they should all be dead/destroyed)
+        CleanupTrackedEnemies();
 
         // Get the current wave's delay before advancing
         float Delay = 0.0f;
@@ -314,9 +343,81 @@ void AEnemySpawner::CheckWaveCompletion()
             // All waves complete
             UE_LOG(LogTemp, Warning, TEXT("=== ALL WAVES COMPLETE ==="));
             bSpawningActive = false;
+            CleanupAllEnemies();
             UnlockCompletionDoors();
         }
     }
+}
+
+void AEnemySpawner::ValidateEnemyCount()
+{
+    // Remove invalid entries
+    CleanupTrackedEnemies();
+
+    // Count how many enemies are actually alive
+    int32 ActualAliveCount = 0;
+    for (AActor* Enemy : TrackedEnemies)
+    {
+        if (IsValid(Enemy))
+        {
+            UHealthComponent* HealthComp = Enemy->FindComponentByClass<UHealthComponent>();
+            if (HealthComp && !HealthComp->IsDead())
+            {
+                ActualAliveCount++;
+            }
+        }
+    }
+
+    // If counts don't match, fix it
+    if (ActualAliveCount != ActiveEnemiesCount)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ENEMY COUNT MISMATCH! Tracked alive: %d, ActiveCount: %d. Correcting..."),
+            ActualAliveCount, ActiveEnemiesCount);
+
+        ActiveEnemiesCount = ActualAliveCount;
+
+        // If we're waiting for clear and count is now 0, trigger completion
+        if (bWaitingForWaveClear && ActiveEnemiesCount == 0)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Count corrected to 0 - triggering wave completion"));
+            CheckWaveCompletion();
+        }
+    }
+}
+
+void AEnemySpawner::CleanupTrackedEnemies()
+{
+    // Remove null or destroyed entries from tracking array
+    int32 RemovedCount = TrackedEnemies.RemoveAll([](const AActor* Enemy)
+        {
+            return !IsValid(Enemy);
+        });
+
+    if (RemovedCount > 0)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Removed %d invalid enemies from tracking. Remaining: %d"),
+            RemovedCount, TrackedEnemies.Num());
+    }
+}
+
+void AEnemySpawner::CleanupAllEnemies()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Cleaning up all tracked enemies..."));
+
+    // Destroy any remaining enemies (shouldn't happen in normal play)
+    for (AActor* Enemy : TrackedEnemies)
+    {
+        if (IsValid(Enemy))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Force destroying enemy: %s"), *Enemy->GetName());
+            Enemy->Destroy();
+        }
+    }
+
+    TrackedEnemies.Empty();
+    ActiveEnemiesCount = 0;
+
+    UE_LOG(LogTemp, Warning, TEXT("All enemies cleaned up."));
 }
 
 void AEnemySpawner::ResetSpawner()
@@ -327,6 +428,9 @@ void AEnemySpawner::ResetSpawner()
     bSpawningActive = false;
     bWaitingForWaveClear = false;
     GetWorld()->GetTimerManager().ClearTimer(WaveDelayTimerHandle);
+
+    CleanupAllEnemies();
+
     UE_LOG(LogTemp, Warning, TEXT("Enemy spawner reset."));
 }
 

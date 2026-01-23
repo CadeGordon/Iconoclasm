@@ -97,6 +97,15 @@ private:
 
     bool bWaitingForWaveClear = false;
 
+    // Add these new member variables:
+    TArray<AActor*> TrackedEnemies;
+    float LastValidationTime = 0.0f;
+
+    // Add these new functions:
+    void ValidateEnemyCount();
+    void CleanupTrackedEnemies();
+    void CleanupAllEnemies();
+
     int32 SpawnEnemiesInWave(const FEnemyWave& Wave);
     void CheckWaveCompletion();
     void UnlockCompletionDoors();
