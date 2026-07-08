@@ -28,6 +28,7 @@ AGruntEnemyCharacter::AGruntEnemyCharacter()
 	{
 		GetCharacterMovement()->JumpZVelocity = 600.0f;
 		GetCharacterMovement()->AirControl = 0.5f;
+		GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f); // snappier turns
 	}
 
 }
@@ -64,7 +65,7 @@ void AGruntEnemyCharacter::Tick(float DeltaTime)
 	if (!DirectionToPlayer.IsNearlyZero())
 	{
 		FRotator TargetRotation = DirectionToPlayer.Rotation();
-		FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 5.0f); // 5.0f = rotation speed
+		FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 8.0f); // 8.0f = rotation speed
 		SetActorRotation(NewRotation);
 	}
 

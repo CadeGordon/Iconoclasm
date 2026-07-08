@@ -550,6 +550,13 @@ void UGrappleComponent::ApplyEnemyGrapplePhysics(float DeltaTime)
 	{
 		if (UCharacterMovementComponent* EnemyMovement = EnemyCharacter->GetCharacterMovement())
 		{
+			// NEW: force airborne so Launch() actually sticks instead of
+			// being cancelled by ground friction every tick
+			if (EnemyMovement->MovementMode != MOVE_Falling)
+			{
+				EnemyMovement->SetMovementMode(MOVE_Falling);
+			}
+
 			EnemyMovement->Launch(PullForce);
 		}
 	}

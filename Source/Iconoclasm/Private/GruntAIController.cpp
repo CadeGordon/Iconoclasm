@@ -26,53 +26,45 @@ AGruntAIController::AGruntAIController()
     PrimaryActorTick.bCanEverTick = true;
 
     bCanAttack = true;
-    AttackCooldown = 1.5f; // Faster base attack
+    AttackCooldown = 0.9f; // was 1.5f — much faster follow-up hits
 
     bCanJump = true;
-    JumpCooldown = 2.5f; // Jump more often
+    JumpCooldown = 1.8f; // was 2.5f
 
-    // Lunge system - more aggressive
+    // Lunge system - near-constant pressure
     bCanLunge = true;
-    LungeCooldown = FMath::RandRange(2.5f, 4.5f); // Lunge more frequently
-    LungeChance = FMath::RandRange(0.6f, 0.9f); // Much higher lunge chance
+    LungeCooldown = FMath::RandRange(1.5f, 2.5f); // was 2.5–4.5
+    LungeChance = FMath::RandRange(0.75f, 1.0f); // was 0.6–0.9
     NextLungeCheckTime = 0.0f;
 
-    // Circle strafe - less common, more aggressive
     bIsCircling = false;
     CircleDirection = FMath::RandBool() ? 1.0f : -1.0f;
     CircleDuration = 0.0f;
     CircleTimer = 0.0f;
 
-    // Dodge - much less frequent, only when necessary
     bCanDodge = true;
-    DodgeCooldown = 5.0f; // Longer cooldown
-    LastPlayerForward = FVector::ZeroVector;
+    DodgeCooldown = 3.5f; // was 5.0f — dodges more, harder to punish
 
-    // Feint - rare, only for alphas
     bCanFeint = true;
-    FeintCooldown = FMath::RandRange(12.0f, 18.0f); // Much less frequent
+    FeintCooldown = FMath::RandRange(6.0f, 10.0f); // was 12–18 — alphas feint way more
 
-    // Retreat - very rare
     bIsRetreating = false;
     RetreatTimer = 0.0f;
 
-    // Flanking - but always pressing forward
     MyFlankAngle = FMath::RandRange(0.0f, 360.0f);
-    FlankDistance = FMath::RandRange(150.0f, 250.0f); // Stay closer
-    RepositionTimer = 0.0f;
+    FlankDistance = FMath::RandRange(120.0f, 200.0f); // was 150–250 — tighter swarm radius
 
-    // Personality traits - overall more aggressive
-    Aggression = FMath::RandRange(0.7f, 1.0f); // High base aggression
-    Caution = FMath::RandRange(0.1f, 0.3f); // Low caution
-    bIsAlpha = FMath::RandRange(0.0f, 1.0f) < 0.2f; // 20% chance to be alpha
+    Aggression = FMath::RandRange(0.85f, 1.0f); // was 0.7–1.0
+    Caution = FMath::RandRange(0.0f, 0.15f); // was 0.1–0.3
+    bIsAlpha = FMath::RandRange(0.0f, 1.0f) < 0.25f; // was 0.2 — more alphas
 
-    // Alpha grunts are extremely aggressive
     if (bIsAlpha)
     {
         Aggression = 1.0f;
-        LungeChance = FMath::RandRange(0.8f, 1.0f);
-        AttackCooldown = 1.0f;
-        Caution = 0.0f; // Fearless
+        LungeChance = 1.0f;
+        AttackCooldown = 0.7f;
+        Caution = 0.0f;
+        FlankDistance *= 0.8f; // alphas crowd in even tighter
     }
 
     SetPerceptionComponent(*CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("PerceptionComp")));
@@ -119,12 +111,11 @@ void AGruntAIController::Tick(float DeltaTime)
         CheckPackBehavior();
         TryLungeAtPlayer(); // Check lunge first - highest priority
 
-        // Only try defensive moves rarely
-        if (FMath::FRand() < 0.3f) // 30% chance per frame to even consider
+        if (bIsAlpha || FMath::FRand() < 0.6f)
         {
             TryCircleStrafe();
             TryDodge();
-            if (bIsAlpha) TryFeint(); // Only alphas feint
+            if (bIsAlpha) TryFeint();
         }
 
         CheckRetreat(); // Still check, but very rare
@@ -532,6 +523,7 @@ void AGruntAIController::AttackPlayer()
         if (GruntPawn)
         {
             DamageAmount = GruntPawn->DamageAmount;
+            if (bIsAlpha) DamageAmount *= 1.5f;
         }
 
         UGameplayStatics::ApplyDamage(
@@ -672,7 +664,36 @@ void AGruntAIController::ResetFeint()
 
 void AGruntAIController::CheckPackBehavior()
 {
-    // Pack behavior check - implementation for coordination
+    if (!PlayerPawn || !GetPawn()) return;
+
+    // Find nearby allies and occasionally sync a lunge burst
+    TArray<AActor*> AllEnemies;
+    UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), AllEnemies);
+
+    int32 NearbyCount = GetNearbyAlliesCount(400.0f);
+
+    // If a pack has formed, increase this grunt's lunge urgency temporarily
+    if (NearbyCount >= 2 && bCanLunge && NextLungeCheckTime > 0.3f)
+    {
+        // Shrink the wait so pack members pile pressure on faster
+        NextLungeCheckTime = FMath::Min(NextLungeCheckTime, 0.3f);
+    }
+
+    // Alphas rally nearby grunts by briefly boosting their aggression window
+    if (bIsAlpha && NearbyCount >= 1)
+    {
+        for (AActor* Enemy : AllEnemies)
+        {
+            AGruntEnemyCharacter* Ally = Cast<AGruntEnemyCharacter>(Enemy);
+            if (!Ally || Enemy == GetPawn()) continue;
+
+            AGruntAIController* AllyController = Cast<AGruntAIController>(Ally->GetController());
+            if (AllyController && !AllyController->bIsAlpha)
+            {
+                AllyController->NextLungeCheckTime = FMath::Min(AllyController->NextLungeCheckTime, 0.4f);
+            }
+        }
+    }
 }
 
 bool AGruntAIController::ShouldHangBack()
